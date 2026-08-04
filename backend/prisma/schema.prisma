@@ -1,0 +1,99 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  FARMACEUTICO
+  ALUNO
+}
+
+model User {
+  id          Int          @id @default(autoincrement())
+  name        String
+  email       String       @unique
+  password    String
+  role        Role         @default(ALUNO)
+  registerDoc String?      @unique
+  phone       String?
+  active      Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+
+  withdrawals Withdrawal[]
+  disposals   Disposal[]
+}
+
+model Patient {
+  id        Int          @id @default(autoincrement())
+  name      String
+  cpf       String       @unique
+  phone     String?
+  birthDate DateTime?
+  address   String?
+  createdAt DateTime     @default(now())
+
+  withdrawals Withdrawal[]
+}
+
+model Medicine {
+  id               Int          @id @default(autoincrement())
+  name             String
+  activeIngredient String?
+  dosage           String?
+  accessibleDesc   String?
+  createdAt        DateTime     @default(now())
+
+  batches          StockBatch[]
+}
+
+model StockBatch {
+  id              Int              @id @default(autoincrement())
+  medicineId      Int
+  batchNumber     String
+  currentQuantity Int              @default(0)
+  expirationDate  DateTime
+  receivedAt      DateTime         @default(now())
+
+  medicine        Medicine         @relation(fields: [medicineId], references: [id])
+  withdrawalItems WithdrawalItem[]
+  disposals       Disposal[]
+}
+
+model Withdrawal {
+  id        Int              @id @default(autoincrement())
+  patientId Int
+  userId    Int
+  date      DateTime         @default(now())
+  notes     String?
+
+  patient   Patient          @relation(fields: [patientId], references: [id])
+  user      User             @relation(fields: [userId], references: [id])
+  items     WithdrawalItem[]
+}
+
+model WithdrawalItem {
+  id           Int        @id @default(autoincrement())
+  withdrawalId Int
+  batchId      Int
+  quantity     Int
+
+  withdrawal   Withdrawal @relation(fields: [withdrawalId], references: [id])
+  batch        StockBatch @relation(fields: [batchId], references: [id])
+}
+
+model Disposal {
+  id        Int        @id @default(autoincrement())
+  batchId   Int
+  userId    Int
+  quantity  Int
+  reason    String?
+  date      DateTime   @default(now())
+
+  batch     StockBatch @relation(fields: [batchId], references: [id])
+  user      User       @relation(fields: [userId], references: [id])
+}

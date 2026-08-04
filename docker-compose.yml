@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  database:
+    image: mysql:8.0
+    container_name: farmacia_escola_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: farmacia_escola
+      MYSQL_USER: farmaceutico
+      MYSQL_PASSWORD: farmapassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  db_manager:
+    image: adminer
+    container_name: farmacia_escola_adminer
+    restart: always
+    ports:
+      - "8080:8080"
+    depends_on:
+      - database
+
+volumes:
+  mysql_data:

@@ -1,31 +1,149 @@
-# Farmácia Escola
+# Farmácia Escola — Sistema de Gestão Farmacêutica
 
-Sistema de gestão para farmácias universitárias: controle de estoque, retiradas por pacientes, descartes de medicamentos e agendamentos farmacêuticos.
+Sistema de gestão para farmácias universitárias desenvolvido como Trabalho de Conclusão de Curso (TCC). O projeto centraliza o controle de estoque, retiradas por pacientes, descartes de medicamentos e agendamentos farmacêuticos em uma única plataforma.
 
-## Stack
+## Problema Tratado
 
-- React 18
-- Tailwind CSS v4
-- TypeScript 5.6
-- Vite 5
-- Lucide React (ícones)
-- Radix UI (componentes acessíveis)
+O atendimento e o gerenciamento dos serviços da Farmácia Escola são realizados de forma analógica e descentralizada, sem o suporte de um meio oficial online para interagir com a comunidade. Isso resulta em:
+
+- **Inacessibilidade à informação** — pacientes não conseguem consultar a disponibilidade de medicamentos antes de se deslocar até a unidade
+- **Ineficiência logística** — faltas em consultas variam entre 22% e 30%, gerando filas e desperdício de recursos
+- **Desinformação em saúde** — mais de 90% dos brasileiros buscam informações de saúde na internet, mas encontram linguagem técnica inacessível
+
+## Design Thinking
+
+### Imersão
+- **Desk Research**: Mapeamento de farmácias universitárias (USP, UFMG) revelou fragmentação da informação e falta de agendamento digital
+- **Persona**: Maria do Carmo, 67 anos, aposentada com mobilidade reduzida que precisa retirar medicamentos mensais e agendar consultas
+- **Mapa de Empatia**: Dor principal é a incerteza sobre disponibilidade de medicamentos antes do deslocamento
+
+### Ideação
+Brainstorming classificou funcionalidades em MVP, Backlog e Descartadas:
+
+| Ideia | Status |
+|---|---|
+| Visualização de Estoque | MVP |
+| Agendamento Online | MVP |
+| Descrição Acessível do Medicamento | MVP |
+| Painel Administrativo | MVP |
+| Lista de "Meus Medicamentos" | MVP |
+| Confirmação via WhatsApp | Backlog |
+| Alerta de Validade Próxima | Backlog |
+| Dashboard de Impacto Social | Backlog |
+| Aplicativo Nativo | Descartada |
+
+### Prototipação
+Protótipos desenvolvidos no Figma para validação das telas principais: Login, Buscar Remédios, Estoque, Agendar Consulta e Visão Geral de Agendamentos.
+
+## Lean Canvas
+
+| Problema | Solução | Proposta Única de Valor |
+|---|---|---|
+| Inacessibilidade à informação em tempo real | Consulta de Estoque online | Vínculo institucional com a universidade |
+| Ineficiência logística no agendamento | Agendamento Inteligente com confirmação | Confiança da comunidade |
+| Desinformação sobre medicamentos | Descrição Acessível com linguagem simples | Assistência gratuita e educativa |
+
+**Segmento de Clientes**: Pacientes do sistema público, pessoas com doenças crônicas e mobilidade reduzida
+
+**Canais**: Portal oficial do Centro Universitário Integrado, redes sociais, cartazes com QR Code na unidade
+
+**Métricas Chave**: Acessos ao estoque, consultas agendadas, redução de faltas
+
+**Estrutura de Custos**: Hospedagem, manutenção, desenvolvimento e capacitação
+
+**Fluxos de Receita**: Editais de fomento, investimento institucional, redução de custos operacionais
+
+## Startup
+
+**Nome**: Farmácia Escola
+
+**Missão**: Promover o acesso à informação em saúde e aos serviços farmacêuticos por meio de soluções digitais acessíveis, contribuindo para o bem-estar da comunidade e para a formação acadêmica de qualidade.
+
+**Visão**: Ser referência regional em inovação tecnológica aplicada à assistência farmacêutica universitária, funcionando como intersecção entre comunidade, saúde e educação.
+
+**Valores**: Compromisso social, acessibilidade, ética, inovação, educação e humanização.
+
+**Área de Atuação**: Tecnologia aplicada à saúde e educação, com foco em soluções digitais para assistência farmacêutica universitária.
 
 ## Funcionalidades
 
 - Catálogo de medicamentos com busca e filtro por categoria
-- Gestão de lotes com controle de validade e quantidade
+- Gestão de lotes com controle de quantidade e validade
+- Alertas automáticos de estoque baixo e lotes próximos ao vencimento
 - Registro de retiradas por paciente com baixa automática no estoque
-- Registro de descartes com motivo e rastreabilidade por lote
-- Alertas de estoque baixo e lotes próximos ao vencimento
-- Agenda de atendimentos farmacêuticos (quadro por status)
-- Calendário de atendimentos com visão semanal
+- Registro de descartes com motivo e rastreabilidade por lote e responsável
+- Agenda de atendimentos farmacêuticos com calendário semanal
 - Dashboard com indicadores de estoque e atividade recente
-- Layout responsivo com sidebar fixa
+- Controle de acesso por perfil (ADMIN / FARMACEUTICO / ALUNO)
+- Fallback com dados locais quando a API estiver indisponível
 
-## Como executar
+## Tecnologias
+
+### Backend
+
+| Tecnologia | Função |
+|---|---|
+| Node.js 22 + Express 5 | Servidor HTTP |
+| TypeScript 7 | Linguagem principal |
+| MySQL 8 | Banco de dados relacional |
+| Prisma 5 | ORM e migrations |
+| jsonwebtoken 9 | Autenticação JWT |
+| bcryptjs 3 | Hash de senhas |
+| zod 4 | Validação de dados |
+| Docker / Docker Compose | Containerização da infraestrutura |
 
 ### Frontend
+
+| Tecnologia | Função |
+|---|---|
+| React 18 | Biblioteca de UI |
+| TypeScript 5.6 | Tipagem estática |
+| Vite 5 | Build tool |
+| Tailwind CSS v4 | Estilização |
+| Radix UI | Componentes acessíveis |
+| React Hook Form + Zod | Formulários e validação |
+| Axios | Cliente HTTP |
+| TanStack Query 5 | Cache e estado de servidor |
+| date-fns | Manipulação de datas |
+| Lucide React | Ícones |
+
+## Estrutura do Repositório
+
+```
+farmacia-escola/
+  backend/             API REST (Node.js + Express + Prisma)
+  frontend/            SPA (React + Vite)
+  docker-compose.yml   MySQL 8 + Adminer
+```
+
+## Como Executar
+
+### Pré-requisitos
+
+- Docker e Docker Compose instalados
+- Node.js 22+
+
+### 1. Suba a infraestrutura
+
+```bash
+docker compose up -d
+```
+
+Inicia MySQL 8 na porta `3306` e Adminer na porta `8080`.
+
+### 2. Backend
+
+```bash
+cd backend
+npm install
+npx prisma migrate dev
+npm run seed
+npm run dev
+```
+
+API disponível em `http://localhost:3001`.
+
+### 3. Frontend
 
 ```bash
 cd frontend
@@ -34,159 +152,6 @@ npm run dev
 ```
 
 Acesse `http://localhost:5173`.
-
-### Backend
-
-```bash
-cd backend
-npm install
-npm run dev
-```
-
-A API estará disponível em `http://localhost:3001`.
-
-## Scripts
-
-| Comando | Descrição |
-|---------|-----------|
-| `npm run dev` | Iniciar servidor de desenvolvimento |
-| `npm run build` | Build de produção |
-| `npm run seed` | Popular banco com usuário admin padrão |
-
-## Estrutura do projeto
-
-```
-src/
-  components/         Componentes reutilizáveis
-    Header/
-    Sidebar/
-    Modal/
-    StatusBadge/
-
-  pages/              Componentes de cada rota
-    Home/             Dashboard com indicadores
-    Inventory/        Catálogo e busca de medicamentos
-    StockManagement/  Entrada e gestão de lotes
-    Withdrawals/      Retiradas de medicamentos por paciente
-    Disposals/        Registro de descartes
-    Appointments/     Quadro de atendimentos farmacêuticos
-    AppointmentsOverview/ Calendário semanal de atendimentos
-
-  lib/                Dados e utilitários
-    api.ts            Cliente HTTP (axios)
-    types.ts          Interfaces e tipos globais
-    utils.ts          Funções utilitárias
-    PharmacyContext.tsx Estado global da aplicação
-```
-
-## Rotas
-
-| Caminho (tab) | Página |
-|---------------|--------|
-| `dashboard` | Visão geral / Dashboard |
-| `inventory` | Estoque e catálogo de medicamentos |
-| `stock-management` | Entrada de lotes |
-| `withdrawals` | Retiradas de medicamentos |
-| `appointments-overview` | Calendário de atendimentos |
-| `appointments` | Quadro de consultas |
-| `disposals` | Registro de descartes |
-
-## Endpoints da API
-
-### Autenticação — `/auth`
-
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `POST` | `/auth/login` | Login e geração de token JWT |
-| `GET` | `/auth/me` | Dados do usuário autenticado |
-
-### Medicamentos — `/medicines`
-
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `POST` | `/medicines` | Cadastrar medicamento *(protegido)* |
-| `GET` | `/medicines` | Listar medicamentos |
-| `GET` | `/medicines/:id` | Detalhes do medicamento |
-| `DELETE` | `/medicines/:id` | Remover medicamento *(protegido)* |
-
-### Lotes — `/batches`
-
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `POST` | `/batches` | Registrar novo lote *(protegido)* |
-| `GET` | `/batches` | Listar lotes *(protegido)* |
-| `GET` | `/batches/alerts` | Lotes com baixo estoque ou próximos ao vencimento |
-
-### Retiradas — `/withdrawals`
-
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `POST` | `/withdrawals` | Registrar retirada com baixa no estoque *(protegido)* |
-| `GET` | `/withdrawals` | Histórico de retiradas |
-
-### Descartes — `/disposals`
-
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `POST` | `/disposals` | Registrar descarte com baixa no estoque *(protegido)* |
-| `GET` | `/disposals` | Histórico de descartes |
-
-## Banco de dados
-
-MySQL 8 gerenciado via Prisma ORM.
-
-| Entidade | Descrição |
-|----------|-----------|
-| `User` | Usuários do sistema (ADMIN / FARMACEUTICO / ALUNO) |
-| `Patient` | Pacientes atendidos |
-| `Medicine` | Catálogo de medicamentos |
-| `StockBatch` | Lotes em estoque |
-| `Withdrawal` | Retiradas por paciente |
-| `WithdrawalItem` | Itens de cada retirada (M:N entre Withdrawal e StockBatch) |
-| `Disposal` | Descartes de lotes com motivo |
-
-## Variáveis de ambiente
-
-### Backend (`.env`)
-
-| Variável | Exemplo | Descrição |
-|----------|---------|-----------|
-| `DATABASE_URL` | `mysql://farmaceutico:farmapassword@localhost:3306/farmacia_escola` | Conexão MySQL |
-| `JWT_SECRET` | `farmacia_escola_secret_key` | Chave de assinatura JWT |
-| `PORT` | `3001` | Porta do servidor HTTP |
-
-### Frontend (`.env`)
-
-| Variável | Exemplo | Descrição |
-|----------|---------|-----------|
-| `VITE_API_URL` | `http://localhost:3001` | URL base da API |
-
-## Infraestrutura
-
-```bash
-docker compose up -d
-```
-
-Sobe MySQL 8 na porta `3306` e Adminer (interface web do banco) na porta `8080`.
-
-## Seed
-
-Cria o usuário administrador padrão:
-
-```bash
-cd backend
-npm run seed
-```
-
-| Campo | Valor |
-|-------|-------|
-| E-mail | `admin@farmaciaescola.edu.br` |
-| Senha | `admin123` |
-| Perfil | `ADMIN` |
-
-## Middleware
-
-Rotas marcadas como *protegido* exigem token JWT no header `Authorization: Bearer <token>`.
 
 ## Licença
 

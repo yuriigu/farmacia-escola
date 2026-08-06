@@ -1,12 +1,10 @@
+import { useNavigate } from 'react-router-dom';
 import { Package, Calendar, ArrowUpRight, TrendingUp, AlertTriangle } from 'lucide-react';
 import { StatusBadge } from '@/components/StatusBadge';
 import { usePharmacy } from '@/lib/PharmacyContext';
 
-interface HomeProps {
-  setActiveTab?: (tab: string) => void;
-}
-
-export function Home({ setActiveTab }: HomeProps) {
+export function Home() {
+  const navigate = useNavigate();
   const { inventory, appointments, withdrawals, disposals } = usePharmacy();
 
   const totalItems = inventory.reduce((sum, item) => sum + item.stock, 0);
@@ -19,28 +17,28 @@ export function Home({ setActiveTab }: HomeProps) {
       value: totalItems.toLocaleString('pt-BR'),
       icon: Package,
       color: 'text-emerald-600 bg-emerald-50',
-      tab: 'inventory',
+      path: '/inventory',
     },
     {
       title: 'Atendimentos Hoje',
       value: String(appointmentsToday),
       icon: Calendar,
       color: 'text-blue-600 bg-blue-50',
-      tab: 'appointments',
+      path: '/appointments',
     },
     {
       title: 'Retiradas no Mês',
       value: String(withdrawals.length),
       icon: ArrowUpRight,
       color: 'text-indigo-600 bg-indigo-50',
-      tab: 'withdrawals',
+      path: '/withdrawals',
     },
     {
       title: 'Alertas de Estoque',
       value: String(alertCount),
       icon: AlertTriangle,
       color: 'text-amber-600 bg-amber-50',
-      tab: 'disposals',
+      path: '/disposals',
     },
   ];
 
@@ -81,7 +79,7 @@ export function Home({ setActiveTab }: HomeProps) {
             <button
               key={idx}
               type="button"
-              onClick={() => setActiveTab?.(s.tab)}
+              onClick={() => navigate(s.path)}
               className="text-left bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-4 hover:border-emerald-300 hover:shadow-md transition-all"
             >
               <div className={`p-3 rounded-xl ${s.color}`}>

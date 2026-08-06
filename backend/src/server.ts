@@ -6,6 +6,9 @@ import { medicineRoutes } from './routes/medicine.routes';
 import { batchRoutes } from './routes/batch.routes';
 import { withdrawalRoutes } from './routes/withdrawal.routes';
 import { disposalRoutes } from './routes/disposal.routes';
+import { appointmentRoutes } from './routes/appointment.routes';
+import { patientRoutes } from './routes/patient.routes';
+import { userRoutes } from './routes/user.routes';
 
 dotenv.config();
 
@@ -41,11 +44,15 @@ app.get('/health', (req, res) => {
   return res.json({ status: 'OK', message: 'Servidor Farmácia Escola está rodando!' });
 });
 
+// Rotas
 app.use('/auth', authRoutes);
 app.use('/medicines', medicineRoutes);
 app.use('/batches', batchRoutes);
 app.use('/withdrawals', withdrawalRoutes);
 app.use('/disposals', disposalRoutes);
+app.use('/appointments', appointmentRoutes); // Nova rota de agendamentos
+app.use('/patients', patientRoutes); // CRUD de pacientes
+app.use('/users', userRoutes); // CRUD de usuários (ADMIN)
 
 app.listen(PORT, () => {
   console.log(`🚀 Servidor backend rodando em http://localhost:${PORT}`);

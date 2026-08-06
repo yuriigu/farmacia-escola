@@ -22,10 +22,10 @@ export function Withdrawals() {
   const selectedMedicine = inventory.find((item) => item.id === form.inventoryItemId) ?? null;
   const overBalance = Boolean(selectedMedicine) && form.quantity > (selectedMedicine?.stock ?? 0);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMedicine || overBalance || form.quantity <= 0) return;
-    const ok = registerWithdrawal(form);
+    const ok = await registerWithdrawal(form);
     if (ok) {
       setForm(EMPTY_FORM);
       setModalOpen(false);

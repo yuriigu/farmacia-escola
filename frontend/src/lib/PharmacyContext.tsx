@@ -9,47 +9,7 @@ import {
   Withdrawal,
 } from './types';
 
-const INVENTORY_FALLBACK: InventoryItem[] = [
-  { id: '1', name: 'Amoxicilina', dosage: '500mg', category: 'Antibiótico', stock: 12, minStock: 20, unit: 'Caixas', status: 'critical', expirationDate: '2027-11-20' },
-  { id: '2', name: 'Paracetamol', dosage: '750mg', category: 'Analgésico', stock: 150, minStock: 50, unit: 'Caixas', status: 'ok', expirationDate: '2027-05-15' },
-  { id: '3', name: 'Losartana Potássica', dosage: '50mg', category: 'Anti-hipertensivo', stock: 45, minStock: 40, unit: 'Caixas', status: 'low', expirationDate: '2026-09-10' },
-  { id: '4', name: 'Omeprazol', dosage: '20mg', category: 'Antiácido', stock: 90, minStock: 30, unit: 'Caixas', status: 'ok', expirationDate: '2027-01-30' },
-  { id: '5', name: 'Ibuprofeno', dosage: '600mg', category: 'Anti-inflamatório', stock: 0, minStock: 25, unit: 'Caixas', status: 'expired', expirationDate: '2025-02-10' },
-];
-
-const WITHDRAWALS_FALLBACK: Withdrawal[] = [
-  { id: '1', patientName: 'Sônia Maria Ribeiro', cpf: '111.222.333-44', medicineName: 'Losartana Potássica 50mg', quantity: 2, date: '2026-08-03 14:20', dispensedBy: 'Farm. Luciana', inventoryItemId: '3' },
-  { id: '2', patientName: 'Marcos Vinicius Santos', cpf: '555.666.777-88', medicineName: 'Paracetamol 750mg', quantity: 3, date: '2026-08-03 11:05', dispensedBy: 'Farm. Pedro', inventoryItemId: '2' },
-];
-
-const DISPOSALS_FALLBACK: Disposal[] = [
-  {
-    id: '1',
-    patient: { id: 'p1', name: 'João Carlos Pereira', cpf: '123.456.789-00' },
-    batch: { id: 'b1', code: 'LOT-9921', medicine: { id: 'm5', name: 'Ibuprofeno', dosage: '600mg' }, quantity: 2, expirationDate: '2025-02-10' },
-    user: { id: 'u1', name: 'Farm. Luciana', email: 'luciana@farmacia.br' },
-    reason: 'Medicamento Vencido',
-    createdAt: '2026-08-01',
-    inventoryItemId: '5',
-    reverted: false,
-  },
-  {
-    id: '2',
-    patient: { id: 'p2', name: 'Helena Ribeiro', cpf: '987.654.321-11' },
-    batch: { id: 'b2', code: 'LOT-4412', medicine: { id: 'm4', name: 'Omeprazol', dosage: '20mg' }, quantity: 1, expirationDate: '2027-01-30' },
-    user: { id: 'u2', name: 'Farm. Pedro', email: 'pedro@farmacia.br' },
-    reason: 'Embalagem Danificada',
-    createdAt: '2026-08-02',
-    inventoryItemId: '4',
-    reverted: false,
-  },
-];
-
-const APPOINTMENTS_FALLBACK: Appointment[] = [
-  { id: '1', patientName: 'Ana Maria Souza', date: '2026-08-05', time: '09:00', pharmacist: 'Dra. Patricia', type: 'Orientação Farmacêutica', status: 'confirmado' },
-  { id: '2', patientName: 'Carlos Eduardo Lima', date: '2026-08-05', time: '10:30', pharmacist: 'Dr. Roberto', type: 'Aferição de Pressão / Glicemia', status: 'pendente' },
-  { id: '3', patientName: 'Juliana Mendes', date: '2026-08-05', time: '14:00', pharmacist: 'Dra. Patricia', type: 'Acompanhamento Farmacoterapêutico', status: 'concluido' },
-];
+// === Draft Types (utilizados nos formulários de criação) ===
 
 export interface MedicineDraft {
   name: string;
@@ -61,28 +21,28 @@ export interface MedicineDraft {
   expirationDate: string;
 }
 
-export interface WithdrawalDraft {
-  patientName: string;
-  cpf: string;
-  inventoryItemId: string;
-  quantity: number;
-  dispensedBy: string;
-  notes?: string;
-}
-
-export interface DisposalDraft {
-  inventoryItemId: string;
-  quantity: number;
-  reason: string;
-}
-
 export interface BatchEntryDraft {
   medicineName: string;
   dosage: string;
   batchCode: string;
   quantity: number;
   expirationDate: string;
-  supplier?: string;
+  supplier: string;
+}
+
+export interface WithdrawalDraft {
+  patientName: string;
+  cpf: string;
+  inventoryItemId: string;
+  quantity: number;
+  dispensedBy: string;
+  notes: string;
+}
+
+export interface DisposalDraft {
+  inventoryItemId: string;
+  quantity: number;
+  reason: string;
 }
 
 export interface AppointmentDraft {
@@ -100,307 +60,221 @@ interface PharmacyContextValue {
   appointments: Appointment[];
   loading: boolean;
   offline: boolean;
-  addMedicine: (draft: MedicineDraft) => void;
-  updateMedicine: (id: string, draft: MedicineDraft) => void;
-  registerBatchEntry: (draft: BatchEntryDraft) => void;
-  registerWithdrawal: (draft: WithdrawalDraft) => boolean;
-  registerDisposal: (draft: DisposalDraft) => boolean;
-  revertDisposal: (id: string) => void;
-  addAppointment: (draft: AppointmentDraft) => void;
-  confirmAppointment: (id: string) => void;
-  cancelAppointment: (id: string) => void;
+  addMedicine: (draft: MedicineDraft) => Promise<void>;
+  updateMedicine: (id: string, draft: MedicineDraft) => Promise<void>;
+  deleteMedicine: (id: string) => Promise<void>;
+  registerBatchEntry: (draft: BatchEntryDraft) => Promise<void>;
+  registerWithdrawal: (draft: WithdrawalDraft) => Promise<boolean>;
+  updateWithdrawal: (id: string, notes: string) => Promise<void>;
+  cancelWithdrawal: (id: string) => Promise<void>;
+  registerDisposal: (draft: DisposalDraft) => Promise<boolean>;
+  updateDisposal: (id: string, reason: string) => Promise<void>;
+  deleteDisposal: (id: string) => Promise<void>;
+  revertDisposal: (id: string) => Promise<void>;
+  addAppointment: (draft: AppointmentDraft) => Promise<void>;
+  confirmAppointment: (id: string) => Promise<void>;
+  cancelAppointment: (id: string) => Promise<void>;
+  fetchData: () => Promise<void>;
 }
 
 const PharmacyContext = createContext<PharmacyContextValue | null>(null);
 
 export function PharmacyProvider({ children }: { children: React.ReactNode }) {
-  const [inventory, setInventory] = useState<InventoryItem[]>(INVENTORY_FALLBACK);
-  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>(WITHDRAWALS_FALLBACK);
-  const [disposals, setDisposals] = useState<Disposal[]>(DISPOSALS_FALLBACK);
-  const [appointments, setAppointments] = useState<Appointment[]>(APPOINTMENTS_FALLBACK);
+  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [disposals, setDisposals] = useState<Disposal[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [offline, setOffline] = useState(false);
 
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [inv, wd, disp, appt] = await Promise.all([
+        api.get<InventoryItem[]>('/inventory'),
+        api.get<Withdrawal[]>('/withdrawals'),
+        api.get<Disposal[]>('/disposals'),
+        api.get<Appointment[]>('/appointments'),
+      ]);
+      
+      setInventory(inv.data);
+      setWithdrawals(wd.data);
+      setDisposals(disp.data);
+      setAppointments(appt.data);
+      setOffline(false);
+    } catch (error) {
+      console.error('Erro ao carregar dados:', error);
+      setOffline(true);
+      toast.error('Erro ao carregar dados. Verifique sua conexão.');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
-    let active = true;
+    const token = localStorage.getItem('token');
+    if (token) {
+      fetchData();
+    } else {
+      setLoading(false);
+    }
+  }, [fetchData]);
 
-    const load = async () => {
-      try {
-        const [inv, wd, disp, appt] = await Promise.all([
-          api.get<InventoryItem[]>('/inventory'),
-          api.get<Withdrawal[]>('/withdrawals'),
-          api.get<Disposal[]>('/disposals'),
-          api.get<Appointment[]>('/appointments'),
-        ]);
-        if (!active) return;
-        setInventory(inv.data);
-        setWithdrawals(wd.data);
-        setDisposals(disp.data);
-        setAppointments(appt.data);
-        setOffline(false);
-      } catch {
-        if (!active) return;
-        // Backend indisponível: mantém os dados de exemplo para a interface seguir navegável.
-        setOffline(true);
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
+  const addMedicine = useCallback(async (draft: MedicineDraft) => {
+    try {
+      await api.post('/medicines', draft);
+      await fetchData();
+      toast.success('Medicamento cadastrado com sucesso.');
+    } catch (error) {
+      toast.error('Erro ao cadastrar medicamento.');
+      throw error;
+    }
+  }, [fetchData]);
 
-    load();
-    return () => {
-      active = false;
-    };
-  }, []);
+  const updateMedicine = useCallback(async (id: string, draft: MedicineDraft) => {
+    try {
+      await api.put(`/medicines/${id}`, draft);
+      await fetchData();
+      toast.success('Medicamento atualizado.');
+    } catch (error) {
+      toast.error('Erro ao atualizar medicamento.');
+      throw error;
+    }
+  }, [fetchData]);
 
-  const addMedicine = useCallback((draft: MedicineDraft) => {
-    setInventory((current) => [
-      {
-        id: String(Date.now()),
-        name: draft.name,
-        dosage: draft.dosage,
-        category: draft.category,
-        unit: draft.unit,
-        minStock: draft.minStock,
-        stock: draft.stock,
-        expirationDate: draft.expirationDate,
-        status: computeStockStatus({ stock: draft.stock, minStock: draft.minStock, expirationDate: draft.expirationDate }),
-      },
-      ...current,
-    ]);
-    toast.success('Medicamento cadastrado com sucesso.');
-  }, []);
+  const deleteMedicine = useCallback(async (id: string) => {
+    try {
+      await api.delete(`/medicines/${id}`);
+      await fetchData();
+      toast.success('Medicamento excluído.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Erro ao excluir medicamento.');
+      throw error;
+    }
+  }, [fetchData]);
 
-  const updateMedicine = useCallback((id: string, draft: MedicineDraft) => {
-    setInventory((current) =>
-      current.map((item) =>
-        item.id === id
-          ? {
-              ...item,
-              ...draft,
-              status: computeStockStatus({
-                stock: draft.stock,
-                minStock: draft.minStock,
-                expirationDate: draft.expirationDate,
-              }),
-            }
-          : item
-      )
-    );
-    toast.success('Medicamento atualizado.');
-  }, []);
+  const registerBatchEntry = useCallback(async (draft: BatchEntryDraft) => {
+    try {
+      await api.post('/batches', draft);
+      await fetchData();
+      toast.success('Entrada de lote registrada com sucesso.');
+    } catch (error) {
+      toast.error('Erro ao registrar entrada de lote.');
+      throw error;
+    }
+  }, [fetchData]);
 
-  const registerBatchEntry = useCallback((draft: BatchEntryDraft) => {
-    setInventory((current) => {
-      const existing = current.find(
-        (item) => item.name.toLowerCase() === draft.medicineName.toLowerCase()
-      );
-
-      if (existing) {
-        toast.success(`Entrada registrada: +${draft.quantity} ${existing.unit} de ${existing.name}.`);
-        return current.map((item) =>
-          item.id === existing.id
-            ? {
-                ...item,
-                stock: item.stock + draft.quantity,
-                expirationDate: draft.expirationDate || item.expirationDate,
-                status: computeStockStatus({
-                  stock: item.stock + draft.quantity,
-                  minStock: item.minStock,
-                  expirationDate: draft.expirationDate || item.expirationDate,
-                }),
-              }
-            : item
-        );
-      }
-
-      toast.success(`Novo medicamento cadastrado a partir do lote: ${draft.medicineName}.`);
-      const created: InventoryItem = {
-        id: String(Date.now()),
-        name: draft.medicineName,
-        dosage: draft.dosage || '—',
-        category: 'Outros',
-        unit: 'Caixas',
-        minStock: 20,
-        stock: draft.quantity,
-        expirationDate: draft.expirationDate,
-        status: computeStockStatus({ stock: draft.quantity, minStock: 20, expirationDate: draft.expirationDate }),
-      };
-      return [created, ...current];
-    });
-  }, []);
-
-  const registerWithdrawal = useCallback(
-    (draft: WithdrawalDraft) => {
-      const item = inventory.find((med) => med.id === draft.inventoryItemId);
-      if (!item) return false;
-
-      if (draft.quantity > item.stock) {
-        toast.error('Quantidade maior que o saldo disponível.');
-        return false;
-      }
-
-      setWithdrawals((current) => [
-        {
-          id: String(Date.now()),
-          patientName: draft.patientName,
-          cpf: draft.cpf,
-          medicineName: `${item.name} ${item.dosage}`,
-          quantity: draft.quantity,
-          date: new Intl.DateTimeFormat('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-          }).format(new Date()) + ' ' + new Intl.DateTimeFormat('pt-BR', {
-            hour: '2-digit',
-            minute: '2-digit',
-          }).format(new Date()),
-          dispensedBy: draft.dispensedBy,
-          inventoryItemId: item.id,
-          notes: draft.notes,
-        },
-        ...current,
-      ]);
-
-      setInventory((current) =>
-        current.map((med) =>
-          med.id === item.id
-            ? {
-                ...med,
-                stock: med.stock - draft.quantity,
-                status: computeStockStatus({
-                  stock: med.stock - draft.quantity,
-                  minStock: med.minStock,
-                  expirationDate: med.expirationDate,
-                }),
-              }
-            : med
-        )
-      );
-
-      toast.success(`Retirada de ${draft.quantity} un. de ${item.name} registrada.`);
+  const registerWithdrawal = useCallback(async (draft: WithdrawalDraft) => {
+    try {
+      await api.post('/withdrawals', draft);
+      await fetchData();
+      toast.success('Retirada registrada com sucesso.');
       return true;
-    },
-    [inventory]
-  );
+    } catch (error) {
+      toast.error('Erro ao registrar retirada.');
+      return false;
+    }
+  }, [fetchData]);
 
-  const registerDisposal = useCallback(
-    (draft: DisposalDraft) => {
-      const item = inventory.find((med) => med.id === draft.inventoryItemId);
-      if (!item) return false;
-
-      if (draft.quantity > item.stock) {
-        toast.error('Quantidade maior que o saldo disponível.');
-        return false;
-      }
-
-      setDisposals((current) => [
-        {
-          id: String(Date.now()),
-          batch: {
-            id: item.id,
-            code: `LOT-${item.id}`,
-            medicine: { id: item.id, name: item.name, dosage: item.dosage },
-            quantity: draft.quantity,
-            expirationDate: item.expirationDate,
-          },
-          user: { id: 'u-local', name: 'Farm. Responsável', email: '' },
-          reason: draft.reason,
-          createdAt: new Intl.DateTimeFormat('pt-BR', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-          }).format(new Date()),
-          inventoryItemId: item.id,
-          reverted: false,
-        },
-        ...current,
-      ]);
-
-      setInventory((current) =>
-        current.map((med) =>
-          med.id === item.id
-            ? {
-                ...med,
-                stock: med.stock - draft.quantity,
-                status: computeStockStatus({
-                  stock: med.stock - draft.quantity,
-                  minStock: med.minStock,
-                  expirationDate: med.expirationDate,
-                }),
-              }
-            : med
-        )
-      );
-
-      toast.success(`Descarte de ${draft.quantity} un. de ${item.name} registrado.`);
+  const registerDisposal = useCallback(async (draft: DisposalDraft) => {
+    try {
+      await api.post('/disposals', draft);
+      await fetchData();
+      toast.success('Descarte registrado com sucesso.');
       return true;
-    },
-    [inventory]
-  );
+    } catch (error) {
+      toast.error('Erro ao registrar descarte.');
+      return false;
+    }
+  }, [fetchData]);
 
-  const revertDisposal = useCallback(
-    (id: string) => {
-      const disposal = disposals.find((item) => item.id === id);
-      if (!disposal || disposal.reverted || !disposal.batch) return;
+  const revertDisposal = useCallback(async (id: string) => {
+    try {
+      await api.post(`/disposals/${id}/revert`);
+      await fetchData();
+      toast.success('Descarte revertido com sucesso.');
+    } catch (error) {
+      toast.error('Erro ao reverter descarte.');
+      throw error;
+    }
+  }, [fetchData]);
 
-      setDisposals((current) =>
-        current.map((item) => (item.id === id ? { ...item, reverted: true } : item))
-      );
+  const updateDisposal = useCallback(async (id: string, reason: string) => {
+    try {
+      await api.put(`/disposals/${id}`, { reason });
+      await fetchData();
+      toast.success('Motivo do descarte atualizado.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Erro ao atualizar descarte.');
+      throw error;
+    }
+  }, [fetchData]);
 
-      const targetId = disposal.inventoryItemId ?? disposal.batch.id;
-      const quantity = disposal.batch.quantity;
+  const deleteDisposal = useCallback(async (id: string) => {
+    try {
+      await api.delete(`/disposals/${id}`);
+      await fetchData();
+      toast.success('Registro de descarte removido.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Erro ao remover descarte.');
+      throw error;
+    }
+  }, [fetchData]);
 
-      setInventory((current) =>
-        current.map((med) =>
-          med.id === targetId
-            ? {
-                ...med,
-                stock: med.stock + quantity,
-                status: computeStockStatus({
-                  stock: med.stock + quantity,
-                  minStock: med.minStock,
-                  expirationDate: med.expirationDate,
-                }),
-              }
-            : med
-        )
-      );
+  const updateWithdrawal = useCallback(async (id: string, notes: string) => {
+    try {
+      await api.put(`/withdrawals/${id}`, { notes });
+      await fetchData();
+      toast.success('Observações da retirada atualizadas.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Erro ao atualizar retirada.');
+      throw error;
+    }
+  }, [fetchData]);
 
-      toast.success(`${quantity} un. devolvidas ao estoque.`);
-    },
-    [disposals]
-  );
+  const cancelWithdrawal = useCallback(async (id: string) => {
+    try {
+      await api.delete(`/withdrawals/${id}`);
+      await fetchData();
+      toast.success('Retirada cancelada e estoque restaurado.');
+    } catch (error: any) {
+      toast.error(error?.response?.data?.error || 'Erro ao cancelar retirada.');
+      throw error;
+    }
+  }, [fetchData]);
 
-  const addAppointment = useCallback((draft: AppointmentDraft) => {
-    setAppointments((current) => [
-      {
-        id: String(Date.now()),
-        patientName: draft.patientName,
-        date: draft.date,
-        time: draft.time,
-        pharmacist: draft.pharmacist,
-        type: draft.type,
-        status: 'pendente',
-      },
-      ...current,
-    ]);
-    toast.success('Agendamento criado com sucesso.');
-  }, []);
+  const addAppointment = useCallback(async (draft: AppointmentDraft) => {
+    try {
+      await api.post('/appointments', draft);
+      await fetchData();
+      toast.success('Agendamento criado com sucesso.');
+    } catch (error) {
+      toast.error('Erro ao criar agendamento.');
+      throw error;
+    }
+  }, [fetchData]);
 
-  const confirmAppointment = useCallback((id: string) => {
-    setAppointments((current) =>
-      current.map((app) => (app.id === id ? { ...app, status: 'confirmado' } : app))
-    );
-    toast.success('Agendamento confirmado.');
-  }, []);
+  const confirmAppointment = useCallback(async (id: string) => {
+    try {
+      await api.patch(`/appointments/${id}/confirm`);
+      await fetchData();
+      toast.success('Agendamento confirmado.');
+    } catch (error) {
+      toast.error('Erro ao confirmar agendamento.');
+      throw error;
+    }
+  }, [fetchData]);
 
-  const cancelAppointment = useCallback((id: string) => {
-    setAppointments((current) =>
-      current.map((app) => (app.id === id ? { ...app, status: 'cancelado' } : app))
-    );
-    toast.success('Agendamento cancelado.');
-  }, []);
+  const cancelAppointment = useCallback(async (id: string) => {
+    try {
+      await api.patch(`/appointments/${id}/cancel`);
+      await fetchData();
+      toast.success('Agendamento cancelado.');
+    } catch (error) {
+      toast.error('Erro ao cancelar agendamento.');
+      throw error;
+    }
+  }, [fetchData]);
 
   const value = useMemo<PharmacyContextValue>(
     () => ({
@@ -412,13 +286,19 @@ export function PharmacyProvider({ children }: { children: React.ReactNode }) {
       offline,
       addMedicine,
       updateMedicine,
+      deleteMedicine,
       registerBatchEntry,
       registerWithdrawal,
+      updateWithdrawal,
+      cancelWithdrawal,
       registerDisposal,
+      updateDisposal,
+      deleteDisposal,
       revertDisposal,
       addAppointment,
       confirmAppointment,
       cancelAppointment,
+      fetchData,
     }),
     [
       inventory,
@@ -429,13 +309,19 @@ export function PharmacyProvider({ children }: { children: React.ReactNode }) {
       offline,
       addMedicine,
       updateMedicine,
+      deleteMedicine,
       registerBatchEntry,
       registerWithdrawal,
+      updateWithdrawal,
+      cancelWithdrawal,
       registerDisposal,
+      updateDisposal,
+      deleteDisposal,
       revertDisposal,
       addAppointment,
       confirmAppointment,
       cancelAppointment,
+      fetchData,
     ]
   );
 

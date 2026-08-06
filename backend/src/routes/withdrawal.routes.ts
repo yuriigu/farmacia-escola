@@ -118,4 +118,130 @@ withdrawalRoutes.get('/', async (_req: Request, res: Response) => {
   }
 });
 
+// 3. Detalhar uma retirada específica (com itens) - Acesso Geral
+withdrawalRoutes.get('/:id', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const withdrawal = await prisma.withdrawal.findUnique({
+      where: { id: Number(id) },
+      include: {
+        user: { select: { id: true, name: true, role: true } },
+        patient: true,
+        items: {
+          include: {
+            batch: {
+              include: { medicine: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!withdrawal) {
+      return res.status(404).json({ error: 'Retirada não encontrada.' });
+    }
+
+    return res.json({
+      id: withdrawal.id,
+      date: withdrawal.date.toISOString(),
+      notes: withdrawal.notes ?? '',
+      patient: {
+        id: withdrawal.patient.id,
+        name: withdrawal.patient.name,
+        cpf: withdrawal.patient.cpf ?? '',
+      },
+      user: {
+        id: withdrawal.user.id,
+        name: withdrawal.user.name,
+        role: withdrawal.user.role,
+      },
+      items: withdrawal.items.map((item) => ({
+        id: item.id,
+        quantity: item.quantity,
+        batch: {
+          id: item.batch.id,
+          batchNumber: item.batch.batchNumber,
+          currentQuantity: item.batch.currentQuantity,
+          medicine: {
+            id: item.batch.medicine.id,
+            name: item.batch.medicine.name,
+            dosage: item.batch.medicine.dosage ?? '',
+          },
+        },
+      })),
+    });
+  } catch (error) {
+    console.error('Erro ao detalhar retirada:', error);
+    return res.status(500).json({ error: 'Erro interno ao buscar retirada.' });
+  }
+});
+
+// 4. Atualizar retirada - apenas observações (não permite alterar itens/quantidades)
+withdrawalRoutes.put('/:id', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { notes } = req.body;
+
+    const existingWithdrawal = await prisma.withdrawal.findUnique({
+      where: { id: Number(id) },
+    });
+
+    if (!existingWithdrawal) {
+      return res.status(404).json({ error: 'Retirada não encontrada.' });
+    }
+
+    if (notes === undefined) {
+      return res.status(400).json({ error: 'Campo notes é obrigatório.' });
+    }
+
+    const updatedWithdrawal = await prisma.withdrawal.update({
+      where: { id: Number(id) },
+      data: { notes: String(notes) },
+      include: { patient: true },
+    });
+
+    return res.json(updatedWithdrawal);
+  } catch (error) {
+    console.error('Erro ao atualizar retirada:', error);
+    return res.status(500).json({ error: 'Erro interno ao atualizar retirada.' });
+  }
+});
+
+// 5. Cancelar retirada - restaura o estoque dos lotes e remove o registro
+withdrawalRoutes.delete('/:id', authMiddleware, async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+
+    const withdrawal = await prisma.withdrawal.findUnique({
+      where: { id: Number(id) },
+      include: { items: true },
+    });
+
+    if (!withdrawal) {
+      return res.status(404).json({ error: 'Retirada não encontrada.' });
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Restaura a quantidade em cada lote associado
+      for (const item of withdrawal.items) {
+        await tx.stockBatch.update({
+          where: { id: item.batchId },
+          data: { currentQuantity: { increment: item.quantity } },
+        });
+      }
+      await tx.withdrawalItem.deleteMany({ where: { withdrawalId: withdrawal.id } });
+      await tx.withdrawal.delete({ where: { id: withdrawal.id } });
+    });
+
+    return res.json({
+      message: 'Retirada cancelada e estoque restaurado com sucesso.',
+      restoredItems: withdrawal.items.length,
+    });
+  } catch (error) {
+    console.error('Erro ao cancelar retirada:', error);
+    return res.status(500).json({ error: 'Erro interno ao cancelar retirada.' });
+  }
+});
+
 export { withdrawalRoutes };

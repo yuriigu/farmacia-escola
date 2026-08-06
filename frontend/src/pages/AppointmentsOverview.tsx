@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ChevronLeft, ChevronRight, CalendarDays } from 'lucide-react';
 import { usePharmacy } from '@/lib/PharmacyContext';
 
@@ -15,11 +16,8 @@ function buildMonthDays(year: number, month: number) {
   return cells;
 }
 
-interface AppointmentsOverviewProps {
-  onSelectDay?: () => void;
-}
-
-export function AppointmentsOverview({ onSelectDay }: AppointmentsOverviewProps) {
+export function AppointmentsOverview() {
+  const navigate = useNavigate();
   const { appointments } = usePharmacy();
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -111,7 +109,7 @@ export function AppointmentsOverview({ onSelectDay }: AppointmentsOverviewProps)
             return (
               <button
                 key={i}
-                onClick={onSelectDay}
+                onClick={() => navigate('/appointments')}
                 className={`aspect-square rounded-xl p-2 flex flex-col items-start text-left transition-colors border ${
                   todayCell
                     ? 'border-emerald-200 bg-emerald-50/60 hover:bg-emerald-50'

@@ -106,7 +106,6 @@ model Disposal {
   quantity  Int
   reason    String?
   date      DateTime   @default(now())
-  reverted  Boolean    @default(false)
 
   batch     StockBatch @relation(fields: [batchId], references: [id])
   user      User       @relation(fields: [userId], references: [id])

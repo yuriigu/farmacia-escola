@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
@@ -21,7 +21,7 @@ async function main() {
         name: 'Administrador do Sistema',
         email: email,
         password: passwordHash,
-        role: 'ADMIN',
+        role: Role.ADMIN,
         active: true,
       },
     });
@@ -31,6 +31,41 @@ async function main() {
     console.log('🔑 Senha: admin123');
   } else {
     console.log('⚡ Usuário Admin já existe no banco.');
+  }
+
+  // 4. Cria um paciente de teste
+  const patientEmail = 'paciente@teste.com';
+  const existingPatientUser = await prisma.user.findUnique({
+    where: { email: patientEmail },
+  });
+
+  if (!existingPatientUser) {
+    const hashedPassword = await bcrypt.hash('senha123', 10);
+
+    await prisma.user.create({
+      data: {
+        name: 'João Paciente',
+        email: patientEmail,
+        password: hashedPassword,
+        role: Role.PACIENTE,
+        active: true,
+        patient: {
+          create: {
+            name: 'João Paciente',
+            cpf: '11122233344',
+            phone: '44999999999',
+            birthDate: new Date('1990-01-01'),
+            address: 'Rua Exemplo, 123, Campo Mourão - PR'
+          }
+        }
+      }
+    });
+
+    console.log('✅ Paciente de teste criado com sucesso!');
+    console.log('📧 Email: paciente@teste.com');
+    console.log('🔑 Senha: senha123');
+  } else {
+    console.log('⚡ Paciente de teste já existe no banco.');
   }
 }
 

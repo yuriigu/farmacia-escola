@@ -3,7 +3,9 @@ export type StockStatus = 'ok' | 'low' | 'critical' | 'expired' | 'warning' | st
 export interface Medicine {
   id: string;
   name: string;
+  activeIngredient?: string;
   dosage: string;
+  accessibleDesc?: string;
   manufacturer?: string;
   batchNumber?: string;
   expirationDate?: string;
@@ -15,6 +17,11 @@ export interface Patient {
   name: string;
   cpf: string;
   phone?: string;
+  birthDate?: string;
+  address?: string;
+  /** quantidade de retiradas e agendamentos vinculados (vem do _count da API) */
+  withdrawalsCount?: number;
+  appointmentsCount?: number;
 }
 
 export interface User {
@@ -22,6 +29,10 @@ export interface User {
   name: string;
   email: string;
   role?: string;
+  active?: boolean;
+  registerDoc?: string;
+  phone?: string;
+  createdAt?: string;
 }
 
 export interface Batch {

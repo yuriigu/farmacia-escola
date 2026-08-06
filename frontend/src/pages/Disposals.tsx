@@ -34,10 +34,10 @@ export function Disposals() {
       .slice(0, 6);
   }, [inventory]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMedicine || overBalance || form.quantity <= 0) return;
-    const ok = registerDisposal(form);
+    const ok = await registerDisposal(form);
     if (ok) {
       setForm(EMPTY_FORM);
       setModalOpen(false);

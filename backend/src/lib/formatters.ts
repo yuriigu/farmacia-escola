@@ -24,6 +24,7 @@ type DisposalRecord = {
   date: Date;
   quantity: number;
   reason: string | null;
+  reverted: boolean;
   user: { name: string };
   batch: BatchWithMedicine;
 };
@@ -81,6 +82,7 @@ export function formatDisposals(disposals: DisposalRecord[]) {
     createdAt: disposal.date.toISOString(),
     quantity: disposal.quantity,
     reason: disposal.reason ?? '',
+    reverted: disposal.reverted,
     batch: {
       id: disposal.batch.id,
       code: disposal.batch.batchNumber,

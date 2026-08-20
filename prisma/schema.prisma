@@ -1,0 +1,191 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  FARMACEUTICO
+  MEDICO
+  ALUNO
+  PACIENTE
+}
+
+enum AppointmentStatus {
+  PENDING
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String   @unique
+  password    String
+  role        Role     @default(ALUNO)
+  registerDoc String?  @unique
+  phone       String?
+  active      Boolean  @default(true)
+  permissions Json?
+  createdAt   DateTime @default(now())
+
+  withdrawals    Withdrawal[]
+  disposals       Disposal[]
+  patient         Patient?
+  activityLogs    ActivityLog[]
+  scheduleSlots   ScheduleSlot[]
+}
+
+model ActivityLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  action    String
+  entity    String
+  entityId  Int?
+  details   String?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entity])
+  @@index([createdAt])
+}
+
+model Patient {
+  id        Int      @id @default(autoincrement())
+  name      String
+  cpf       String   @unique
+  phone     String?
+  birthDate DateTime?
+  address   String?
+  createdAt DateTime @default(now())
+  userId    Int?     @unique
+
+  user         User?        @relation(fields: [userId], references: [id])
+  withdrawals  Withdrawal[]
+  appointments Appointment[]
+}
+
+model Medicine {
+  id               Int      @id @default(autoincrement())
+  name             String
+  activeIngredient String?
+  dosage           String?
+  accessibleDesc   String?
+  category         String?
+  createdAt        DateTime @default(now())
+
+  batches          StockBatch[]
+  appointmentItems  AppointmentItem[]
+}
+
+model StockBatch {
+  id              Int      @id @default(autoincrement())
+  medicineId      Int
+  batchNumber     String
+  currentQuantity Int      @default(0)
+  expirationDate  DateTime
+  receivedAt      DateTime @default(now())
+
+  medicine          Medicine        @relation(fields: [medicineId], references: [id])
+  withdrawalItems   WithdrawalItem[]
+  disposals         Disposal[]
+  appointmentItems  AppointmentItem[]
+}
+
+model Withdrawal {
+  id        Int              @id @default(autoincrement())
+  patientId Int
+  userId    Int
+  date      DateTime         @default(now())
+  notes     String?
+  appointmentId Int?
+
+  patient     Patient          @relation(fields: [patientId], references: [id])
+  user        User             @relation(fields: [userId], references: [id])
+  items       WithdrawalItem[]
+  appointment Appointment?     @relation(fields: [appointmentId], references: [id])
+}
+
+model WithdrawalItem {
+  id           Int        @id @default(autoincrement())
+  withdrawalId Int
+  batchId      Int
+  quantity     Int
+
+  withdrawal   Withdrawal @relation(fields: [withdrawalId], references: [id])
+  batch        StockBatch @relation(fields: [batchId], references: [id])
+}
+
+model Disposal {
+  id        Int      @id @default(autoincrement())
+  batchId   Int
+  userId    Int
+  quantity  Int
+  reason    String?
+  date      DateTime @default(now())
+  reverted  Boolean  @default(false)
+
+  batch     StockBatch @relation(fields: [batchId], references: [id])
+  user      User       @relation(fields: [userId], references: [id])
+}
+
+// ===== ESCALA DE HORÁRIOS =====
+
+model ScheduleSlot {
+  id          Int      @id @default(autoincrement())
+  date        DateTime
+  timeSlot    String
+  maxCapacity Int      @default(5)
+  active      Boolean  @default(true)
+  assignedToId Int?
+  createdAt   DateTime @default(now())
+
+  assignedTo  User?         @relation(fields: [assignedToId], references: [id])
+  appointments Appointment[]
+
+  @@unique([date, timeSlot])
+  @@index([date])
+}
+
+// ===== AGENDAMENTO DE RETIRADA =====
+
+model Appointment {
+  id            Int               @id @default(autoincrement())
+  patientId     Int
+  scheduledDate DateTime
+  scheduledTime String?
+  slotId        Int?
+  status        AppointmentStatus @default(PENDING)
+  notes         String?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  patient  Patient          @relation(fields: [patientId], references: [id])
+  slot     ScheduleSlot?     @relation(fields: [slotId], references: [id])
+  items    AppointmentItem[]
+  withdrawals Withdrawal[]
+
+  @@index([scheduledDate, status])
+  @@index([patientId])
+}
+
+model AppointmentItem {
+  id           Int  @id @default(autoincrement())
+  appointmentId Int
+  medicineId    Int
+  batchId       Int?
+  quantity      Int
+
+  appointment   Appointment @relation(fields: [appointmentId], references: [id])
+  medicine      Medicine    @relation(fields: [medicineId], references: [id])
+  batch         StockBatch? @relation(fields: [batchId], references: [id])
+
+  @@index([appointmentId])
+}

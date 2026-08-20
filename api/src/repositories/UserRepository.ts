@@ -1,4 +1,5 @@
 import { prisma } from '../utils/prisma';
+import { Role } from '@prisma/client';  // 👈 Importe o enum Role
 
 export class UserRepository {
   async findByEmail(email: string) {
@@ -37,7 +38,7 @@ export class UserRepository {
     name: string;
     email: string;
     password: string;
-    role: string;
+    role: Role;  // 👈 Mude de string para Role
     registerDoc?: string | null;
     phone?: string | null;
     permissions?: any;
@@ -47,7 +48,7 @@ export class UserRepository {
         name: data.name,
         email: data.email,
         password: data.password,
-        role: data.role,
+        role: data.role,  // 👈 Agora é Role
         registerDoc: data.registerDoc,
         phone: data.phone,
         permissions: data.permissions,
@@ -72,7 +73,7 @@ export class UserRepository {
       name?: string;
       email?: string;
       password?: string;
-      role?: string;
+      role?: Role;  // 👈 Mude de string para Role
       registerDoc?: string | null;
       phone?: string | null;
       active?: boolean;
@@ -81,7 +82,7 @@ export class UserRepository {
   ) {
     return prisma.user.update({
       where: { id },
-      data,
+      data,  // 👈 Agora o data tem o tipo Role correto
       select: {
         id: true,
         name: true,

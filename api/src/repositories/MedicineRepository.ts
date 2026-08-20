@@ -17,12 +17,34 @@ export class MedicineRepository {
     });
   }
 
-  async create(data: { name: string; activeIngredient?: string; dosage?: string; accessibleDesc?: string; category?: string }) {
-    return prisma.medicine.create({ data });
+  async create(data: {
+    name: string;
+    activeIngredient?: string | null;
+    dosage?: string | null;
+    accessibleDesc?: string | null;
+    category?: string | null;
+  }) {
+    return prisma.medicine.create({
+      data,
+      include: { batches: true },
+    });
   }
 
-  async update(id: number, data: { name?: string; activeIngredient?: string; dosage?: string; accessibleDesc?: string; category?: string }) {
-    return prisma.medicine.update({ where: { id }, data });
+  async update(
+    id: number,
+    data: {
+      name?: string;
+      activeIngredient?: string | null;
+      dosage?: string | null;
+      accessibleDesc?: string | null;
+      category?: string | null;
+    }
+  ) {
+    return prisma.medicine.update({
+      where: { id },
+      data,
+      include: { batches: true },
+    });
   }
 
   async delete(id: number) {

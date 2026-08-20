@@ -1,34 +1,47 @@
 import { Request, Response, NextFunction } from 'express';
-import jwt from 'jsonwebtoken';
+import { verifyToken, TokenPayload } from '../utils/jwt';
+import { prisma } from '../utils/prisma';
 
-export interface AuthRequest extends Request {
-  user?: {
-    id: number;
-    email: string;
-    role: string;
-    patientId?: number | null;
-  };
+export interface AuthenticatedRequest extends Request {
+  user?: TokenPayload & { permissions?: Record<string, boolean> | null };
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'farmacia-escola-secret-key';
-
-export function authMiddleware(req: AuthRequest, res: Response, next: NextFunction) {
-  const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
-    return res.status(401).json({ error: 'Token de autenticação não fornecido' });
-  }
-
-  const token = authHeader.split(' ')[1];
+export async function authMiddleware(
+  req: AuthenticatedRequest,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as {
-      id: number;
-      email: string;
-      role: string;
-      patientId?: number | null;
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      res.status(401).json({ error: 'Token de autenticação não fornecido' });
+      return;
+    }
+
+    const token = authHeader.split(' ')[1];
+    const decoded = verifyToken(token);
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: { id: true, role: true, active: true, permissions: true, email: true, patient: { select: { id: true } } },
+    });
+
+    if (!user || !user.active) {
+      res.status(401).json({ error: 'Usuário inativo ou inexistente' });
+      return;
+    }
+
+    req.user = {
+      userId: user.id,
+      role: user.role,
+      email: user.email,
+      patientId: user.patient?.id ?? null,
+      permissions: user.permissions as Record<string, boolean> | null,
     };
-    req.user = decoded;
+
     next();
   } catch {
-    return res.status(401).json({ error: 'Token inválido ou expirado' });
+    res.status(401).json({ error: 'Token inválido ou expirado' });
+    return;
   }
 }

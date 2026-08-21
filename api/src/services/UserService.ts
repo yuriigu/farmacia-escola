@@ -1,6 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { UserRepository } from '../repositories/UserRepository';
 import { ActivityLogService } from './ActivityLogService';
+import { Role } from '@prisma/client';  // 👈 Importe o enum
 
 export class UserService {
   private userRepo: UserRepository;
@@ -26,7 +27,7 @@ export class UserService {
     name: string;
     email: string;
     password: string;
-    role: string;
+    role: Role;  // 👈 Mude de string para Role
     registerDoc?: string | null;
     phone?: string | null;
     permissions?: any;
@@ -58,7 +59,16 @@ export class UserService {
     return user;
   }
 
-  async updateUser(adminId: number, id: number, data: any) {
+  async updateUser(adminId: number, id: number, data: {
+    name?: string;
+    email?: string;
+    password?: string;
+    role?: Role;  // 👈 Mude de string para Role
+    registerDoc?: string | null;
+    phone?: string | null;
+    active?: boolean;
+    permissions?: any;
+  }) {
     const user = await this.userRepo.findById(id);
     if (!user) throw { statusCode: 404, message: 'Usuário não encontrado' };
 

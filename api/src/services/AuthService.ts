@@ -3,6 +3,7 @@ import { UserRepository } from '../repositories/UserRepository';
 import { PatientRepository } from '../repositories/PatientRepository';
 import { generateToken } from '../utils/jwt';
 import { prisma } from '../utils/prisma';
+import { Role } from '@prisma/client';  // 👈 Importe o enum
 
 export class AuthService {
   private userRepo: UserRepository;
@@ -85,7 +86,7 @@ export class AuthService {
           name,
           email,
           password: hashedPassword,
-          role: 'PACIENTE',
+          role: Role.PACIENTE,  // 👈 Use o enum Role
           phone,
         },
         include: { patient: true },

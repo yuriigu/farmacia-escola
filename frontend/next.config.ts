@@ -7,10 +7,10 @@ const nextConfig: NextConfig = {
   },
   async rewrites() {
     return [
-      // Redireciona chamadas /api/* do frontend para o backend Express se estiver rodando localmente
+      // Redireciona chamadas /backend/* do frontend para o backend Express se estiver rodando localmente
       {
         source: '/api-proxy/:path*',
-        destination: `${process.env.INTERNAL_API_URL || 'http://localhost:3001'}/api/:path*`,
+        destination: `${process.env.INTERNAL_API_URL || 'http://localhost:3001'}/backend/:path*`,
       },
     ];
   },

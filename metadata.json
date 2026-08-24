@@ -1,0 +1,6 @@
+{
+  "name": "Farmácia Escola",
+  "description": "Sistema web de gestão farmacêutica para Farmácia Escola universitária com controle de estoque, lotes, agendamentos, retiradas e pacientes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

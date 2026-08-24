@@ -5,7 +5,7 @@ import { hasRouteAccess } from './config/rbac';
 // Public routes that do not require authentication
 const PUBLIC_PATHS = ['/login', '/register'];
 
-export function middleware(request: any) {
+export function proxy(request: any) {
   const { pathname } = request.nextUrl;
 
   // Ignore static assets, next internal files, and api routes

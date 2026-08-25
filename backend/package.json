@@ -9,7 +9,7 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "ts-node src/seed/seed.ts"
+    "db:seed": "npx ts-node src/seed/seed.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.11.1",

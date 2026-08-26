@@ -51,4 +51,15 @@ export class PatientController {
       res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar paciente' });
     }
   };
+
+  delete = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { userId, role } = req.user!;
+      const id = Number(req.params.id);
+      const result = await this.patientService.delete(userId, role, id);
+      res.json(result);
+    } catch (err: any) {
+      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao excluir paciente' });
+    }
+  };
 }

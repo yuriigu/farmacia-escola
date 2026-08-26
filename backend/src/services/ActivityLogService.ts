@@ -43,4 +43,10 @@ export class ActivityLogService {
       },
     };
   }
+
+  async getById(id: number) {
+    const log = await this.logRepo.findById(id);
+    if (!log) throw { statusCode: 404, message: 'Log de atividade não encontrado' };
+    return log;
+  }
 }

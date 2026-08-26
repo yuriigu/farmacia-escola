@@ -40,4 +40,17 @@ export class AuthController {
       res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar dados do usuário' });
     }
   };
+
+  updateProfile = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Não autenticado' });
+        return;
+      }
+      const result = await this.authService.updateProfile(req.user.userId, req.body);
+      res.json(result);
+    } catch (err: any) {
+      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar perfil' });
+    }
+  };
 }

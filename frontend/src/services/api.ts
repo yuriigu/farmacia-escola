@@ -26,7 +26,7 @@ export const api = {
   // Auth
   auth: {
     login: async (email: string, password: string) => {
-      const res = await apiClient.post<{ token: string; user: AuthUser }>('/backend/auth/login', {
+      const res = await apiClient.post<{ token: string; user: AuthUser }>('/api/auth/login', {
         email,
         password,
       });
@@ -41,15 +41,15 @@ export const api = {
       birthDate?: string;
       address?: string;
     }) => {
-      const res = await apiClient.post<{ token: string; user: AuthUser }>('/backend/auth/register', data);
+      const res = await apiClient.post<{ token: string; user: AuthUser }>('/api/auth/register', data);
       return res.data;
     },
     me: async () => {
-      const res = await apiClient.get<AuthUser>('/backend/auth/me');
+      const res = await apiClient.get<AuthUser>('/api/auth/me');
       return res.data;
     },
     updateProfile: async (data: { currentPassword?: string; newPassword?: string; name?: string; phone?: string }) => {
-      const res = await apiClient.put<{ message: string }>('/backend/auth/profile', data);
+      const res = await apiClient.put<{ message: string }>('/api/auth/profile', data);
       return res.data;
     },
   },
@@ -57,11 +57,11 @@ export const api = {
   // Medicines
   medicines: {
     getAll: async () => {
-      const res = await apiClient.get<Medicine[]>('/backend/medicines');
+      const res = await apiClient.get<Medicine[]>('/api/medicines');
       return res.data;
     },
     getById: async (id: number) => {
-      const res = await apiClient.get<Medicine & { batches?: Batch[] }>(`/backend/medicines/${id}`);
+      const res = await apiClient.get<Medicine & { batches?: Batch[] }>(`/api/medicines/${id}`);
       return res.data;
     },
     create: async (data: {
@@ -71,15 +71,15 @@ export const api = {
       accessibleDesc?: string;
       category?: string;
     }) => {
-      const res = await apiClient.post<Medicine>('/backend/medicines', data);
+      const res = await apiClient.post<Medicine>('/api/medicines', data);
       return res.data;
     },
     update: async (id: number, data: Partial<Medicine>) => {
-      const res = await apiClient.put<Medicine>(`/backend/medicines/${id}`, data);
+      const res = await apiClient.put<Medicine>(`/api/medicines/${id}`, data);
       return res.data;
     },
     delete: async (id: number) => {
-      const res = await apiClient.delete<{ message: string }>(`/backend/medicines/${id}`);
+      const res = await apiClient.delete<{ message: string }>(`/api/medicines/${id}`);
       return res.data;
     },
   },
@@ -87,7 +87,7 @@ export const api = {
   // Batches
   batches: {
     getAll: async (medicineId?: number) => {
-      const res = await apiClient.get<Batch[]>('/backend/batches', {
+      const res = await apiClient.get<Batch[]>('/api/batches', {
         params: medicineId ? { medicineId } : undefined,
       });
       return res.data;
@@ -98,18 +98,18 @@ export const api = {
       currentQuantity: number;
       expirationDate: string;
     }) => {
-      const res = await apiClient.post<Batch>('/backend/batches', data);
+      const res = await apiClient.post<Batch>('/api/batches', data);
       return res.data;
     },
     update: async (
       id: number,
       data: { batchNumber?: string; currentQuantity?: number; expirationDate?: string }
     ) => {
-      const res = await apiClient.put<Batch>(`/backend/batches/${id}`, data);
+      const res = await apiClient.put<Batch>(`/api/batches/${id}`, data);
       return res.data;
     },
     delete: async (id: number) => {
-      const res = await apiClient.delete<{ message: string }>(`/backend/batches/${id}`);
+      const res = await apiClient.delete<{ message: string }>(`/api/batches/${id}`);
       return res.data;
     },
   },
@@ -117,11 +117,11 @@ export const api = {
   // Appointments
   appointments: {
     getAll: async () => {
-      const res = await apiClient.get<Appointment[]>('/backend/appointments');
+      const res = await apiClient.get<Appointment[]>('/api/appointments');
       return res.data;
     },
     getById: async (id: number) => {
-      const res = await apiClient.get<Appointment>(`/backend/appointments/${id}`);
+      const res = await apiClient.get<Appointment>(`/api/appointments/${id}`);
       return res.data;
     },
     create: async (data: {
@@ -134,15 +134,15 @@ export const api = {
       patientName?: string;
       patientCpf?: string;
     }) => {
-      const res = await apiClient.post<Appointment>('/backend/appointments', data);
+      const res = await apiClient.post<Appointment>('/api/appointments', data);
       return res.data;
     },
     updateStatus: async (id: number, status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED', notes?: string) => {
-      const res = await apiClient.put<Appointment>(`/backend/appointments/${id}`, { status, notes });
+      const res = await apiClient.put<Appointment>(`/api/appointments/${id}/status`, { status, notes });
       return res.data;
     },
     cancel: async (id: number) => {
-      const res = await apiClient.delete<Appointment>(`/backend/appointments/${id}`);
+      const res = await apiClient.delete<Appointment>(`/api/appointments/${id}`);
       return res.data;
     },
   },
@@ -150,25 +150,25 @@ export const api = {
   // Patients
   patients: {
     getAll: async (search?: string) => {
-      const res = await apiClient.get<Patient[]>('/backend/patients', {
+      const res = await apiClient.get<Patient[]>('/api/patients', {
         params: search ? { search } : undefined,
       });
       return res.data;
     },
     getById: async (id: number) => {
-      const res = await apiClient.get<Patient>(`/backend/patients/${id}`);
+      const res = await apiClient.get<Patient>(`/api/patients/${id}`);
       return res.data;
     },
     create: async (data: Partial<Patient>) => {
-      const res = await apiClient.post<Patient>('/backend/patients', data);
+      const res = await apiClient.post<Patient>('/api/patients', data);
       return res.data;
     },
     update: async (id: number, data: Partial<Patient>) => {
-      const res = await apiClient.put<Patient>(`/backend/patients/${id}`, data);
+      const res = await apiClient.put<Patient>(`/api/patients/${id}`, data);
       return res.data;
     },
     delete: async (id: number) => {
-      const res = await apiClient.delete<{ message: string }>(`/backend/patients/${id}`);
+      const res = await apiClient.delete<{ message: string }>(`/api/patients/${id}`);
       return res.data;
     },
   },
@@ -176,15 +176,15 @@ export const api = {
   // Schedule Slots
   scheduleSlots: {
     getAll: async (params?: { startDate?: string; endDate?: string }) => {
-      const res = await apiClient.get<ScheduleSlot[]>('/backend/schedule-slots', { params });
+      const res = await apiClient.get<ScheduleSlot[]>('/api/schedule-slots', { params });
       return res.data;
     },
     create: async (data: { date: string; timeSlot: string; maxCapacity?: number; assignedToId?: number }) => {
-      const res = await apiClient.post<ScheduleSlot>('/backend/schedule-slots', data);
+      const res = await apiClient.post<ScheduleSlot>('/api/schedule-slots', data);
       return res.data;
     },
     delete: async (id: number) => {
-      const res = await apiClient.delete<{ message: string }>(`/backend/schedule-slots/${id}`);
+      const res = await apiClient.delete<{ message: string }>(`/api/schedule-slots/${id}`);
       return res.data;
     },
   },
@@ -192,7 +192,7 @@ export const api = {
   // Withdrawals
   withdrawals: {
     getAll: async () => {
-      const res = await apiClient.get<Withdrawal[]>('/backend/withdrawals');
+      const res = await apiClient.get<Withdrawal[]>('/api/withdrawals');
       return res.data;
     },
     create: async (data: {
@@ -202,11 +202,11 @@ export const api = {
       quantity: number;
       notes?: string;
     }) => {
-      const res = await apiClient.post<{ message: string; withdrawal: Withdrawal }>('/backend/withdrawals', data);
+      const res = await apiClient.post<{ message: string; withdrawal: Withdrawal }>('/api/withdrawals', data);
       return res.data;
     },
     cancel: async (id: number) => {
-      const res = await apiClient.delete<{ message: string }>(`/backend/withdrawals/${id}`);
+      const res = await apiClient.delete<{ message: string }>(`/api/withdrawals/${id}`);
       return res.data;
     },
   },
@@ -214,15 +214,15 @@ export const api = {
   // Disposals
   disposals: {
     getAll: async () => {
-      const res = await apiClient.get<Disposal[]>('/backend/disposals');
+      const res = await apiClient.get<Disposal[]>('/api/disposals');
       return res.data;
     },
     create: async (data: { batchId: number; quantity: number; reason: string }) => {
-      const res = await apiClient.post<{ message: string; disposal: Disposal }>('/backend/disposals', data);
+      const res = await apiClient.post<{ message: string; disposal: Disposal }>('/api/disposals', data);
       return res.data;
     },
     revert: async (id: number) => {
-      const res = await apiClient.post<{ message: string }>(`/backend/disposals/${id}/revert`);
+      const res = await apiClient.post<{ message: string }>(`/api/disposals/${id}/revert`);
       return res.data;
     },
   },
@@ -230,19 +230,19 @@ export const api = {
   // Users
   users: {
     getAll: async () => {
-      const res = await apiClient.get<User[]>('/backend/users');
+      const res = await apiClient.get<User[]>('/api/users');
       return res.data;
     },
     create: async (data: Partial<User> & { password?: string }) => {
-      const res = await apiClient.post<User>('/backend/users', data);
+      const res = await apiClient.post<User>('/api/users', data);
       return res.data;
     },
     update: async (id: number, data: Partial<User>) => {
-      const res = await apiClient.put<User>(`/backend/users/${id}`, data);
+      const res = await apiClient.put<User>(`/api/users/${id}`, data);
       return res.data;
     },
     delete: async (id: number) => {
-      const res = await apiClient.delete<{ message: string }>(`/backend/users/${id}`);
+      const res = await apiClient.delete<{ message: string }>(`/api/users/${id}`);
       return res.data;
     },
   },
@@ -253,7 +253,7 @@ export const api = {
       const res = await apiClient.get<{
         logs: ActivityLogEntry[];
         pagination: { page: number; limit: number; total: number; totalPages: number };
-      }>('/backend/activity-logs', { params });
+      }>('/api/activity-logs', { params });
       return res.data;
     },
   },

@@ -36,6 +36,21 @@ export class BatchRepository {
     });
   }
 
+  async update(
+    id: number,
+    data: {
+      batchNumber?: string;
+      currentQuantity?: number;
+      expirationDate?: Date;
+    }
+  ) {
+    return prisma.stockBatch.update({
+      where: { id },
+      data,
+      include: { medicine: true },
+    });
+  }
+
   async delete(id: number) {
     return prisma.stockBatch.delete({ where: { id } });
   }

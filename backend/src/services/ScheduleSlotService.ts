@@ -17,6 +17,12 @@ export class ScheduleSlotService {
     });
   }
 
+  async getById(id: number) {
+    const slot = await this.slotRepo.findById(id);
+    if (!slot) throw { statusCode: 404, message: 'Horário de escala não encontrado' };
+    return slot;
+  }
+
   async create(userId: number, role: string, data: {
     date: string | Date;
     timeSlot: string;
@@ -54,6 +60,36 @@ export class ScheduleSlotService {
       }
       throw err;
     }
+  }
+
+  async update(userId: number, role: string, id: number, data: {
+    date?: string | Date;
+    timeSlot?: string;
+    maxCapacity?: number;
+    assignedToId?: number;
+  }) {
+    const slot = await this.slotRepo.findById(id);
+    if (!slot) throw { statusCode: 404, message: 'Horário de escala não encontrado' };
+
+    const updateData: any = {};
+    if (data.date) updateData.date = new Date(data.date);
+    if (data.timeSlot) updateData.timeSlot = data.timeSlot;
+    if (data.maxCapacity !== undefined) updateData.maxCapacity = Number(data.maxCapacity);
+    if (data.assignedToId !== undefined) updateData.assignedToId = data.assignedToId || null;
+
+    const updated = await this.slotRepo.update(id, updateData);
+
+    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
+      await this.logService.log(
+        userId,
+        'update',
+        'scheduleSlots',
+        id,
+        `Atualizou escala #${id}`
+      );
+    }
+
+    return updated;
   }
 
   async delete(userId: number, role: string, id: number) {

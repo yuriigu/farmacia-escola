@@ -29,6 +29,20 @@ export class AppointmentService {
     return this.appointmentRepo.findAll();
   }
 
+  async getById(id: number, user: { userId: number; role: string }) {
+    const appt = await this.appointmentRepo.findById(id);
+    if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
+
+    if (user.role === 'PACIENTE') {
+      const patient = await this.patientRepo.findByUserId(user.userId);
+      if (!patient || appt.patientId !== patient.id) {
+        throw { statusCode: 403, message: 'Acesso não autorizado ao agendamento' };
+      }
+    }
+
+    return appt;
+  }
+
   async create(user: { userId: number; role: string; patientId?: number | null }, data: {
     scheduledDate: string | Date;
     scheduledTime?: string;
@@ -130,5 +144,59 @@ export class AppointmentService {
     );
 
     return updated;
+  }
+
+  async update(userId: number, role: string, id: number, data: {
+    scheduledDate?: string | Date;
+    scheduledTime?: string;
+    slotId?: number;
+    notes?: string;
+    status?: string;
+  }) {
+    const appt = await this.appointmentRepo.findById(id);
+    if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
+
+    const updateData: any = {};
+    if (data.scheduledDate) updateData.scheduledDate = new Date(data.scheduledDate);
+    if (data.scheduledTime !== undefined) updateData.scheduledTime = data.scheduledTime;
+    if (data.slotId !== undefined) updateData.slotId = data.slotId;
+    if (data.notes !== undefined) updateData.notes = data.notes;
+    if (data.status) updateData.status = data.status;
+
+    const updated = await this.appointmentRepo.update(id, updateData);
+
+    await this.logService.log(
+      userId,
+      'update',
+      'appointments',
+      id,
+      `Atualizou agendamento #${id}`
+    );
+
+    return updated;
+  }
+
+  async delete(userId: number, role: string, id: number) {
+    const appt = await this.appointmentRepo.findById(id);
+    if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
+
+    if (role === 'PACIENTE') {
+      const patient = await this.patientRepo.findByUserId(userId);
+      if (!patient || appt.patientId !== patient.id) {
+        throw { statusCode: 403, message: 'Acesso não autorizado ao agendamento' };
+      }
+    }
+
+    await this.appointmentRepo.delete(id);
+
+    await this.logService.log(
+      userId,
+      'delete',
+      'appointments',
+      id,
+      `Cancelou/excluiu agendamento #${id}`
+    );
+
+    return { message: 'Agendamento cancelado/excluído com sucesso' };
   }
 }

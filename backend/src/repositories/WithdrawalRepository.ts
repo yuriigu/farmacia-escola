@@ -80,4 +80,53 @@ export class WithdrawalRepository {
       return withdrawal;
     });
   }
+
+  async update(id: number, data: { notes?: string | null }) {
+    return prisma.withdrawal.update({
+      where: { id },
+      data,
+      include: {
+        user: { select: { name: true } },
+        patient: { select: { name: true, cpf: true } },
+        items: {
+          include: {
+            batch: {
+              include: {
+                medicine: { select: { name: true, dosage: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
+  async delete(id: number) {
+    return prisma.$transaction(async (tx) => {
+      const withdrawal = await tx.withdrawal.findUnique({
+        where: { id },
+        include: { items: true },
+      });
+
+      if (!withdrawal) {
+        throw new Error('Dispensação não encontrada');
+      }
+
+      // Devolve a quantidade de cada item de volta ao estoque do lote
+      for (const item of withdrawal.items) {
+        await tx.stockBatch.update({
+          where: { id: item.batchId },
+          data: { currentQuantity: { increment: item.quantity } },
+        });
+      }
+
+      await tx.withdrawalItem.deleteMany({
+        where: { withdrawalId: id },
+      });
+
+      return tx.withdrawal.delete({
+        where: { id },
+      });
+    });
+  }
 }

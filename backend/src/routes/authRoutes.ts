@@ -9,5 +9,6 @@ router.post('/login', controller.login);
 router.post('/register', controller.register);
 router.get('/me', authMiddleware, controller.me);
 router.get('/profile', authMiddleware, controller.me);
+router.put('/profile', authMiddleware, controller.updateProfile);
 
 export default router;

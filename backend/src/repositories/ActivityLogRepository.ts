@@ -41,4 +41,13 @@ export class ActivityLogRepository {
 
     return { logs, total };
   }
+
+  async findById(id: number) {
+    return prisma.activityLog.findUnique({
+      where: { id },
+      include: {
+        user: { select: { id: true, name: true, role: true } },
+      },
+    });
+  }
 }

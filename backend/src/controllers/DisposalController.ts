@@ -18,6 +18,16 @@ export class DisposalController {
     }
   };
 
+  getById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const id = Number(req.params.id);
+      const disposal = await this.disposalService.getById(id);
+      res.json(disposal);
+    } catch (err: any) {
+      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar descarte' });
+    }
+  };
+
   create = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const { userId, role } = req.user!;
@@ -25,6 +35,28 @@ export class DisposalController {
       res.status(201).json(disposal);
     } catch (err: any) {
       res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao registrar descarte' });
+    }
+  };
+
+  update = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { userId, role } = req.user!;
+      const id = Number(req.params.id);
+      const updated = await this.disposalService.update(userId, role, id, req.body);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar descarte' });
+    }
+  };
+
+  delete = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const { userId, role } = req.user!;
+      const id = Number(req.params.id);
+      const result = await this.disposalService.delete(userId, role, id);
+      res.json(result);
+    } catch (err: any) {
+      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao excluir descarte' });
     }
   };
 

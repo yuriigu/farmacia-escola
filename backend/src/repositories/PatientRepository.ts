@@ -89,4 +89,10 @@ export class PatientRepository {
       data,
     });
   }
+
+  async delete(id: number) {
+    return prisma.patient.delete({
+      where: { id },
+    });
+  }
 }

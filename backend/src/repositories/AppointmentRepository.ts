@@ -133,4 +133,40 @@ export class AppointmentRepository {
       },
     });
   }
+
+  async update(
+    id: number,
+    data: {
+      scheduledDate?: Date;
+      scheduledTime?: string | null;
+      slotId?: number | null;
+      status?: string;
+      notes?: string | null;
+    }
+  ) {
+    const updateData: any = { ...data };
+    if (data.status) {
+      updateData.status = data.status as any;
+    }
+    return prisma.appointment.update({
+      where: { id },
+      data: updateData,
+      include: {
+        patient: true,
+        slot: true,
+        items: { include: { medicine: true, batch: true } },
+      },
+    });
+  }
+
+  async delete(id: number) {
+    return prisma.$transaction(async (tx) => {
+      await tx.appointmentItem.deleteMany({
+        where: { appointmentId: id },
+      });
+      return tx.appointment.delete({
+        where: { id },
+      });
+    });
+  }
 }

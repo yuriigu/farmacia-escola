@@ -18,6 +18,16 @@ export class UserController {
     }
   };
 
+  getById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const id = Number(req.params.id);
+      const user = await this.userService.getUserById(id);
+      res.json(user);
+    } catch (err: any) {
+      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar usuário' });
+    }
+  };
+
   create = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const adminId = req.user!.userId;
@@ -36,6 +46,17 @@ export class UserController {
       res.json(updated);
     } catch (err: any) {
       res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar usuário' });
+    }
+  };
+
+  delete = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const adminId = req.user!.userId;
+      const id = Number(req.params.id);
+      const result = await this.userService.deleteUser(adminId, id);
+      res.json(result);
+    } catch (err: any) {
+      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao excluir usuário' });
     }
   };
 

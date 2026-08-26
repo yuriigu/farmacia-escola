@@ -90,4 +90,37 @@ export class DisposalRepository {
       return updated;
     });
   }
+
+  async update(id: number, data: { reason?: string | null }) {
+    return prisma.disposal.update({
+      where: { id },
+      data,
+      include: {
+        user: { select: { name: true } },
+        batch: {
+          include: {
+            medicine: { select: { name: true, dosage: true } },
+          },
+        },
+      },
+    });
+  }
+
+  async delete(id: number) {
+    return prisma.$transaction(async (tx) => {
+      const disposal = await tx.disposal.findUnique({ where: { id } });
+      if (!disposal) {
+        throw new Error('Descarte não encontrado');
+      }
+
+      if (!disposal.reverted) {
+        await tx.stockBatch.update({
+          where: { id: disposal.batchId },
+          data: { currentQuantity: { increment: disposal.quantity } },
+        });
+      }
+
+      return tx.disposal.delete({ where: { id } });
+    });
+  }
 }

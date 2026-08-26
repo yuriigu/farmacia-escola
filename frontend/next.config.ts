@@ -6,11 +6,19 @@ const nextConfig: NextConfig = {
     ignoreBuildErrors: true,
   },
   async rewrites() {
+    const backendUrl = process.env.INTERNAL_API_URL || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
     return [
-      // Redireciona chamadas /backend/* do frontend para o backend Express se estiver rodando localmente
+      {
+        source: '/api/:path*',
+        destination: `${backendUrl}/api/:path*`,
+      },
+      {
+        source: '/backend/:path*',
+        destination: `${backendUrl}/backend/:path*`,
+      },
       {
         source: '/api-proxy/:path*',
-        destination: `${process.env.INTERNAL_API_URL || 'http://localhost:3001'}/backend/:path*`,
+        destination: `${backendUrl}/api/:path*`,
       },
     ];
   },

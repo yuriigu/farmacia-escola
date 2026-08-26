@@ -101,4 +101,19 @@ export class UserService {
     );
     return updated;
   }
+
+  async deleteUser(adminId: number, id: number) {
+    const user = await this.userRepo.findById(id);
+    if (!user) throw { statusCode: 404, message: 'Usuário não encontrado' };
+
+    const deleted = await this.userRepo.delete(id);
+    await this.logService.log(
+      adminId,
+      'delete',
+      'users',
+      id,
+      `Excluiu usuário ${user.name}`
+    );
+    return { message: 'Usuário excluído com sucesso' };
+  }
 }

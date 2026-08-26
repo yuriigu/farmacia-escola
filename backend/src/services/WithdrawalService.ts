@@ -23,6 +23,17 @@ export class WithdrawalService {
     return this.withdrawalRepo.findAll();
   }
 
+  async getById(id: number, userRole: string, patientId?: number | null) {
+    const withdrawal = await this.withdrawalRepo.findById(id);
+    if (!withdrawal) throw { statusCode: 404, message: 'Dispensação não encontrada' };
+
+    if (userRole === 'PACIENTE' && withdrawal.patientId !== patientId) {
+      throw { statusCode: 403, message: 'Acesso não autorizado à dispensação' };
+    }
+
+    return withdrawal;
+  }
+
   async create(userId: number, role: string, data: {
     patientName: string;
     patientCpf: string;
@@ -77,5 +88,43 @@ export class WithdrawalService {
     }
 
     return withdrawal;
+  }
+
+  async update(userId: number, role: string, id: number, data: { notes?: string }) {
+    const withdrawal = await this.withdrawalRepo.findById(id);
+    if (!withdrawal) throw { statusCode: 404, message: 'Dispensação não encontrada' };
+
+    const updated = await this.withdrawalRepo.update(id, data);
+
+    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
+      await this.logService.log(
+        userId,
+        'update',
+        'withdrawals',
+        id,
+        `Atualizou observações da dispensação #${id}`
+      );
+    }
+
+    return updated;
+  }
+
+  async delete(userId: number, role: string, id: number) {
+    const withdrawal = await this.withdrawalRepo.findById(id);
+    if (!withdrawal) throw { statusCode: 404, message: 'Dispensação não encontrada' };
+
+    await this.withdrawalRepo.delete(id);
+
+    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
+      await this.logService.log(
+        userId,
+        'cancel',
+        'withdrawals',
+        id,
+        `Cancelou a dispensação #${id} e estornou os itens para o estoque`
+      );
+    }
+
+    return { message: 'Dispensação cancelada e estoque restaurado com sucesso' };
   }
 }

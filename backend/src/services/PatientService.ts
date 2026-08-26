@@ -91,4 +91,23 @@ export class PatientService {
 
     return updated;
   }
+
+  async delete(userId: number, role: string, id: number) {
+    const existing = await this.patientRepo.findById(id);
+    if (!existing) throw { statusCode: 404, message: 'Paciente não encontrado' };
+
+    const deleted = await this.patientRepo.delete(id);
+
+    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
+      await this.logService.log(
+        userId,
+        'delete',
+        'patients',
+        id,
+        `Excluiu paciente ${existing.name}`
+      );
+    }
+
+    return { message: 'Paciente excluído com sucesso' };
+  }
 }

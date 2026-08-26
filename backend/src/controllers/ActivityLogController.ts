@@ -28,4 +28,14 @@ export class ActivityLogController {
       res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar logs de auditoria' });
     }
   };
+
+  getById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      const id = Number(req.params.id);
+      const log = await this.logService.getById(id);
+      res.json(log);
+    } catch (err: any) {
+      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar log de atividade' });
+    }
+  };
 }

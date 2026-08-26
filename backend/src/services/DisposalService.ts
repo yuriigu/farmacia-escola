@@ -17,6 +17,12 @@ export class DisposalService {
     return this.disposalRepo.findAll();
   }
 
+  async getById(id: number) {
+    const disposal = await this.disposalRepo.findById(id);
+    if (!disposal) throw { statusCode: 404, message: 'Descarte não encontrado' };
+    return disposal;
+  }
+
   async create(userId: number, role: string, data: {
     batchId: number;
     quantity: number;
@@ -59,6 +65,44 @@ export class DisposalService {
     }
 
     return disposal;
+  }
+
+  async update(userId: number, role: string, id: number, data: { reason?: string }) {
+    const disposal = await this.disposalRepo.findById(id);
+    if (!disposal) throw { statusCode: 404, message: 'Descarte não encontrado' };
+
+    const updated = await this.disposalRepo.update(id, data);
+
+    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
+      await this.logService.log(
+        userId,
+        'update',
+        'disposals',
+        id,
+        `Atualizou motivo do descarte #${id}`
+      );
+    }
+
+    return updated;
+  }
+
+  async delete(userId: number, role: string, id: number) {
+    const disposal = await this.disposalRepo.findById(id);
+    if (!disposal) throw { statusCode: 404, message: 'Descarte não encontrado' };
+
+    await this.disposalRepo.delete(id);
+
+    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
+      await this.logService.log(
+        userId,
+        'delete',
+        'disposals',
+        id,
+        `Excluiu descarte #${id}`
+      );
+    }
+
+    return { message: 'Descarte excluído com sucesso' };
   }
 
   async revert(userId: number, role: string, disposalId: number) {

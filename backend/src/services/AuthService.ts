@@ -136,4 +136,36 @@ export class AuthService {
       patientId: user.patient?.id ?? null,
     };
   }
+
+  async updateProfile(userId: number, data: { currentPassword?: string; newPassword?: string; name?: string; phone?: string }) {
+    const user = await this.userRepo.findById(userId);
+    if (!user) {
+      throw { statusCode: 404, message: 'Usuário não encontrado' };
+    }
+
+    const updateData: any = {};
+    if (data.name) updateData.name = data.name;
+    if (data.phone !== undefined) updateData.phone = data.phone;
+
+    if (data.newPassword) {
+      if (!data.currentPassword) {
+        throw { statusCode: 400, message: 'Senha atual é obrigatória para alterar a senha' };
+      }
+      const valid = await bcrypt.compare(data.currentPassword, user.password);
+      if (!valid) {
+        throw { statusCode: 400, message: 'Senha atual incorreta' };
+      }
+      updateData.password = await bcrypt.hash(data.newPassword, 10);
+    }
+
+    const updated = await this.userRepo.update(userId, updateData);
+    const { password: _, ...userWithoutPassword } = updated as any;
+    return {
+      message: 'Perfil atualizado com sucesso',
+      user: {
+        ...userWithoutPassword,
+        patientId: user.patient?.id ?? null,
+      },
+    };
+  }
 }

@@ -20,6 +20,7 @@ async function main() {
   // ===== USERS =====
   const adminPass = await bcrypt.hash('admin123', 10);
   const farmPass = await bcrypt.hash('farm123', 10);
+  const medPass = await bcrypt.hash('medico123', 10);
   const alunoPass = await bcrypt.hash('aluno123', 10);
   const pacPass = await bcrypt.hash('paciente123', 10);
 
@@ -33,6 +34,10 @@ async function main() {
 
   const farm2 = await prisma.user.create({
     data: { name: 'Farm. Pedro Almeida', email: 'pedro@farmaciaescola.edu.br', password: farmPass, role: Role.FARMACEUTICO, active: true, registerDoc: 'CRF/SP 12346' },
+  });
+
+  const medico = await prisma.user.create({
+    data: { name: 'Dr. Roberto Santos', email: 'roberto.medico@farmaciaescola.edu.br', password: medPass, role: Role.MEDICO, active: true, registerDoc: 'CRM/SP 98765' },
   });
 
   const aluno = await prisma.user.create({

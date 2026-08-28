@@ -2,6 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import apiRoutes from './routes';
+import { errorMiddleware } from './middlewares/errorMiddleware';
 
 dotenv.config();
 
@@ -38,6 +39,9 @@ app.get('/health', (req, res) => {
     timestamp: new Date().toISOString()
   });
 });
+
+// Middleware de tratamento de erros
+app.use(errorMiddleware);
 
 app.listen(PORT, () => {
   console.log(`🚀 [API] Servidor Express iniciado em http://localhost:${PORT}`);

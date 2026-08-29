@@ -4,21 +4,7 @@ generator client {
 
 datasource db {
   provider = "sqlite"
-}
-
-enum Role {
-  ADMIN
-  FARMACEUTICO
-  MEDICO
-  ALUNO
-  PACIENTE
-}
-
-enum AppointmentStatus {
-  PENDING
-  CONFIRMED
-  COMPLETED
-  CANCELLED
+  url      = "file:./dev.db"
 }
 
 model User {
@@ -26,18 +12,18 @@ model User {
   name        String
   email       String   @unique
   password    String
-  role        Role     @default(ALUNO)
+  role        String   @default("ALUNO")
   registerDoc String?  @unique
   phone       String?
   active      Boolean  @default(true)
-  permissions Json?
+  permissions String?
   createdAt   DateTime @default(now())
 
   withdrawals    Withdrawal[]
-  disposals       Disposal[]
-  patient         Patient?
-  activityLogs    ActivityLog[]
-  scheduleSlots   ScheduleSlot[]
+  disposals      Disposal[]
+  patient        Patient?
+  activityLogs   ActivityLog[]
+  scheduleSlots  ScheduleSlot[]
 }
 
 model ActivityLog {
@@ -81,7 +67,7 @@ model Medicine {
   createdAt        DateTime @default(now())
 
   batches          StockBatch[]
-  appointmentItems  AppointmentItem[]
+  appointmentItems AppointmentItem[]
 }
 
 model StockBatch {
@@ -99,12 +85,12 @@ model StockBatch {
 }
 
 model Withdrawal {
-  id        Int              @id @default(autoincrement())
-  patientId Int
-  userId    Int
-  date      DateTime         @default(now())
-  notes     String?
-  appointmentId Int?
+  id             Int      @id @default(autoincrement())
+  patientId      Int
+  userId         Int
+  date           DateTime @default(now())
+  notes          String?
+  appointmentId  Int?
 
   patient     Patient          @relation(fields: [patientId], references: [id])
   user        User             @relation(fields: [userId], references: [id])
@@ -113,13 +99,13 @@ model Withdrawal {
 }
 
 model WithdrawalItem {
-  id           Int        @id @default(autoincrement())
+  id           Int  @id @default(autoincrement())
   withdrawalId Int
   batchId      Int
   quantity     Int
 
-  withdrawal   Withdrawal @relation(fields: [withdrawalId], references: [id])
-  batch        StockBatch @relation(fields: [batchId], references: [id])
+  withdrawal Withdrawal @relation(fields: [withdrawalId], references: [id])
+  batch      StockBatch @relation(fields: [batchId], references: [id])
 }
 
 model Disposal {
@@ -131,20 +117,18 @@ model Disposal {
   date      DateTime @default(now())
   reverted  Boolean  @default(false)
 
-  batch     StockBatch @relation(fields: [batchId], references: [id])
-  user      User       @relation(fields: [userId], references: [id])
+  batch StockBatch @relation(fields: [batchId], references: [id])
+  user  User       @relation(fields: [userId], references: [id])
 }
 
-// ===== ESCALA DE HORÁRIOS =====
-
 model ScheduleSlot {
-  id          Int      @id @default(autoincrement())
-  date        DateTime
-  timeSlot    String
-  maxCapacity Int      @default(5)
-  active      Boolean  @default(true)
+  id           Int      @id @default(autoincrement())
+  date         DateTime
+  timeSlot     String
+  maxCapacity  Int      @default(5)
+  active       Boolean  @default(true)
   assignedToId Int?
-  createdAt   DateTime @default(now())
+  createdAt    DateTime @default(now())
 
   assignedTo  User?         @relation(fields: [assignedToId], references: [id])
   appointments Appointment[]
@@ -153,22 +137,20 @@ model ScheduleSlot {
   @@index([date])
 }
 
-// ===== AGENDAMENTO DE RETIRADA =====
-
 model Appointment {
-  id            Int               @id @default(autoincrement())
-  patientId     Int
-  scheduledDate DateTime
-  scheduledTime String?
-  slotId        Int?
-  status        AppointmentStatus @default(PENDING)
-  notes         String?
-  createdAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
+  id             Int      @id @default(autoincrement())
+  patientId      Int
+  scheduledDate  DateTime
+  scheduledTime  String?
+  slotId         Int?
+  status         String   @default("PENDING")
+  notes          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
-  patient  Patient          @relation(fields: [patientId], references: [id])
-  slot     ScheduleSlot?     @relation(fields: [slotId], references: [id])
-  items    AppointmentItem[]
+  patient     Patient          @relation(fields: [patientId], references: [id])
+  slot        ScheduleSlot?    @relation(fields: [slotId], references: [id])
+  items       AppointmentItem[]
   withdrawals Withdrawal[]
 
   @@index([scheduledDate, status])
@@ -176,15 +158,15 @@ model Appointment {
 }
 
 model AppointmentItem {
-  id           Int  @id @default(autoincrement())
-  appointmentId Int
-  medicineId    Int
-  batchId       Int?
-  quantity      Int
+  id             Int  @id @default(autoincrement())
+  appointmentId  Int
+  medicineId     Int
+  batchId        Int?
+  quantity       Int
 
-  appointment   Appointment @relation(fields: [appointmentId], references: [id])
-  medicine      Medicine    @relation(fields: [medicineId], references: [id])
-  batch         StockBatch? @relation(fields: [batchId], references: [id])
+  appointment Appointment @relation(fields: [appointmentId], references: [id])
+  medicine    Medicine    @relation(fields: [medicineId], references: [id])
+  batch       StockBatch? @relation(fields: [batchId], references: [id])
 
   @@index([appointmentId])
 }

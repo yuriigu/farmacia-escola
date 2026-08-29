@@ -1,6 +1,7 @@
 import '@testing-library/jest-dom/vitest';
 import { vi, afterEach } from 'vitest';
 import { cleanup } from '@testing-library/react';
+import React from 'react';
 
 afterEach(() => {
   cleanup();
@@ -47,6 +48,13 @@ vi.mock('next/navigation', () => {
     useSearchParams: () => new URLSearchParams(),
   };
 });
+
+// Mock next/image
+vi.mock('next/image', () => ({
+  default: ({ src, alt, ...props }: any) => {
+    return React.createElement('img', { src: typeof src === 'object' ? src.src : src, alt, ...props });
+  },
+}));
 
 // Mock sonner toast
 vi.mock('sonner', () => ({

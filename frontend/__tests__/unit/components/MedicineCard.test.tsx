@@ -1,32 +1,35 @@
-import React from 'react';
-import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
-import { StockStatusBadge } from '@/components/shared/StockStatusBadge';
-import { ExpiryBadge } from '@/components/shared/ExpiryBadge';
+import { describe, it, expect, vi } from 'vitest';
+import { render } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { MedicineCard } from '@/components/modules/MedicineCard';
+import { mockMedicine } from '../../fixtures/medicine.fixture';
 
-describe('MedicineCard & Stock Badges', () => {
-  it('deve exibir status "Em Estoque" quando quantidade for adequada', () => {
-    render(<StockStatusBadge quantity={100} minStock={10} />);
-    expect(screen.getByText(/em estoque/i)).toBeInTheDocument();
+describe('MedicineCard Component', () => {
+  it('deve renderizar informações do medicamento', () => {
+    const { getByText } = render(<MedicineCard medicine={mockMedicine} />);
+
+    expect(getByText('Paracetamol')).toBeInTheDocument();
+    expect(getByText(/500mg/)).toBeInTheDocument();
+    expect(getByText(/150 un/)).toBeInTheDocument();
+    expect(getByText('Analgésico / Antipirético')).toBeInTheDocument();
   });
 
-  it('deve exibir status "Estoque Baixo" quando quantidade estiver abaixo do mínimo', () => {
-    render(<StockStatusBadge quantity={5} minStock={10} />);
-    expect(screen.getByText(/estoque baixo/i)).toBeInTheDocument();
+  it('deve acionar callback onSelect ao clicar no cartão', async () => {
+    const handleSelect = vi.fn();
+    const user = userEvent.setup();
+    const { getByTestId } = render(<MedicineCard medicine={mockMedicine} onSelect={handleSelect} />);
+
+    const card = getByTestId('medicine-card');
+    await user.click(card);
+
+    expect(handleSelect).toHaveBeenCalledTimes(1);
+    expect(handleSelect).toHaveBeenCalledWith(mockMedicine);
   });
 
-  it('deve exibir status "Esgotado" quando quantidade for zero', () => {
-    render(<StockStatusBadge quantity={0} minStock={10} />);
-    expect(screen.getByText(/esgotado/i)).toBeInTheDocument();
-  });
+  it('deve exibir status crítico quando quantidade for zero', () => {
+    const zeroStockMed = { ...mockMedicine, totalQuantity: 0 };
+    const { getByText } = render(<MedicineCard medicine={zeroStockMed} />);
 
-  it('deve exibir data de validade com formato adequado', () => {
-    render(<ExpiryBadge date="2027-12-31T00:00:00.000Z" />);
-    expect(screen.getByText(/válido/i)).toBeInTheDocument();
-  });
-
-  it('deve indicar lote vencido para datas passadas', () => {
-    render(<ExpiryBadge date="2020-01-01T00:00:00.000Z" />);
-    expect(screen.getByText(/vencido/i)).toBeInTheDocument();
+    expect(getByText('Crítico')).toBeInTheDocument();
   });
 });

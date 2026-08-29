@@ -23,6 +23,27 @@ export interface ActivityLogEntry {
 }
 
 export const api = {
+  get: async <T>(url: string, config?: any) => {
+    const finalUrl = url.startsWith('/api') ? url : `/api${url}`;
+    const res = await apiClient.get<T>(finalUrl, config);
+    return res.data;
+  },
+  post: async <T>(url: string, data?: any, config?: any) => {
+    const finalUrl = url.startsWith('/api') ? url : `/api${url}`;
+    const res = await apiClient.post<T>(finalUrl, data, config);
+    return res.data;
+  },
+  put: async <T>(url: string, data?: any, config?: any) => {
+    const finalUrl = url.startsWith('/api') ? url : `/api${url}`;
+    const res = await apiClient.put<T>(finalUrl, data, config);
+    return res.data;
+  },
+  delete: async <T>(url: string, config?: any) => {
+    const finalUrl = url.startsWith('/api') ? url : `/api${url}`;
+    const res = await apiClient.delete<T>(finalUrl, config);
+    return res.data;
+  },
+
   // Auth
   auth: {
     login: async (email: string, password: string) => {

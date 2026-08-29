@@ -1,74 +1,51 @@
-import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { LoginPage } from '@/components/pages/LoginPage';
-import { api } from '@/services/api';
-import { mockUser } from '../../fixtures/user.fixture';
-
-vi.mock('@/services/api', () => ({
-  api: {
-    auth: {
-      login: vi.fn(),
-    },
-  },
-}));
-
-function renderWithProviders(ui: React.ReactElement) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  return render(
-    <QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>
-  );
-}
+import { LoginForm } from '@/components/modules/LoginForm';
 
 describe('LoginForm Component', () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
+  it('deve renderizar os campos de email, senha e botão de entrar', () => {
+    const { getByLabelText, getByRole } = render(<LoginForm />);
+
+    expect(getByLabelText(/e-mail/i)).toBeInTheDocument();
+    expect(getByLabelText(/senha/i)).toBeInTheDocument();
+    expect(getByRole('button', { name: /entrar/i })).toBeInTheDocument();
   });
 
-  it('deve renderizar campos de email e senha e botão de entrar', () => {
-    renderWithProviders(<LoginPage />);
-
-    expect(screen.getByLabelText(/e-mail/i)).toBeInTheDocument();
-    expect(screen.getByLabelText(/senha/i)).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /entrar no sistema/i })).toBeInTheDocument();
-  });
-
-  it('deve exibir erro de validação para email inválido', async () => {
+  it('deve permitir digitação nos campos de entrada', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<LoginPage />);
+    const { getByLabelText } = render(<LoginForm />);
 
-    const emailInput = screen.getByLabelText(/e-mail/i);
-    const submitBtn = screen.getByRole('button', { name: /entrar no sistema/i });
+    const emailInput = getByLabelText(/e-mail/i);
+    const passwordInput = getByLabelText(/senha/i);
 
-    await user.type(emailInput, 'email-invalido');
-    await user.click(submitBtn);
-
-    expect(await screen.findByText(/e-mail inválido/i)).toBeInTheDocument();
-  });
-
-  it('deve submeter formulário com credenciais corretas', async () => {
-    const user = userEvent.setup();
-    (api.auth.login as any).mockResolvedValue({
-      token: 'valid-token',
-      user: mockUser,
-    });
-
-    renderWithProviders(<LoginPage />);
-
-    const emailInput = screen.getByLabelText(/e-mail/i);
-    const passwordInput = screen.getByLabelText(/senha/i);
-    const submitBtn = screen.getByRole('button', { name: /entrar no sistema/i });
-
-    await user.type(emailInput, 'admin@farmacia.ufba.br');
+    await user.type(emailInput, 'usuario@ufba.br');
     await user.type(passwordInput, 'senhaSegura123');
-    await user.click(submitBtn);
 
-    await waitFor(() => {
-      expect(api.auth.login).toHaveBeenCalledWith('admin@farmacia.ufba.br', 'senhaSegura123');
+    expect(emailInput).toHaveValue('usuario@ufba.br');
+    expect(passwordInput).toHaveValue('senhaSegura123');
+  });
+
+  it('deve chamar onSubmit com credenciais corretas', async () => {
+    const user = userEvent.setup();
+    const handleSubmit = vi.fn();
+    const { getByLabelText, getByRole } = render(<LoginForm onSubmit={handleSubmit} />);
+
+    await user.type(getByLabelText(/e-mail/i), 'admin@ufba.br');
+    await user.type(getByLabelText(/senha/i), '123456');
+    await user.click(getByRole('button', { name: /entrar/i }));
+
+    expect(handleSubmit).toHaveBeenCalledTimes(1);
+    expect(handleSubmit).toHaveBeenCalledWith({
+      email: 'admin@ufba.br',
+      password: '123456',
     });
+  });
+
+  it('deve desabilitar o botão quando isLoading for verdadeiro', () => {
+    const { getByRole } = render(<LoginForm isLoading={true} />);
+
+    const button = getByRole('button', { name: /entrando/i });
+    expect(button).toBeDisabled();
   });
 });

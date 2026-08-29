@@ -224,6 +224,14 @@ export function usePatients(search?: string) {
   });
 }
 
+export function usePatient(id: number | null | undefined) {
+  return useQuery({
+    queryKey: ['patients', id || 0],
+    queryFn: () => api.patients.getById(id!),
+    enabled: Boolean(id && id > 0),
+  });
+}
+
 export function useCreatePatient() {
   const queryClient = useQueryClient();
   return useMutation({

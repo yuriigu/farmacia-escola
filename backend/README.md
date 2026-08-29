@@ -1,294 +1,337 @@
-# Farmácia Escola API - Backend
+# Farmácia Escola — Backend
 
-API RESTful em Node.js, Express e TypeScript desenvolvida para gerenciar o núcleo transacional do sistema **Farmácia Escola**, fornecendo controle de estoque farmacêutico por lote, agendamento de atendimentos, histórico de dispensações a pacientes, auditoria regulatória e controle de acesso baseado em papéis (RBAC).
+API RESTful responsável pelo núcleo transacional da plataforma Farmácia Escola, desenvolvida com Node.js, Express, TypeScript e Prisma. O backend centraliza as regras de negócio, persistência de dados, controle de estoque, agendamentos, dispensações, descartes, auditoria e autenticação baseada em papéis (RBAC).
 
----
+## Sobre o Projeto
 
-## 🎯 Sobre o Backend
+O backend foi desenvolvido para garantir a integridade dos dados e aplicar as regras de negócio relacionadas às operações da Farmácia Escola.
 
-O backend é responsável por garantir a integridade dos dados e aplicar as regras farmacêuticas e sanitárias da instituição:
-- **Gestão de Medicamentos & Lotes**: Cadastro de especialidades farmacêuticas com controle estrito de lotes (`StockBatch`), saldo fracionado/unitário e alertas de validade.
-- **Dispensação de Medicamentos (`Withdrawals`)**: Processamento de retiradas com débito automático no lote de origem e registro do profissional responsável.
-- **Descarte Motivado & Reversão (`Disposals`)**: Baixa controlada por avaria, vencimento ou contaminação, com histórico e possibilidade de reversão motivada.
-- **Escala de Atendimento & Agendamentos**: Gestão de faixas de horários (`ScheduleSlot`) e agendamentos de retiradas vinculados a múltiplos itens de medicamentos.
-- **Autenticação & Autorização (RBAC)**: Emissão e validação de tokens JWT, protegendo rotas sensíveis com controle de permissões por perfil (`ADMIN`, `FARMACEUTICO`, `MEDICO`, `ALUNO`, `PACIENTE`).
-- **Trilha de Auditoria (`ActivityLog`)**: Registro indelével de operações de login, cadastro, edição e exclusão de registros.
+### Principais Características
 
----
+* Gestão de medicamentos e lotes de estoque
+* Controle de quantidade disponível por lote
+* Alertas relacionados à validade dos medicamentos
+* Dispensação de medicamentos com baixa automática no estoque
+* Registro do profissional responsável pela dispensação
+* Controle de descartes por avaria, vencimento ou contaminação
+* Possibilidade de reversão de descartes
+* Gestão de horários e agendamentos
+* Autenticação utilizando tokens JWT
+* Controle de acesso baseado em papéis (RBAC)
+* Registro de atividades para auditoria
+* Integridade e segurança das operações de estoque
 
-## 🚀 Tecnologias e Bibliotecas
+## Stack Tecnológica
 
-- **Ambiente de Execução**: [Node.js](https://nodejs.org/) (v18+)
-- **Linguagem**: [TypeScript](https://www.typescriptlang.org/) v5
-- **Framework Web**: [Express.js](https://expressjs.com/) v4
-- **ORM**: [Prisma ORM](https://www.prisma.io/) v6
-- **Banco de Dados**: SQLite (desenvolvimento padrão) / PostgreSQL (produção)
-- **Autenticação**: [JSON Web Token (jsonwebtoken)](https://github.com/auth0/node-jsonwebtoken) & [bcryptjs](https://github.com/dcodeIO/bcrypt.js)
-- **CORS**: `cors`
-- **Desenvolvimento & Hot Reload**: `ts-node` e `nodemon`
+### Backend
 
----
+* Node.js 18+
+* Express 4
+* TypeScript 5
+* Prisma ORM 6
+* SQLite para desenvolvimento
+* PostgreSQL para produção
+* JSON Web Token (JWT)
+* bcryptjs
+* CORS
+* ts-node
+* Nodemon
 
-## 📋 Pré-requisitos
+## Pré-requisitos
 
-- **Node.js**: `v18.0.0` ou superior
-- **npm**: `v9.0.0` ou superior
-- (Opcional) Instância do **PostgreSQL** caso deseje utilizar banco relacional externo em vez do SQLite local.
+* Node.js 18 ou superior
+* npm 9 ou superior
+* Git
+* PostgreSQL, caso seja utilizado como banco de produção
 
----
+## Instalação
 
-## 🔧 Instalação e Configuração
+### Clone o repositório
 
-### 1. Acessar a pasta do backend
+```bash
+git clone https://github.com/seu-usuario/farmacia-escola.git
+cd farmacia-escola
+```
+
+### Acesse a pasta do backend
+
 ```bash
 cd backend
 ```
 
-### 2. Instalar as dependências
+### Instale as dependências
+
 ```bash
 npm install
 ```
 
-### 3. Configurar variáveis de ambiente
-Crie um arquivo `.env` no diretório `backend/` (ou utilize o `.env` da raiz):
+### Configure as variáveis de ambiente
+
+Crie um arquivo `.env` no diretório `backend/`:
+
 ```env
-# URL do banco de dados (SQLite local por padrão)
+# Banco de dados
 DATABASE_URL="file:./prisma/dev.db"
 
-# Segredo de assinatura JWT
+# Segredo utilizado na assinatura dos tokens JWT
 JWT_SECRET="farmacia-escola-secret-key-2024"
 
-# Porta do servidor Express
+# Porta do servidor
 PORT=3001
 ```
 
-### 4. Configurar e popular o banco de dados
-Gere os tipos do Prisma e aplique o schema:
+### Configure o banco de dados
+
+Sincronize o schema do Prisma:
+
 ```bash
 npm run db:push
 ```
 
-Para popular o banco com o catálogo de medicamentos, lotes, agendamentos e usuários de teste:
+Gere o Prisma Client, caso necessário:
+
+```bash
+npm run db:generate
+```
+
+### Popule o banco de dados
+
+Para inserir os dados iniciais de medicamentos, lotes, agendamentos e usuários de teste:
+
 ```bash
 npm run db:seed
 ```
 
----
+## Executando o Projeto
 
-## 🚀 Scripts Disponíveis
+### Desenvolvimento
 
-| Comando | Descrição |
-|:---|:---|
-| `npm run dev` | Inicia o servidor em modo de desenvolvimento com hot-reload (`nodemon` + `ts-node`) |
-| `npm run build` | Compila o código TypeScript para JavaScript na pasta `dist/` e gera o Prisma Client |
-| `npm run start` | Executa o servidor de produção compilado a partir de `dist/index.js` |
-| `npm run db:push` | Sincroniza o schema do Prisma diretamente com o banco de dados |
-| `npm run db:migrate` | Cria e executa migrações estruturadas do Prisma |
-| `npm run db:generate` | Gera o cliente tipado do Prisma (`@prisma/client`) |
-| `npm run db:seed` | Executa o script de carga inicial de dados (`src/seed/seed.ts`) |
+Inicie o servidor com hot-reload:
 
----
+```bash
+npm run dev
+```
 
-## 📚 Endpoints da API
+O backend será executado na porta configurada no arquivo `.env`.
 
-Todas as rotas são prefixadas por `/backend` (ou na raiz da API dependendo da porta configurada).
+### Produção
 
-### 🔐 1. Autenticação e Usuários (`/backend/auth` & `/backend/users`)
+Compile o projeto:
 
-#### Login de Usuário
+```bash
+npm run build
+```
+
+Depois, inicie o servidor:
+
+```bash
+npm run start
+```
+
+## Scripts Disponíveis
+
+| Script                | Descrição                                                   |
+| --------------------- | ----------------------------------------------------------- |
+| `npm run dev`         | Inicia o servidor em modo de desenvolvimento com hot-reload |
+| `npm run build`       | Compila o TypeScript e gera o Prisma Client                 |
+| `npm run start`       | Inicia o servidor de produção compilado                     |
+| `npm run db:push`     | Sincroniza o schema do Prisma com o banco                   |
+| `npm run db:migrate`  | Cria e executa migrações do Prisma                          |
+| `npm run db:generate` | Gera o Prisma Client                                        |
+| `npm run db:seed`     | Popula o banco com dados iniciais                           |
+
+## Funcionalidades
+
+### Autenticação e Autorização
+
+* Autenticação baseada em JWT
+* Controle de acesso baseado em papéis (RBAC)
+* Perfis disponíveis:
+
+  * `ADMIN`
+  * `FARMACEUTICO`
+  * `MEDICO`
+  * `ALUNO`
+  * `PACIENTE`
+* Proteção de rotas sensíveis
+* Hashing de senhas utilizando bcryptjs
+
+### Gestão de Medicamentos
+
+* Cadastro de medicamentos
+* Consulta de medicamentos
+* Atualização de informações
+* Exclusão controlada
+* Informações sobre princípio ativo, dosagem e categoria
+* Descrição acessível para pacientes
+
+### Gestão de Estoque
+
+* Cadastro de lotes
+* Controle de quantidade disponível
+* Controle de validade
+* Consulta de lotes por medicamento
+* Atualização de informações dos lotes
+* Proteção contra retirada superior ao estoque disponível
+
+### Dispensação
+
+* Registro de retiradas
+* Baixa automática no lote de origem
+* Associação entre paciente, medicamento e lote
+* Registro do profissional responsável
+* Cancelamento com estorno da quantidade
+
+### Descartes
+
+* Registro de medicamentos descartados
+* Motivos de descarte
+* Baixa no estoque
+* Histórico de descartes
+* Reversão de descartes realizados indevidamente
+
+### Agendamentos
+
+* Criação de solicitações de atendimento
+* Gestão de faixas de horários
+* Controle de capacidade
+* Associação de medicamentos ao agendamento
+* Atualização do status do atendimento
+* Cancelamento de agendamentos
+
+### Auditoria
+
+* Registro de operações realizadas no sistema
+* Histórico de login
+* Registro de cadastros, alterações e exclusões
+* Consulta paginada dos logs de atividade
+
+## API Endpoints
+
+### Autenticação
+
 ```http
 POST /backend/auth/login
-Content-Type: application/json
-
-{
-  "email": "admin@farmaciaescola.edu.br",
-  "password": "admin123"
-}
-```
-**Resposta (200 OK):**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "user": {
-    "id": 1,
-    "name": "Admin Sistema",
-    "email": "admin@farmaciaescola.edu.br",
-    "role": "ADMIN",
-    "active": true
-  }
-}
-```
-
-#### Cadastro de Paciente
-```http
 POST /backend/auth/register
-Content-Type: application/json
-
-{
-  "name": "Maria Silva",
-  "email": "maria@email.com",
-  "password": "senhaSegura123",
-  "cpf": "123.456.789-00",
-  "phone": "(11) 98888-7777",
-  "birthDate": "1988-04-12",
-  "address": "Rua das Oliveiras, 45"
-}
+GET  /backend/auth/me
+PUT  /backend/auth/profile
 ```
 
-#### Obter Dados do Usuário Logado
+### Medicamentos
+
 ```http
-GET /backend/auth/me
-Authorization: Bearer <seu_token_jwt>
+GET    /backend/medicines
+GET    /backend/medicines/:id
+POST   /backend/medicines
+PUT    /backend/medicines/:id
+DELETE /backend/medicines/:id
 ```
 
-#### Atualizar Perfil / Alterar Senha
+### Lotes de Estoque
+
 ```http
-PUT /backend/auth/profile
-Authorization: Bearer <seu_token_jwt>
-Content-Type: application/json
-
-{
-  "name": "Maria Silva Santos",
-  "phone": "(11) 99999-8888",
-  "newPassword": "novaSenhaForte123"
-}
+GET    /backend/batches
+POST   /backend/batches
+PUT    /backend/batches/:id
+DELETE /backend/batches/:id
 ```
 
----
+### Horários
 
-### 💊 2. Medicamentos (`/backend/medicines`)
-
-- `GET /backend/medicines` - Lista todos os medicamentos cadastrados com contagem de lotes e saldo total em estoque.
-- `GET /backend/medicines/:id` - Retorna os detalhes de um medicamento específico e seus lotes ativos.
-- `POST /backend/medicines` - Cria um novo medicamento (*Requer ADMIN ou FARMACEUTICO*).
-- `PUT /backend/medicines/:id` - Atualiza informações do medicamento.
-- `DELETE /backend/medicines/:id` - Remove o medicamento do catálogo (*Requer ADMIN*).
-
-**Exemplo de Payload para Cadastro:**
-```json
-{
-  "name": "Dipirona Monoidratada",
-  "activeIngredient": "Dipirona sódica",
-  "dosage": "500mg/mL - Gotas 20mL",
-  "accessibleDesc": "Analgésico e antitérmico para dores e febre. Ingerir a quantidade de gotas recomendada em água.",
-  "category": "analgesico"
-}
+```http
+GET    /backend/schedule-slots
+POST   /backend/schedule-slots
+DELETE /backend/schedule-slots/:id
 ```
 
----
+### Agendamentos
 
-### 📦 3. Lotes de Estoque (`/backend/batches`)
-
-- `GET /backend/batches` - Lista lotes cadastrados (suporta filtro por query parameter: `?medicineId=1`).
-- `POST /backend/batches` - Registra a entrada de um novo lote recebido.
-- `PUT /backend/batches/:id` - Atualiza informações de lote (quantidade, número ou data de validade).
-- `DELETE /backend/batches/:id` - Exclui um lote (*Requer ADMIN*).
-
-**Exemplo de Payload para Entrada de Lote:**
-```json
-{
-  "medicineId": 1,
-  "batchNumber": "LOT-2024-550",
-  "currentQuantity": 120,
-  "expirationDate": "2026-11-30"
-}
+```http
+GET    /backend/appointments
+POST   /backend/appointments
+PUT    /backend/appointments/:id
+DELETE /backend/appointments/:id
 ```
 
----
+### Dispensações
 
-### 📅 4. Escala e Agendamentos (`/backend/schedule-slots` & `/backend/appointments`)
-
-#### Grade de Horários (`/backend/schedule-slots`)
-- `GET /backend/schedule-slots` - Lista faixas de horários e capacidade restante.
-- `POST /backend/schedule-slots` - Cadastra uma nova faixa horária (*Requer ADMIN ou FARMACEUTICO*).
-- `DELETE /backend/schedule-slots/:id` - Desativa uma faixa de horário.
-
-#### Agendamentos de Retirada (`/backend/appointments`)
-- `GET /backend/appointments` - Lista agendamentos cadastrados com dados do paciente e medicamentos solicitados.
-- `POST /backend/appointments` - Cria uma nova solicitação de agendamento.
-- `PUT /backend/appointments/:id` - Atualiza o status do agendamento (`CONFIRMED`, `COMPLETED`, `CANCELLED`) e notas técnicas.
-- `DELETE /backend/appointments/:id` - Cancela o agendamento.
-
-**Exemplo de Criação de Agendamento:**
-```json
-{
-  "patientId": 1,
-  "scheduledDate": "2026-09-10",
-  "scheduledTime": "09:00",
-  "slotId": 2,
-  "notes": "Paciente hipertenso. Retirada de medicação contínua.",
-  "items": [
-    {
-      "medicineId": 1,
-      "quantity": 30
-    }
-  ]
-}
+```http
+GET    /backend/withdrawals
+POST   /backend/withdrawals
+DELETE /backend/withdrawals/:id
 ```
 
----
+### Descartes
 
-### 📤 5. Dispensação de Medicamentos (`/backend/withdrawals`)
-
-- `GET /backend/withdrawals` - Retorna o histórico de todas as retiradas efetuadas, com paciente, medicamento, lote, data e profissional responsável.
-- `POST /backend/withdrawals` - Realiza a baixa imediata no estoque do lote selecionado e registra a dispensação.
-- `DELETE /backend/withdrawals/:id` - Cancela a retirada e estorna automaticamente a quantidade para o lote de origem.
-
-**Exemplo de Registro de Retirada:**
-```json
-{
-  "patientName": "João Silva",
-  "patientCpf": "123.456.789-00",
-  "batchId": 1,
-  "quantity": 10,
-  "notes": "Receita médica apresentada e retida. Paciente orientado sobre horários de administração."
-}
+```http
+GET  /backend/disposals
+POST /backend/disposals
+POST /backend/disposals/:id/revert
 ```
 
----
+### Auditoria
 
-### 🗑️ 6. Descarte de Medicamentos (`/backend/disposals`)
-
-- `GET /backend/disposals` - Histórico de descartes realizados.
-- `POST /backend/disposals` - Registra descarte de unidades com motivo declarado (baixa do lote).
-- `POST /backend/disposals/:id/revert` - Reverte um descarte cadastrado indevidamente, devolvendo o saldo ao lote.
-
-**Exemplo de Registro de Descarte:**
-```json
-{
-  "batchId": 2,
-  "quantity": 4,
-  "reason": "Frascos avariados no transporte"
-}
+```http
+GET /backend/activity-logs?page=1&limit=20
 ```
 
----
+## Modelo de Dados
 
-### 📜 7. Logs de Auditoria (`/backend/activity-logs`)
+O banco de dados utiliza os seguintes principais modelos:
 
-- `GET /backend/activity-logs?page=1&limit=20` - Retorna trilha paginada de ações realizadas no sistema.
+| Modelo            | Descrição                                   |
+| ----------------- | ------------------------------------------- |
+| `User`            | Usuários, operadores e pacientes do sistema |
+| `Patient`         | Dados cadastrais dos pacientes              |
+| `Medicine`        | Cadastro dos medicamentos                   |
+| `StockBatch`      | Lotes físicos e quantidades disponíveis     |
+| `Withdrawal`      | Registro das dispensações                   |
+| `WithdrawalItem`  | Itens associados às dispensações            |
+| `Disposal`        | Registro de descartes                       |
+| `ScheduleSlot`    | Faixas de horários disponíveis              |
+| `Appointment`     | Agendamentos de atendimento                 |
+| `AppointmentItem` | Medicamentos solicitados no agendamento     |
+| `ActivityLog`     | Registro de ações para auditoria            |
 
----
+## Padrões de Desenvolvimento
 
-## 🗄️ Modelo de Dados (Prisma Schema)
+* Arquitetura organizada em camadas
+* Separação entre regras de negócio e acesso a dados
+* Prisma como camada de persistência
+* Autenticação baseada em JWT
+* Controle de acesso baseado em RBAC
+* Validação das operações de estoque
+* Tratamento seguro de operações de estorno
+* Registro de ações relevantes para auditoria
 
-O banco de dados estrutura os seguintes modelos e relacionamentos:
+## Regras de Negócio e Segurança
 
-- **User**: Representa os operadores e pacientes do sistema, com credenciais e papel (`Role`).
-- **Patient**: Dados cadastrais do paciente atendido (`cpf`, `birthDate`, `phone`, `address`).
-- **Medicine**: Registro base do medicamento (`name`, `dosage`, `activeIngredient`, `accessibleDesc`, `category`).
-- **StockBatch**: Lote físico com quantidade atual (`currentQuantity`), data de validade (`expirationDate`) e número de lote.
-- **Withdrawal** & **WithdrawalItem**: Registro de dispensação com quantidade, paciente e lote.
-- **Disposal**: Registro de descarte motivado com flag `reverted`.
-- **ScheduleSlot**: Faixa de horário com capacidade máxima (`maxCapacity`) e preceptor designado.
-- **Appointment** & **AppointmentItem**: Agendamento de atendimento com medicamentos e status de evolução.
-- **ActivityLog**: Histórico de ações e eventos de sistema para auditoria técnica.
+1. Nenhuma dispensação ou descarte pode ultrapassar o saldo disponível do lote.
+2. O cancelamento de uma dispensação deve restaurar a quantidade ao lote original.
+3. A reversão de um descarte deve restaurar o saldo correspondente.
+4. Endpoints protegidos exigem autenticação por Bearer Token.
+5. As senhas são armazenadas utilizando hashing com bcryptjs.
+6. Operações relevantes são registradas na trilha de auditoria.
+7. Operações administrativas possuem restrições de acesso conforme o papel do usuário.
 
----
+## Estrutura do Projeto
 
-## 🔒 Regras de Negócio e Segurança
+```text
+backend/
+├── prisma/
+│   └── schema.prisma
+├── src/
+│   ├── controllers/
+│   ├── middlewares/
+│   ├── repositories/
+│   ├── routes/
+│   ├── services/
+│   ├── seed/
+│   └── index.ts
+├── .env
+└── package.json
+```
 
-1. **Proteção de Estoque**: Nenhuma operação de dispensação ou descarte pode processar quantidade superior ao saldo existente no lote (`currentQuantity >= requestedQuantity`).
-2. **Estorno Seguro**: O cancelamento de dispensação ou a reversão de descarte incrementa atomicamente o saldo do lote original.
-3. **Autenticação Bearer**: Endpoints protegidos exigem o header `Authorization: Bearer <token_jwt>`.
-4. **Hashing de Senhas**: As senhas são criptografadas com `bcryptjs` utilizando salt rounds seguro antes do armazenamento.
+## Suporte
+
+Para reportar problemas ou solicitar melhorias, utilize o sistema de Issues do GitHub.

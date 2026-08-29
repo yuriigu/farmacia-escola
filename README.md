@@ -1,204 +1,479 @@
-# Farmácia Escola - Sistema de Gestão Farmacêutica Universitária
+# Farmácia Escola
 
-Sistema web full-stack desenvolvido para gerenciamento integrado de farmácia escola universitária, contemplando o controle de estoque e rastreabilidade de lotes, agendamento prévio de retiradas por pacientes, dispensação supervisionada de medicamentos, descarte motivado e trilha de auditoria para conformidade regulatória.
+Sistema de gestão farmacêutica universitária desenvolvido para o gerenciamento integrado de uma farmácia escola, contemplando controle de estoque, rastreabilidade de lotes, agendamento de retiradas, dispensação supervisionada de medicamentos, descarte motivado e trilha de auditoria para conformidade regulatória.
 
----
+## Sobre o Projeto
 
-## 📚 Sobre o Projeto
+O **Farmácia Escola** é um sistema web full-stack desenvolvido para apoiar a operação de farmácias universitárias e comunitárias integradas ao ensino superior em saúde.
 
-O **Farmácia Escola** foi concebido para transformar a operação diária de farmácias universitárias e comunitárias integradas ao ensino superior em saúde. A plataforma atua como ponte digital entre estudantes de graduação em Farmácia, farmacêuticos preceptores, médicos e os pacientes da comunidade externa atendida pelo serviço.
+A plataforma funciona como uma ponte digital entre estudantes de graduação em Farmácia, farmacêuticos preceptores, médicos e pacientes da comunidade externa atendida pelo serviço.
 
-### 🎯 Objetivo
+O sistema foi projetado para centralizar as principais operações da farmácia, proporcionando maior controle sobre medicamentos, atendimentos, dispensações e usuários, além de oferecer recursos de auditoria e rastreabilidade.
 
-- **Para a Gestão e Farmacêuticos**: Assegurar controle rigoroso de entradas, saídas, prazos de validade e saldos de medicamentos, prevenindo perdas e garantindo conformidade sanitária.
-- **Para os Estudantes (Alunos)**: Oferecer um ambiente de aprendizado supervisionado, simulando a rotina profissional de dispensação, orientação farmacoterapêutica e conferência de prescrições.
-- **Para os Pacientes**: Proporcionar autonomia e comodidade através da consulta de disponibilidade de itens em catálogo público com linguagem acessível e agendamento de horários para retirada presencial sem filas.
+### Objetivos
 
-### 💡 Problemas Resolvidos
+* **Gestão e Farmacêuticos:** assegurar o controle de entradas, saídas, prazos de validade e saldos de medicamentos, reduzindo perdas e contribuindo para a conformidade sanitária.
+* **Estudantes:** oferecer um ambiente de aprendizado supervisionado, permitindo simular e acompanhar rotinas profissionais relacionadas à dispensação, orientação farmacoterapêutica e conferência de prescrições.
+* **Pacientes:** proporcionar autonomia e comodidade por meio da consulta de medicamentos disponíveis, informações acessíveis e agendamento de horários para retirada presencial.
 
-- ⏱️ **Redução de Filas e Aglomerações**: Distribuição do fluxo de atendimento através de agendamentos com controle de capacidade máxima por faixa horária.
-- 📦 **Prevenção de Perdas por Vencimento**: Rastreabilidade individual por lotes de fabricação com alertas visuais preventivos (medicamentos com menos de 30 dias de validade).
-- 📖 **Comunicação Clara em Saúde**: Descrições acessíveis dos medicamentos voltadas a leigos, explicando modo de uso, finalidade terapêutica e cuidados essenciais.
-- 🔍 **Rastreabilidade e Governança (RBAC)**: Registro detalhado de logs de atividades para cada ação de login, dispensação, descarte ou alteração cadastral, atrelando a responsabilidade técnica ao profissional executor.
+### Principais Características
 
----
+* Controle de estoque e rastreabilidade por lotes
+* Gerenciamento de datas de validade
+* Alertas para medicamentos próximos do vencimento
+* Agendamento prévio de retiradas
+* Controle de capacidade por faixa horária
+* Dispensação supervisionada de medicamentos
+* Registro de descartes motivados
+* Possibilidade de reversão de descartes
+* Histórico de retiradas por paciente
+* Controle de acesso baseado em papéis (RBAC)
+* Trilha de auditoria das operações
+* Catálogo de medicamentos com linguagem acessível
+* Interface web responsiva
 
-## 🚀 Funcionalidades Principais
+## Problemas Resolvidos
 
-### 💊 Gestão de Estoque e Lotes
-- Cadastro detalhado de medicamentos com nome comercial, princípio ativo, dosagem, categoria e orientações acessíveis.
-- Controle de múltiplos lotes (`StockBatch`) por medicamento, armazenando código do lote, quantidade em estoque, data de recebimento e data de expiração.
-- Identificação automática de lotes válidos, em alerta de vencimento próximo ou vencidos.
-- Registro de descartes motivados (quebra de frasco, desvio de temperatura, prazo expirado) com funcionalidade de reversão justificada.
+### Redução de Filas e Aglomerações
 
-### 📅 Grade de Horários e Agendamentos
-- Criação e manutenção de slots de atendimento (`ScheduleSlot`) por data, horário, capacidade máxima e farmacêutico responsável.
-- Agendamento de atendimentos (`Appointment`) com vínculo de pacientes e múltiplos medicamentos requisitados (`AppointmentItem`).
-- Controle de ciclo de vida do agendamento com estados: `PENDING` (Pendente), `CONFIRMED` (Confirmado), `COMPLETED` (Concluído) e `CANCELLED` (Cancelado).
+O sistema distribui o fluxo de atendimento por meio de agendamentos prévios, utilizando faixas horárias com controle de capacidade máxima.
 
-### 👥 Dispensação e Gestão de Pacientes
-- Cadastro completo de pacientes com CPF, data de nascimento, telefone e endereço.
-- Módulo de dispensação direta (`Withdrawals`), realizando a baixa automática da quantidade retirada no lote correspondente.
-- Histórico completo de retiradas e consultas por paciente.
+### Prevenção de Perdas por Vencimento
 
-### 🛡️ Controle de Acesso Baseado em Papéis (RBAC)
-O sistema implementa regras estritas de autorização granular para 5 papéis:
-- **ADMIN**: Gestão total da aplicação, usuários, configurações globais e auditoria.
-- **FARMACEUTICO**: Responsabilidade técnica, gestão de estoque, validação de receitas, liberação de dispensações e agendamentos.
-- **MEDICO**: Consulta de disponibilidade de fármacos e encaminhamentos clínicos.
-- **ALUNO**: Atendimento supervisionado, consulta ao estoque e registro assistido de dispensações.
-- **PACIENTE**: Acesso ao catálogo de medicamentos, histórico próprio e solicitação de agendamento de retirada.
+A rastreabilidade individual dos lotes permite identificar medicamentos válidos, próximos do vencimento ou vencidos, possibilitando ações preventivas para reduzir perdas.
 
----
+### Comunicação Clara em Saúde
 
-## 🛠️ Tecnologias Utilizadas
+O catálogo disponibiliza descrições acessíveis dos medicamentos, utilizando linguagem direcionada a pacientes e usuários não especializados.
+
+### Rastreabilidade e Governança
+
+As operações relevantes são registradas em uma trilha de auditoria, permitindo identificar ações de login, dispensação, descarte e alterações cadastrais.
+
+## Funcionalidades
+
+### Gestão de Estoque e Lotes
+
+* Cadastro de medicamentos
+* Registro de nome comercial
+* Controle de princípio ativo
+* Cadastro de dosagem e categoria
+* Orientações acessíveis sobre medicamentos
+* Controle de múltiplos lotes por medicamento
+* Registro do código do lote
+* Controle da quantidade disponível
+* Registro da data de recebimento
+* Controle da data de expiração
+* Identificação de lotes próximos ao vencimento
+* Identificação de lotes vencidos
+
+### Grade de Horários e Agendamentos
+
+* Criação de faixas de atendimento
+* Definição de data e horário
+* Controle de capacidade máxima
+* Associação de farmacêutico responsável
+* Agendamento por pacientes
+* Associação de múltiplos medicamentos ao agendamento
+* Acompanhamento do ciclo de vida do agendamento
+
+Os agendamentos podem apresentar os seguintes estados:
+
+* `PENDING` — Pendente
+* `CONFIRMED` — Confirmado
+* `COMPLETED` — Concluído
+* `CANCELLED` — Cancelado
+
+### Dispensação e Gestão de Pacientes
+
+* Cadastro de pacientes
+* Registro de CPF
+* Data de nascimento
+* Telefone
+* Endereço
+* Registro de dispensações
+* Baixa automática da quantidade retirada no lote
+* Histórico de retiradas
+* Consulta de informações relacionadas ao paciente
+
+### Descartes
+
+* Registro de descartes motivados
+* Controle de quantidade descartada
+* Registro do motivo do descarte
+* Baixa da quantidade correspondente no estoque
+* Histórico de descartes
+* Reversão justificada de descartes
+
+### Controle de Acesso (RBAC)
+
+O sistema possui cinco papéis principais:
+
+| Papel          | Descrição                                                                             |
+| -------------- | ------------------------------------------------------------------------------------- |
+| `ADMIN`        | Gestão da aplicação, usuários, configurações globais e auditoria                      |
+| `FARMACEUTICO` | Responsabilidade técnica, estoque, validação de receitas, dispensações e agendamentos |
+| `MEDICO`       | Consulta de disponibilidade de medicamentos e encaminhamentos clínicos                |
+| `ALUNO`        | Atendimento supervisionado, consulta ao estoque e registro assistido de dispensações  |
+| `PACIENTE`     | Consulta ao catálogo, histórico próprio e solicitação de agendamentos                 |
+
+## Stack Tecnológica
 
 ### Frontend
-- **Framework Web**: [Next.js 16 (App Router)](https://nextjs.org/) & [React 19](https://react.dev/)
-- **Linguagem**: [TypeScript](https://www.typescriptlang.org/)
-- **Estilização**: [Tailwind CSS v4](https://tailwindcss.com/)
-- **Componentes UI**: [Radix UI](https://www.radix-ui.com/) & [Shadcn UI](https://ui.shadcn.com/)
-- **Gerenciamento de Estado do Servidor**: [TanStack React Query v5](https://tanstack.com/query)
-- **Gerenciamento de Estado Global**: [Zustand v5](https://zustand-demo.pmnd.rs/)
-- **Validação de Formulários**: [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/)
-- **Ícones e Feedback**: [Lucide React](https://lucide.dev/) & [Sonner Toasts](https://sonner.emilkowal.ski/)
-- **Gráficos e Métricas**: [Recharts](https://recharts.org/)
+
+* **Framework:** Next.js 16 com App Router
+* **Biblioteca:** React 19
+* **Linguagem:** TypeScript
+* **Estilização:** Tailwind CSS v4
+* **Componentes:** Radix UI e Shadcn UI
+* **Gerenciamento de dados:** TanStack React Query v5
+* **Gerenciamento de estado:** Zustand v5
+* **Formulários:** React Hook Form
+* **Validação:** Zod
+* **Ícones:** Lucide React
+* **Notificações:** Sonner
+* **Gráficos:** Recharts
 
 ### Backend
-- **Ambiente de Execução**: [Node.js](https://nodejs.org/) (v18+)
-- **Framework HTTP**: [Express.js](https://expressjs.com/) com arquitetura modular (Controllers, Services, Repositories, Middlewares)
-- **ORM & Banco de Dados**: [Prisma ORM](https://www.prisma.io/) com suporte a [SQLite](https://www.sqlite.org/) e [PostgreSQL](https://www.postgresql.org/)
-- **Autenticação & Segurança**: [JSON Web Tokens (JWT)](https://jwt.io/) e [Bcrypt.js](https://github.com/dcodeIO/bcrypt.js)
-- **Servidor Web / Proxy**: [Caddy](https://caddyserver.com/)
 
----
+* **Runtime:** Node.js 18+
+* **Framework HTTP:** Express.js
+* **Linguagem:** TypeScript
+* **Arquitetura:** Controllers, Services, Repositories e Middlewares
+* **ORM:** Prisma ORM
+* **Banco de desenvolvimento:** SQLite
+* **Banco de produção:** PostgreSQL
+* **Autenticação:** JSON Web Tokens (JWT)
+* **Hashing de senhas:** Bcrypt.js
+* **Servidor Web / Proxy:** Caddy
 
-## 📁 Estrutura do Monorepo
+## Estrutura do Projeto
 
-```
+```text
 farmacia-escola/
-├── backend/                      # API RESTful em Express + Prisma
-│   ├── prisma/                   # Schema do banco de dados e migrações
+├── backend/
+│   ├── prisma/
 │   │   └── schema.prisma
 │   ├── src/
-│   │   ├── controllers/          # Controladores HTTP (Auth, Medicines, Batches, etc.)
-│   │   ├── middlewares/          # Middlewares de JWT, RBAC e validação
-│   │   ├── repositories/         # Camada de persistência via Prisma Client
-│   │   ├── routes/               # Definição e roteamento de endpoints
-│   │   ├── services/             # Regras de negócio e validações de estoque
-│   │   ├── seed/                 # Script de população inicial do banco de dados
-│   │   └── index.ts              # Ponto de entrada do servidor Express
-│   ├── package.json              # Dependências e scripts do backend
-│   └── README.md                 # Documentação detalhada do Backend
-├── frontend/                     # Interface Web em Next.js 16
+│   │   ├── controllers/
+│   │   ├── middlewares/
+│   │   ├── repositories/
+│   │   ├── routes/
+│   │   ├── services/
+│   │   ├── seed/
+│   │   └── index.ts
+│   ├── package.json
+│   └── README.md
+│
+├── frontend/
 │   ├── src/
-│   │   ├── app/                  # Rotas e páginas do Next.js App Router
-│   │   │   ├── (auth)/login/     # Tela de autenticação com atalhos de perfil
-│   │   │   ├── (auth)/register/  # Cadastro simplificado de pacientes
-│   │   │   ├── administracao/    # Painel administrativo (Usuários, Auditoria)
-│   │   │   ├── agendamentos/     # Gestão da agenda de atendimentos
-│   │   │   ├── appointments/     # Solicitação de agendamento por pacientes
-│   │   │   ├── calendario/       # Visão de calendário e horários
-│   │   │   ├── dashboard/        # Painel central com métricas e KPIs
-│   │   │   ├── estoque/          # Estoque, lotes, dispensações e descartes
-│   │   │   ├── medicines/        # Catálogo público de medicamentos
-│   │   │   ├── profile/          # Perfil do usuário logado
-│   │   │   ├── backend/          # Handlers de API integrados para modo standalone
-│   │   │   └── globals.css       # Estilos globais Tailwind CSS v4
-│   │   ├── components/           # Componentes reutilizáveis (Layout, UI, Módulos)
-│   │   ├── config/               # Definições de permissão RBAC
-│   │   ├── hooks/                # Hooks customizados React
-│   │   ├── lib/                  # Stores Zustand, clientes HTTP e tipagens
-│   │   └── services/             # Camada de serviços e queries React Query
-│   ├── package.json              # Dependências e scripts do frontend
-│   └── README.md                 # Documentação detalhada do Frontend
-├── .env.example                  # Modelo de variáveis de ambiente
-├── metadata.json                 # Metadados de implantação da aplicação
-├── package.json                  # Configuração de workspaces npm na raiz
-└── README.md                     # Este arquivo de documentação geral
+│   │   ├── app/
+│   │   │   ├── (auth)/
+│   │   │   │   ├── login/
+│   │   │   │   └── register/
+│   │   │   ├── administracao/
+│   │   │   ├── agendamentos/
+│   │   │   ├── appointments/
+│   │   │   ├── calendario/
+│   │   │   ├── dashboard/
+│   │   │   ├── estoque/
+│   │   │   ├── medicines/
+│   │   │   ├── profile/
+│   │   │   ├── backend/
+│   │   │   └── globals.css
+│   │   ├── components/
+│   │   ├── config/
+│   │   ├── hooks/
+│   │   ├── lib/
+│   │   └── services/
+│   ├── package.json
+│   └── README.md
+│
+├── .env.example
+├── metadata.json
+├── package.json
+└── README.md
 ```
 
----
+## Pré-requisitos
 
-## 📥 Instalação e Execução
+* Node.js 18 ou superior
+* npm 9 ou superior
+* Git
+* PostgreSQL, caso seja utilizado como banco de produção
 
-### 1. Clonar o Repositório
+## Instalação
+
+### 1. Clone o repositório
+
 ```bash
 git clone https://github.com/yuriigu/farmacia-escola.git
 cd farmacia-escola
 ```
 
-### 2. Instalar as Dependências
-O projeto utiliza **npm workspaces**. Instale todas as dependências de uma única vez a partir da raiz:
+### 2. Instale as dependências
+
+O projeto utiliza **npm workspaces**, permitindo instalar as dependências do frontend e backend a partir da raiz:
+
 ```bash
 npm install
 ```
 
-### 3. Configurar as Variáveis de Ambiente
-Copie o modelo de variáveis de ambiente na raiz:
+### 3. Configure as variáveis de ambiente
+
+Copie o arquivo de exemplo:
+
 ```bash
 cp .env.example .env
 ```
 
-Conteúdo padrão do `.env`:
+Configure as variáveis necessárias:
+
 ```env
 JWT_SECRET="farmacia-escola-secret-key-2024"
 DATABASE_URL="file:./prisma/dev.db"
 NEXT_PUBLIC_API_URL="/backend"
 ```
 
-### 4. Executar em Modo de Desenvolvimento
-Inicie a aplicação unificada na porta padrão (3000):
+### 4. Configure o banco de dados
+
+Para sincronizar o schema do Prisma:
+
+```bash
+cd backend
+npm run db:push
+```
+
+Gere o Prisma Client:
+
+```bash
+npm run db:generate
+```
+
+Popule o banco de dados com os dados iniciais:
+
+```bash
+npm run db:seed
+```
+
+Depois, retorne para a raiz do projeto:
+
+```bash
+cd ..
+```
+
+## Executando o Projeto
+
+### Desenvolvimento
+
+Inicie a aplicação:
+
 ```bash
 npm run dev
 ```
 
-Acesse no seu navegador: `http://localhost:3000`
+Acesse no navegador:
 
-### 5. Compilação para Produção
+```text
+http://localhost:3000
+```
+
+### Produção
+
+Gere o build da aplicação:
+
 ```bash
 npm run build
+```
+
+Depois, inicie os serviços:
+
+```bash
 npm start
 ```
 
----
+## Credenciais de Demonstração
 
-## 🔑 Credenciais de Demonstração
+O sistema possui usuários pré-configurados para facilitar a exploração dos diferentes perfis e funcionalidades.
 
-Para facilitar a exploração dos diferentes fluxos e níveis de acesso (RBAC), o sistema já vem pré-configurado com os seguintes usuários de teste:
+| Papel          | E-mail                            | Senha         | Descrição                                       |
+| -------------- | --------------------------------- | ------------- | ----------------------------------------------- |
+| `ADMIN`        | `admin@farmaciaescola.edu.br`     | `admin123`    | Configurações, usuários e auditoria             |
+| `FARMACEUTICO` | `luciana@farmaciaescola.edu.br`   | `farm123`     | Estoque, lotes, dispensação e validação técnica |
+| `FARMACEUTICO` | `pedro@farmaciaescola.edu.br`     | `farm123`     | Farmacêutico preceptor e gestão de horários     |
+| `ALUNO`        | `ana.aluna@farmaciaescola.edu.br` | `aluno123`    | Dispensações assistidas e consulta de estoque   |
+| `PACIENTE`     | `joao@email.com`                  | `paciente123` | Catálogo e agendamento de retiradas             |
 
-| Papel | E-mail de Acesso | Senha | Descrição de Uso |
-|:---|:---|:---|:---|
-| **ADMIN** | `admin@farmaciaescola.edu.br` | `admin123` | Acesso irrestrito a configurações, usuários e logs de auditoria |
-| **FARMACEUTICO** | `luciana@farmaciaescola.edu.br` | `farm123` | Gestão de estoque, lotes, dispensação e validação técnica |
-| **FARMACEUTICO** | `pedro@farmaciaescola.edu.br` | `farm123` | Farmacêutico preceptor com escala de horários atribuída |
-| **ALUNO** | `ana.aluna@farmaciaescola.edu.br` | `aluno123` | Registro assistido de dispensações e consulta de estoque |
-| **PACIENTE** | `joao@email.com` | `paciente123` | Acesso ao catálogo e solicitação de agendamento de retirada |
+> **Atenção:** as credenciais acima são destinadas exclusivamente ao ambiente de demonstração e desenvolvimento.
 
----
+## Scripts Disponíveis
 
-## 📚 Documentações Específicas
+### Backend
 
-Para aprofundar nos detalhes técnicos de cada módulo, consulte as documentações dedicadas:
+| Script                | Descrição                                   |
+| --------------------- | ------------------------------------------- |
+| `npm run dev`         | Inicia o backend em modo de desenvolvimento |
+| `npm run build`       | Compila o projeto e gera o Prisma Client    |
+| `npm run start`       | Inicia o backend em produção                |
+| `npm run db:push`     | Sincroniza o schema do Prisma com o banco   |
+| `npm run db:migrate`  | Cria e executa migrações                    |
+| `npm run db:generate` | Gera o Prisma Client                        |
+| `npm run db:seed`     | Popula o banco com dados iniciais           |
 
-- 🔗 [Documentação Técnica do Backend](backend/README.md) – Endpoints, Prisma Schema, autenticação JWT, regras de estoque e migrações.
-- 🔗 [Documentação Técnica do Frontend](frontend/README.md) – Estrutura de rotas, componentes Shadcn, queries React Query, gerenciamento de estado e temas.
+### Frontend
 
----
+| Script          | Descrição                                    |
+| --------------- | -------------------------------------------- |
+| `npm run dev`   | Inicia o frontend em modo de desenvolvimento |
+| `npm run build` | Gera o build de produção                     |
+| `npm start`     | Inicia o Next.js em produção                 |
+| `npm run lint`  | Executa a verificação de código              |
 
-## 👨‍💻 Autor
+## Arquitetura
 
-- **Yuri Simplicio** - [GitHub @yuriigu](https://github.com/yuriigu) - `yuri.simplicio@grupointegrado.br`
+O projeto utiliza uma arquitetura full-stack dividida em dois módulos principais:
 
----
+### Backend
 
-## 🙏 Agradecimentos
+```text
+Controller
+    ↓
+Service
+    ↓
+Repository
+    ↓
+Prisma
+    ↓
+Database
+```
 
-- Docentes, preceptores e alunos do curso de Farmácia do Centro Universitário Integrado.
-- Equipe de Tecnologia e Desenvolvimento do Grupo Integrado.
+Essa estrutura permite separar:
 
----
+* Comunicação HTTP
+* Regras de negócio
+* Persistência de dados
+* Validações
+* Autenticação e autorização
 
-## 📄 Licença
+### Frontend
 
-Este projeto é distribuído sob os termos da licença **MIT**. Consulte o arquivo [LICENSE](LICENSE) para mais detalhes.
+```text
+Pages / App Router
+        ↓
+Components
+        ↓
+Hooks / Services
+        ↓
+React Query / Zustand
+        ↓
+API
+```
+
+O frontend utiliza o Next.js App Router para organização das páginas e TanStack React Query para comunicação e cache dos dados, enquanto o Zustand é utilizado para gerenciamento do estado global.
+
+## Segurança e Auditoria
+
+O sistema implementa mecanismos de segurança e governança para controlar o acesso às funcionalidades.
+
+### Autenticação
+
+* Autenticação baseada em JWT
+* Proteção de endpoints
+* Hashing de senhas com Bcrypt.js
+* Controle de sessão
+
+### Autorização
+
+O acesso às funcionalidades é controlado de acordo com o papel do usuário utilizando RBAC.
+
+### Auditoria
+
+As operações relevantes do sistema podem ser registradas na trilha de auditoria, incluindo:
+
+* Login
+* Cadastro
+* Alterações
+* Exclusões
+* Dispensações
+* Descartes
+* Operações administrativas
+
+## Documentação Específica
+
+Para obter informações técnicas mais detalhadas sobre cada parte do sistema, consulte:
+
+* **Backend:** [`backend/README.md`](backend/README.md)
+
+  * Endpoints da API
+  * Modelo de dados
+  * Prisma Schema
+  * Autenticação
+  * Regras de estoque
+  * Scripts do backend
+
+* **Frontend:** [`frontend/README.md`](frontend/README.md)
+
+  * Estrutura de páginas
+  * Componentes
+  * Gerenciamento de estado
+  * React Query
+  * RBAC
+  * Temas e interface
+
+## Contribuição
+
+1. Faça um fork do projeto
+2. Crie uma branch para sua funcionalidade:
+
+```bash
+git checkout -b feature/nova-funcionalidade
+```
+
+3. Faça as alterações necessárias
+4. Execute os testes e verificações
+5. Realize o commit seguindo o padrão Conventional Commits:
+
+```text
+feat: adiciona nova funcionalidade
+fix: corrige problema no agendamento
+docs: atualiza documentação
+refactor: reorganiza serviço de estoque
+```
+
+6. Envie a branch:
+
+```bash
+git push origin feature/nova-funcionalidade
+```
+
+7. Abra um Pull Request
+
+### Diretrizes
+
+* Mantenha o código organizado e documentado
+* Siga os padrões existentes no projeto
+* Escreva testes para novas funcionalidades quando aplicável
+* Atualize a documentação quando necessário
+* Utilize mensagens de commit padronizadas
+
+## Suporte
+
+Para reportar bugs, sugerir melhorias ou solicitar novas funcionalidades, utilize o sistema de Issues do GitHub.
+
+## Autor
+
+**Yuri Simplicio**
+
+* GitHub: [@yuriigu](https://github.com/yuriigu)
+* E-mail: `yuri.simplicio@grupointegrado.br`
+
+## Agradecimentos
+
+* Docentes, preceptores e alunos do curso de Farmácia do Centro Universitário Integrado.
+* Equipe de Tecnologia e Desenvolvimento do Grupo Integrado.
+
+## Licença
+
+Este projeto é distribuído sob os termos da licença **MIT**.
+
+Consulte o arquivo `LICENSE` para obter mais informações.

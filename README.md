@@ -123,7 +123,7 @@ O sistema possui cinco papéis principais:
 
 * **Framework:** Next.js 16 com App Router
 * **Biblioteca:** React 19
-* **Linguagem:** TypeScript
+* **Linguagem:** TypeScript 5
 * **Estilização:** Tailwind CSS v4
 * **Componentes:** Radix UI e Shadcn UI
 * **Gerenciamento de dados:** TanStack React Query v5
@@ -137,15 +137,15 @@ O sistema possui cinco papéis principais:
 ### Backend
 
 * **Runtime:** Node.js 18+
-* **Framework HTTP:** Express.js
-* **Linguagem:** TypeScript
-* **Arquitetura:** Controllers, Services, Repositories e Middlewares
-* **ORM:** Prisma ORM
-* **Banco de desenvolvimento:** SQLite
-* **Banco de produção:** PostgreSQL
+* **Framework HTTP:** Express.js 4
+* **Linguagem:** TypeScript 5
+* **Arquitetura:** Controllers, Services, Repositories, Middlewares e Utils
+* **ORM:** Prisma ORM 6
+* **Banco de desenvolvimento:** SQLite (`dev.db`)
+* **Banco de produção:** PostgreSQL / SQLite
 * **Autenticação:** JSON Web Tokens (JWT)
 * **Hashing de senhas:** Bcrypt.js
-* **Servidor Web / Proxy:** Caddy
+* **Servidor Web / Proxy:** Caddy / Nginx / Next.js Rewrites
 
 ## Estrutura do Projeto
 
@@ -156,42 +156,108 @@ farmacia-escola/
 │   │   └── schema.prisma
 │   ├── src/
 │   │   ├── controllers/
+│   │   │   ├── ActivityLogController.ts
+│   │   │   ├── AppointmentController.ts
+│   │   │   ├── AuthController.ts
+│   │   │   ├── BatchController.ts
+│   │   │   ├── DisposalController.ts
+│   │   │   ├── MedicineController.ts
+│   │   │   ├── PatientController.ts
+│   │   │   ├── ScheduleSlotController.ts
+│   │   │   ├── UserController.ts
+│   │   │   └── WithdrawalController.ts
 │   │   ├── middlewares/
+│   │   │   ├── authMiddleware.ts
+│   │   │   ├── errorMiddleware.ts
+│   │   │   └── roleMiddleware.ts
 │   │   ├── repositories/
 │   │   ├── routes/
-│   │   ├── services/
+│   │   │   ├── activityLogRoutes.ts
+│   │   │   ├── appointmentRoutes.ts
+│   │   │   ├── authRoutes.ts
+│   │   │   ├── batchRoutes.ts
+│   │   │   ├── disposalRoutes.ts
+│   │   │   ├── medicineRoutes.ts
+│   │   │   ├── patientRoutes.ts
+│   │   │   ├── scheduleSlotRoutes.ts
+│   │   │   ├── userRoutes.ts
+│   │   │   ├── withdrawalRoutes.ts
+│   │   │   └── index.ts
 │   │   ├── seed/
+│   │   │   └── seed.ts
+│   │   ├── services/
+│   │   ├── utils/
+│   │   │   ├── jwt.ts
+│   │   │   └── prisma.ts
 │   │   └── index.ts
+│   ├── Caddyfile
 │   ├── package.json
+│   ├── tsconfig.json
 │   └── README.md
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── app/
-│   │   │   ├── (auth)/
-│   │   │   │   ├── login/
-│   │   │   │   └── register/
+│   │   │   ├── admin/
+│   │   │   │   └── stock/
+│   │   │   │       └── page.tsx
 │   │   │   ├── administracao/
+│   │   │   │   └── page.tsx
 │   │   │   ├── agendamentos/
+│   │   │   │   └── page.tsx
 │   │   │   ├── appointments/
+│   │   │   │   ├── new/
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
 │   │   │   ├── calendario/
+│   │   │   │   └── page.tsx
+│   │   │   ├── configuracoes/
+│   │   │   │   └── page.tsx
 │   │   │   ├── dashboard/
+│   │   │   │   └── page.tsx
 │   │   │   ├── estoque/
+│   │   │   │   └── page.tsx
+│   │   │   ├── login/
+│   │   │   │   └── page.tsx
 │   │   │   ├── medicines/
+│   │   │   │   ├── [id]/
+│   │   │   │   │   └── page.tsx
+│   │   │   │   └── page.tsx
+│   │   │   ├── pacientes/
+│   │   │   │   └── page.tsx
 │   │   │   ├── profile/
-│   │   │   ├── backend/
-│   │   │   └── globals.css
+│   │   │   │   └── page.tsx
+│   │   │   ├── register/
+│   │   │   │   └── page.tsx
+│   │   │   ├── globals.css
+│   │   │   ├── layout.tsx
+│   │   │   └── page.tsx
 │   │   ├── components/
+│   │   │   ├── layout/
+│   │   │   ├── modules/
+│   │   │   ├── pages/
+│   │   │   ├── shared/
+│   │   │   └── ui/
 │   │   ├── config/
+│   │   │   └── rbac.ts
 │   │   ├── hooks/
 │   │   ├── lib/
-│   │   └── services/
+│   │   ├── providers/
+│   │   ├── services/
+│   │   ├── types/
+│   │   └── proxy.ts
+│   ├── components.json
+│   ├── eslint.config.mjs
+│   ├── next.config.ts
 │   ├── package.json
+│   ├── postcss.config.mjs
+│   ├── tailwind.config.ts
+│   ├── tsconfig.json
 │   └── README.md
 │
 ├── .env.example
-├── metadata.json
-├── package.json
+├── .gitignore
+├── LICENSE
 └── README.md
 ```
 
@@ -200,9 +266,10 @@ farmacia-escola/
 * Node.js 18 ou superior
 * npm 9 ou superior
 * Git
-* PostgreSQL, caso seja utilizado como banco de produção
 
-## Instalação
+## Instalação e Configuração
+
+O projeto possui backend e frontend desacoplados com seus próprios gerenciadores de dependências (`package.json`).
 
 ### 1. Clone o repositório
 
@@ -211,98 +278,95 @@ git clone https://github.com/yuriigu/farmacia-escola.git
 cd farmacia-escola
 ```
 
-### 2. Instale as dependências
+### 2. Configuração e Inicialização do Backend
 
-O projeto utiliza **npm workspaces**, permitindo instalar as dependências do frontend e backend a partir da raiz:
+Acesse o diretório do backend:
+
+```bash
+cd backend
+```
+
+Instale as dependências:
 
 ```bash
 npm install
 ```
 
-### 3. Configure as variáveis de ambiente
-
-Copie o arquivo de exemplo:
-
-```bash
-cp .env.example .env
-```
-
-Configure as variáveis necessárias:
+Configure as variáveis de ambiente criando o arquivo `.env` dentro de `backend/`:
 
 ```env
-JWT_SECRET="farmacia-escola-secret-key-2024"
 DATABASE_URL="file:./prisma/dev.db"
-NEXT_PUBLIC_API_URL="/backend"
+JWT_SECRET="farmacia-escola-secret-key-2024"
+PORT=3001
+FRONTEND_URL="http://localhost:3000"
 ```
 
-### 4. Configure o banco de dados
-
-Para sincronizar o schema do Prisma:
+Sincronize o schema com o banco SQLite e gere o cliente Prisma:
 
 ```bash
-cd backend
 npm run db:push
-```
-
-Gere o Prisma Client:
-
-```bash
 npm run db:generate
 ```
 
-Popule o banco de dados com os dados iniciais:
+Popule o banco com a carga inicial de medicamentos, lotes, agendamentos e usuários de teste:
 
 ```bash
 npm run db:seed
 ```
 
-Depois, retorne para a raiz do projeto:
-
-```bash
-cd ..
-```
-
-## Executando o Projeto
-
-### Desenvolvimento
-
-Inicie a aplicação:
+Inicie o servidor backend em modo de desenvolvimento:
 
 ```bash
 npm run dev
 ```
 
-Acesse no navegador:
+A API estará em execução em `http://localhost:3001`.
+
+### 3. Configuração e Inicialização do Frontend
+
+Em outro terminal, acesse o diretório do frontend:
+
+```bash
+cd frontend
+```
+
+Instale as dependências:
+
+```bash
+npm install
+```
+
+Configure as variáveis de ambiente criando o arquivo `.env` dentro de `frontend/`:
+
+```env
+NEXT_PUBLIC_API_URL="http://localhost:3001"
+INTERNAL_API_URL="http://localhost:3001"
+```
+
+Inicie o servidor de desenvolvimento:
+
+```bash
+npm run dev
+```
+
+Acesse a aplicação no navegador em:
 
 ```text
 http://localhost:3000
 ```
 
-### Produção
-
-Gere o build da aplicação:
-
-```bash
-npm run build
-```
-
-Depois, inicie os serviços:
-
-```bash
-npm start
-```
-
 ## Credenciais de Demonstração
 
-O sistema possui usuários pré-configurados para facilitar a exploração dos diferentes perfis e funcionalidades.
+O script de carga inicial (`npm run db:seed`) gera os seguintes usuários pré-configurados:
 
-| Papel          | E-mail                            | Senha         | Descrição                                       |
-| -------------- | --------------------------------- | ------------- | ----------------------------------------------- |
-| `ADMIN`        | `admin@farmaciaescola.edu.br`     | `admin123`    | Configurações, usuários e auditoria             |
-| `FARMACEUTICO` | `luciana@farmaciaescola.edu.br`   | `farm123`     | Estoque, lotes, dispensação e validação técnica |
-| `FARMACEUTICO` | `pedro@farmaciaescola.edu.br`     | `farm123`     | Farmacêutico preceptor e gestão de horários     |
-| `ALUNO`        | `ana.aluna@farmaciaescola.edu.br` | `aluno123`    | Dispensações assistidas e consulta de estoque   |
-| `PACIENTE`     | `joao@email.com`                  | `paciente123` | Catálogo e agendamento de retiradas             |
+| Papel          | Nome                       | E-mail                                 | Senha         | Registro / Doc       | Permissões e Acesso                             |
+| -------------- | -------------------------- | -------------------------------------- | ------------- | -------------------- | ----------------------------------------------- |
+| `ADMIN`        | Admin Sistema              | `admin@farmaciaescola.edu.br`          | `admin123`    | CRF/SP 00001         | Configurações, usuários, auditoria e estoque    |
+| `FARMACEUTICO` | Farm. Luciana Mendes       | `luciana@farmaciaescola.edu.br`        | `farm123`     | CRF/SP 12345         | Estoque, lotes, dispensações e agendamentos     |
+| `FARMACEUTICO` | Farm. Pedro Almeida        | `pedro@farmaciaescola.edu.br`          | `farm123`     | CRF/SP 12346         | Preceptor farmacêutico e gestão de horários     |
+| `MEDICO`       | Dr. Roberto Santos         | `roberto.medico@farmaciaescola.edu.br` | `medico123`   | CRM/SP 98765         | Consulta de estoque, agendamentos e pacientes   |
+| `ALUNO`        | Ana Souza (Aluna)          | `ana.aluna@farmaciaescola.edu.br`      | `aluno123`    | RA 2024001           | Atendimento supervisionado e consulta de estoque|
+| `PACIENTE`     | João Silva                 | `joao@email.com`                       | `paciente123` | CPF 123.456.789-00   | Catálogo e solicitação de agendamentos          |
 
 > **Atenção:** as credenciais acima são destinadas exclusivamente ao ambiente de demonstração e desenvolvimento.
 
@@ -328,6 +392,81 @@ O sistema possui usuários pré-configurados para facilitar a exploração dos d
 | `npm run build` | Gera o build de produção                     |
 | `npm start`     | Inicia o Next.js em produção                 |
 | `npm run lint`  | Executa a verificação de código              |
+
+## Endpoints da API
+
+A API Express disponibiliza os seguintes endpoints sob o prefixo `/api`:
+
+### Autenticação & Perfil
+* `POST   /api/auth/login` — Autenticação de usuário e emissão de token JWT
+* `POST   /api/auth/register` — Cadastro de novo paciente/usuário
+* `GET    /api/auth/me` — Dados do usuário logado (requer autenticação)
+* `GET    /api/auth/profile` — Perfil do usuário autenticado
+* `PUT    /api/auth/profile` — Atualização cadastral e alteração de senha
+
+### Medicamentos
+* `GET    /api/medicines` — Listagem de medicamentos
+* `GET    /api/medicines/:id` — Detalhes do medicamento e seus lotes
+* `POST   /api/medicines` — Cadastro de medicamento (`ADMIN`, `FARMACEUTICO`, `ALUNO`)
+* `PUT    /api/medicines/:id` — Atualização cadastral (`ADMIN`, `FARMACEUTICO`, `ALUNO`)
+* `DELETE /api/medicines/:id` — Remoção de medicamento (`ADMIN`, `FARMACEUTICO`)
+
+### Lotes de Estoque
+* `GET    /api/batches` — Listagem de lotes (filtro opcional por `medicineId`)
+* `GET    /api/batches/:id` — Detalhes do lote
+* `POST   /api/batches` — Entrada de novo lote (`ADMIN`, `FARMACEUTICO`, `ALUNO`)
+* `PUT    /api/batches/:id` — Atualização de saldo/validade (`ADMIN`, `FARMACEUTICO`, `ALUNO`)
+* `DELETE /api/batches/:id` — Exclusão de lote (`ADMIN`, `FARMACEUTICO`)
+
+### Agendamentos de Retirada
+* `GET    /api/appointments` — Listagem de agendamentos
+* `GET    /api/appointments/:id` — Detalhes do agendamento e itens
+* `POST   /api/appointments` — Criação de agendamento
+* `PUT    /api/appointments/:id` — Atualização do agendamento (`ADMIN`, `FARMACEUTICO`, `ALUNO`)
+* `PUT    /api/appointments/:id/status` — Atualização de status (`PENDING`, `CONFIRMED`, `COMPLETED`, `CANCELLED`)
+* `DELETE /api/appointments/:id` — Cancelamento do agendamento
+
+### Grade de Horários
+* `GET    /api/schedule-slots` — Horários de atendimento disponíveis
+* `GET    /api/schedule-slots/:id` — Detalhes do horário
+* `POST   /api/schedule-slots` — Criação de faixa de horário (`ADMIN`, `FARMACEUTICO`)
+* `PUT    /api/schedule-slots/:id` — Atualização de capacidade/atendente (`ADMIN`, `FARMACEUTICO`)
+* `DELETE /api/schedule-slots/:id` — Remoção de faixa de horário (`ADMIN`, `FARMACEUTICO`)
+
+### Dispensações (Retiradas)
+* `GET    /api/withdrawals` — Histórico de dispensações
+* `GET    /api/withdrawals/:id` — Detalhes da dispensação
+* `POST   /api/withdrawals` — Registro de dispensação com baixa de estoque (`ADMIN`, `FARMACEUTICO`, `ALUNO`)
+* `PUT    /api/withdrawals/:id` — Atualização da dispensação (`ADMIN`, `FARMACEUTICO`, `ALUNO`)
+* `DELETE /api/withdrawals/:id` — Cancelamento com estorno do saldo ao lote (`ADMIN`, `FARMACEUTICO`)
+
+### Descartes
+* `GET    /api/disposals` — Histórico de descartes motivados (`ADMIN`, `FARMACEUTICO`, `ALUNO`)
+* `GET    /api/disposals/:id` — Detalhes do descarte (`ADMIN`, `FARMACEUTICO`, `ALUNO`)
+* `POST   /api/disposals` — Registro de descarte com baixa no lote (`ADMIN`, `FARMACEUTICO`, `ALUNO`)
+* `PUT    /api/disposals/:id` — Edição de descarte (`ADMIN`, `FARMACEUTICO`)
+* `DELETE /api/disposals/:id` — Exclusão de registro (`ADMIN`, `FARMACEUTICO`)
+* `POST   /api/disposals/:id/revert` — Reversão de descarte com devolução ao lote (`ADMIN`, `FARMACEUTICO`)
+
+### Pacientes
+* `GET    /api/patients` — Listagem e busca de pacientes
+* `GET    /api/patients/:id` — Detalhes cadastrais e histórico
+* `POST   /api/patients` — Cadastro de paciente (`ADMIN`, `FARMACEUTICO`, `ALUNO`, `MEDICO`)
+* `PUT    /api/patients/:id` — Atualização de paciente (`ADMIN`, `FARMACEUTICO`, `ALUNO`)
+* `DELETE /api/patients/:id` — Remoção de paciente (`ADMIN`, `FARMACEUTICO`)
+
+### Usuários & Administração
+* `GET    /api/users` — Listagem de usuários cadastrados (`ADMIN`)
+* `GET    /api/users/:id` — Detalhes de um usuário (`ADMIN`)
+* `POST   /api/users` — Criação de usuário com perfil (`ADMIN`)
+* `PUT    /api/users/:id` — Edição de dados do usuário (`ADMIN`)
+* `DELETE /api/users/:id` — Exclusão de usuário (`ADMIN`)
+* `PATCH  /api/users/:id/toggle-active` — Ativação/desativação de usuário (`ADMIN`)
+
+### Auditoria & Sistema
+* `GET    /api/activity-logs` — Trilha de auditoria paginada (`ADMIN`)
+* `GET    /api/activity-logs/:id` — Detalhes do evento de auditoria (`ADMIN`)
+* `GET    /health` — Status de integridade e uptime da API
 
 ## Arquitetura
 
@@ -465,7 +604,7 @@ Para reportar bugs, sugerir melhorias ou solicitar novas funcionalidades, utiliz
 **Yuri Simplicio**
 
 * GitHub: [@yuriigu](https://github.com/yuriigu)
-* E-mail: `yuri.simplicio@grupointegrado.br`
+* E-mail: `yurigustavo415@gmail.com`
 
 ## Agradecimentos
 

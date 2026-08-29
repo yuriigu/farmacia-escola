@@ -62,7 +62,7 @@ O frontend fornece uma interface unificada para os diferentes perfis de usuário
 ### Clone o repositório
 
 ```bash
-git clone https://github.com/seu-usuario/farmacia-escola.git
+git clone https://github.com/yuriigu/farmacia-escola.git
 cd farmacia-escola
 ```
 
@@ -83,7 +83,11 @@ npm install
 Crie um arquivo `.env` no diretório `frontend/`:
 
 ```env
-NEXT_PUBLIC_API_URL="/backend"
+# URL da API do backend para acesso público / cliente
+NEXT_PUBLIC_API_URL="http://localhost:3001"
+
+# URL da API do backend para chamadas internas do servidor Next.js
+INTERNAL_API_URL="http://localhost:3001"
 ```
 
 ## Executando o Projeto
@@ -166,16 +170,23 @@ npm run lint
 
 ## Principais Páginas
 
-| Rota                | Descrição                                            | Perfis Permitidos                   |
-| ------------------- | ---------------------------------------------------- | ----------------------------------- |
-| `/dashboard`        | Dashboard com métricas, alertas e atalhos            | Usuários autenticados               |
-| `/medicines`        | Catálogo e consulta de medicamentos                  | Todos os perfis                     |
-| `/estoque`          | Gestão de medicamentos, lotes, retiradas e descartes | `ADMIN`, `FARMACEUTICO`, `ALUNO`    |
-| `/agendamentos`     | Gestão e acompanhamento de agendamentos              | `ADMIN`, `FARMACEUTICO`, `MEDICO`   |
-| `/appointments/new` | Criação de novos agendamentos                        | `PACIENTE`, `ADMIN`, `FARMACEUTICO` |
-| `/pacientes`        | Consulta de pacientes e histórico                    | `ADMIN`, `FARMACEUTICO`             |
-| `/administracao`    | Usuários e auditoria                                 | `ADMIN`                             |
-| `/profile`          | Dados pessoais e alteração de senha                  | Todos os perfis                     |
+| Rota                | Descrição                                            | Perfis Permitidos                                  |
+| ------------------- | ---------------------------------------------------- | -------------------------------------------------- |
+| `/login`            | Autenticação no sistema                              | Público                                            |
+| `/register`         | Cadastro de novos pacientes                          | Público                                            |
+| `/dashboard`        | Dashboard com métricas, alertas e atalhos operacionais| Usuários autenticados                              |
+| `/medicines`        | Catálogo e busca de medicamentos                     | Todos os perfis                                    |
+| `/medicines/[id]`   | Detalhes do medicamento e seus lotes                 | Todos os perfis                                    |
+| `/estoque`          | Gestão de medicamentos, lotes, retiradas e descartes | `ADMIN`, `FARMACEUTICO`, `ALUNO`                   |
+| `/admin/stock`      | Gestão detalhada de lotes e validades                | `ADMIN`                                            |
+| `/agendamentos`     | Gestão e acompanhamento de agendamentos              | `ADMIN`, `FARMACEUTICO`, `MEDICO`                  |
+| `/appointments`     | Consulta de agendamentos e status                    | `PACIENTE`, `ADMIN`, `FARMACEUTICO`, `MEDICO`       |
+| `/appointments/new` | Solicitação de novo agendamento de retirada          | `PACIENTE`, `ADMIN`, `FARMACEUTICO`                |
+| `/calendario`       | Agenda e grade de horários de atendimento            | `ADMIN`, `FARMACEUTICO`, `MEDICO`                  |
+| `/pacientes`        | Consulta de pacientes e histórico de atendimentos    | `ADMIN`, `FARMACEUTICO`                            |
+| `/administracao`    | Gestão de usuários e logs de auditoria               | `ADMIN`                                            |
+| `/configuracoes`    | Configurações gerais da aplicação                    | `ADMIN`                                            |
+| `/profile`          | Dados pessoais e alteração de senha                  | Todos os perfis                                    |
 
 ## Controle de Acesso
 
@@ -250,43 +261,72 @@ O layout foi desenvolvido para funcionar em:
 
 ```text
 frontend/
-└── src/
-    ├── app/
-    │   ├── (auth)/
-    │   │   ├── login/
-    │   │   └── register/
-    │   ├── administracao/
-    │   ├── agendamentos/
-    │   ├── appointments/
-    │   │   └── new/
-    │   ├── calendario/
-    │   ├── dashboard/
-    │   ├── estoque/
-    │   ├── medicines/
-    │   │   └── [id]/
-    │   ├── profile/
-    │   ├── backend/
-    │   ├── globals.css
-    │   └── layout.tsx
-    ├── components/
-    │   ├── layout/
-    │   │   ├── AppShell.tsx
-    │   │   └── TabBar.tsx
-    │   ├── modules/
-    │   ├── pages/
-    │   ├── shared/
-    │   └── ui/
-    ├── config/
-    │   └── rbac.ts
-    ├── hooks/
-    ├── lib/
-    │   ├── auth-store.ts
-    │   ├── types.ts
-    │   └── utils.ts
-    ├── providers/
-    └── services/
-        ├── api.ts
-        └── queries.ts
+├── src/
+│   ├── app/
+│   │   ├── admin/
+│   │   │   └── stock/
+│   │   │       └── page.tsx
+│   │   ├── administracao/
+│   │   │   └── page.tsx
+│   │   ├── agendamentos/
+│   │   │   └── page.tsx
+│   │   ├── appointments/
+│   │   │   ├── new/
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── calendario/
+│   │   │   └── page.tsx
+│   │   ├── configuracoes/
+│   │   │   └── page.tsx
+│   │   ├── dashboard/
+│   │   │   └── page.tsx
+│   │   ├── estoque/
+│   │   │   └── page.tsx
+│   │   ├── login/
+│   │   │   └── page.tsx
+│   │   ├── medicines/
+│   │   │   ├── [id]/
+│   │   │   │   └── page.tsx
+│   │   │   └── page.tsx
+│   │   ├── pacientes/
+│   │   │   └── page.tsx
+│   │   ├── profile/
+│   │   │   └── page.tsx
+│   │   ├── register/
+│   │   │   └── page.tsx
+│   │   ├── globals.css
+│   │   ├── layout.tsx
+│   │   └── page.tsx
+│   ├── components/
+│   │   ├── layout/
+│   │   │   ├── AppShell.tsx
+│   │   │   └── TabBar.tsx
+│   │   ├── modules/
+│   │   ├── pages/
+│   │   ├── shared/
+│   │   └── ui/
+│   ├── config/
+│   │   └── rbac.ts
+│   ├── hooks/
+│   ├── lib/
+│   │   ├── auth-store.ts
+│   │   ├── types.ts
+│   │   └── utils.ts
+│   ├── providers/
+│   ├── services/
+│   │   ├── api.ts
+│   │   └── queries.ts
+│   ├── types/
+│   │   └── index.ts
+│   └── proxy.ts
+├── components.json
+├── eslint.config.mjs
+├── next.config.ts
+├── package.json
+├── postcss.config.mjs
+├── tailwind.config.ts
+├── tsconfig.json
+└── README.md
 ```
 
 ## Arquitetura do Frontend
@@ -326,3 +366,10 @@ O estado global de autenticação é gerenciado pelo Zustand, enquanto o TanStac
 ## Suporte
 
 Para reportar problemas ou solicitar melhorias, utilize o sistema de Issues do GitHub.
+
+## Autor
+
+**Yuri Simplicio**
+
+* GitHub: [@yuriigu](https://github.com/yuriigu)
+* E-mail: `yurigustavo415@gmail.com`

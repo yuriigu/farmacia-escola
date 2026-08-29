@@ -12,7 +12,7 @@
     "db:seed": "npx ts-node src/seed/seed.ts"
   },
   "dependencies": {
-    "@prisma/client": "^6.11.1",
+    "@prisma/client": "^7.10.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
@@ -24,9 +24,13 @@
     "@types/express": "^5.0.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.0.0",
+    "@types/supertest": "^7.2.1",
+    "deepmerge-ts": "^8.0.2",
     "nodemon": "^3.1.9",
-    "prisma": "^6.11.1",
+    "prisma": "^7.10.0",
+    "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
-    "typescript": "5.8.2"
+    "typescript": "5.8.2",
+    "vitest": "^4.1.11"
   }
 }

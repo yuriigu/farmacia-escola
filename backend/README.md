@@ -49,7 +49,7 @@ O backend foi desenvolvido para garantir a integridade dos dados e aplicar as re
 ### Clone o repositório
 
 ```bash
-git clone https://github.com/seu-usuario/farmacia-escola.git
+git clone https://github.com/yuriigu/farmacia-escola.git
 cd farmacia-escola
 ```
 
@@ -70,7 +70,7 @@ npm install
 Crie um arquivo `.env` no diretório `backend/`:
 
 ```env
-# Banco de dados
+# Banco de dados (SQLite local para dev ou string PostgreSQL)
 DATABASE_URL="file:./prisma/dev.db"
 
 # Segredo utilizado na assinatura dos tokens JWT
@@ -78,6 +78,9 @@ JWT_SECRET="farmacia-escola-secret-key-2024"
 
 # Porta do servidor
 PORT=3001
+
+# URL do frontend para CORS
+FRONTEND_URL="http://localhost:3000"
 ```
 
 ### Configure o banco de dados
@@ -208,71 +211,107 @@ npm run start
 
 ## API Endpoints
 
-### Autenticação
+A API Express disponibiliza os seguintes endpoints sob o prefixo `/api` (com healthcheck `/health`):
+
+### Autenticação & Perfil
 
 ```http
-POST /backend/auth/login
-POST /backend/auth/register
-GET  /backend/auth/me
-PUT  /backend/auth/profile
+POST /api/auth/login
+POST /api/auth/register
+GET  /api/auth/me
+GET  /api/auth/profile
+PUT  /api/auth/profile
 ```
 
 ### Medicamentos
 
 ```http
-GET    /backend/medicines
-GET    /backend/medicines/:id
-POST   /backend/medicines
-PUT    /backend/medicines/:id
-DELETE /backend/medicines/:id
+GET    /api/medicines
+GET    /api/medicines/:id
+POST   /api/medicines
+PUT    /api/medicines/:id
+DELETE /api/medicines/:id
 ```
 
 ### Lotes de Estoque
 
 ```http
-GET    /backend/batches
-POST   /backend/batches
-PUT    /backend/batches/:id
-DELETE /backend/batches/:id
+GET    /api/batches
+GET    /api/batches/:id
+POST   /api/batches
+PUT    /api/batches/:id
+DELETE /api/batches/:id
 ```
 
-### Horários
+### Grade de Horários
 
 ```http
-GET    /backend/schedule-slots
-POST   /backend/schedule-slots
-DELETE /backend/schedule-slots/:id
+GET    /api/schedule-slots
+GET    /api/schedule-slots/:id
+POST   /api/schedule-slots
+PUT    /api/schedule-slots/:id
+DELETE /api/schedule-slots/:id
 ```
 
 ### Agendamentos
 
 ```http
-GET    /backend/appointments
-POST   /backend/appointments
-PUT    /backend/appointments/:id
-DELETE /backend/appointments/:id
+GET    /api/appointments
+GET    /api/appointments/:id
+POST   /api/appointments
+PUT    /api/appointments/:id
+PUT    /api/appointments/:id/status
+DELETE /api/appointments/:id
 ```
 
-### Dispensações
+### Dispensações (Retiradas)
 
 ```http
-GET    /backend/withdrawals
-POST   /backend/withdrawals
-DELETE /backend/withdrawals/:id
+GET    /api/withdrawals
+GET    /api/withdrawals/:id
+POST   /api/withdrawals
+PUT    /api/withdrawals/:id
+DELETE /api/withdrawals/:id
 ```
 
 ### Descartes
 
 ```http
-GET  /backend/disposals
-POST /backend/disposals
-POST /backend/disposals/:id/revert
+GET    /api/disposals
+GET    /api/disposals/:id
+POST   /api/disposals
+PUT    /api/disposals/:id
+DELETE /api/disposals/:id
+POST   /api/disposals/:id/revert
 ```
 
-### Auditoria
+### Pacientes
 
 ```http
-GET /backend/activity-logs?page=1&limit=20
+GET    /api/patients
+GET    /api/patients/:id
+POST   /api/patients
+PUT    /api/patients/:id
+DELETE /api/patients/:id
+```
+
+### Usuários (Administração)
+
+```http
+GET    /api/users
+GET    /api/users/:id
+POST   /api/users
+PUT    /api/users/:id
+DELETE /api/users/:id
+PATCH  /api/users/:id/toggle-active
+```
+
+### Auditoria & Sistema
+
+```http
+GET /api/activity-logs?page=1&limit=20
+GET /api/activity-logs/:id
+GET /health
 ```
 
 ## Modelo de Dados
@@ -322,16 +361,53 @@ backend/
 │   └── schema.prisma
 ├── src/
 │   ├── controllers/
+│   │   ├── ActivityLogController.ts
+│   │   ├── AppointmentController.ts
+│   │   ├── AuthController.ts
+│   │   ├── BatchController.ts
+│   │   ├── DisposalController.ts
+│   │   ├── MedicineController.ts
+│   │   ├── PatientController.ts
+│   │   ├── ScheduleSlotController.ts
+│   │   ├── UserController.ts
+│   │   └── WithdrawalController.ts
 │   ├── middlewares/
+│   │   ├── authMiddleware.ts
+│   │   ├── errorMiddleware.ts
+│   │   └── roleMiddleware.ts
 │   ├── repositories/
 │   ├── routes/
-│   ├── services/
+│   │   ├── activityLogRoutes.ts
+│   │   ├── appointmentRoutes.ts
+│   │   ├── authRoutes.ts
+│   │   ├── batchRoutes.ts
+│   │   ├── disposalRoutes.ts
+│   │   ├── medicineRoutes.ts
+│   │   ├── patientRoutes.ts
+│   │   ├── scheduleSlotRoutes.ts
+│   │   ├── userRoutes.ts
+│   │   ├── withdrawalRoutes.ts
+│   │   └── index.ts
 │   ├── seed/
+│   │   └── seed.ts
+│   ├── services/
+│   ├── utils/
+│   │   ├── jwt.ts
+│   │   └── prisma.ts
 │   └── index.ts
-├── .env
-└── package.json
+├── Caddyfile
+├── package.json
+├── tsconfig.json
+└── README.md
 ```
 
 ## Suporte
 
 Para reportar problemas ou solicitar melhorias, utilize o sistema de Issues do GitHub.
+
+## Autor
+
+**Yuri Simplicio**
+
+* GitHub: [@yuriigu](https://github.com/yuriigu)
+* E-mail: `yurigustavo415@gmail.com`

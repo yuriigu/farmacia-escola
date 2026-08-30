@@ -4,9 +4,9 @@ import { AppointmentRepository } from '../../../src/repositories/AppointmentRepo
 import { ScheduleSlotRepository } from '../../../src/repositories/ScheduleSlotRepository';
 import { MedicineRepository } from '../../../src/repositories/MedicineRepository';
 import { PatientRepository } from '../../../src/repositories/PatientRepository';
-import { mockAppointment, mockAppointmentsList } from '../../fixtures/appointments.fixture';
-import { mockPatient } from '../../fixtures/patients.fixture';
-import { mockMedicine } from '../../fixtures/medicines.fixture';
+import { mockAppointment, mockAppointmentsList } from '../../fixtures/Appointments.fixture';
+import { mockPatient } from '../../fixtures/Patients.fixture';
+import { mockMedicine } from '../../fixtures/Medicines.fixture';
 
 vi.mock('../../../src/repositories/AppointmentRepository');
 vi.mock('../../../src/repositories/ScheduleSlotRepository');

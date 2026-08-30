@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DisposalService } from '../../../src/services/DisposalService';
 import { DisposalRepository } from '../../../src/repositories/DisposalRepository';
 import { BatchRepository } from '../../../src/repositories/BatchRepository';
-import { mockBatch } from '../../fixtures/batches.fixture';
+import { mockBatch } from '../../fixtures/Batches.fixture';
 
 vi.mock('../../../src/repositories/DisposalRepository');
 vi.mock('../../../src/repositories/BatchRepository');

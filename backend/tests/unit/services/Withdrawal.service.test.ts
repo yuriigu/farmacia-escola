@@ -3,8 +3,8 @@ import { WithdrawalService } from '../../../src/services/WithdrawalService';
 import { WithdrawalRepository } from '../../../src/repositories/WithdrawalRepository';
 import { BatchRepository } from '../../../src/repositories/BatchRepository';
 import { PatientRepository } from '../../../src/repositories/PatientRepository';
-import { mockBatch } from '../../fixtures/batches.fixture';
-import { mockPatient } from '../../fixtures/patients.fixture';
+import { mockBatch } from '../../fixtures/Batches.fixture';
+import { mockPatient } from '../../fixtures/Patients.fixture';
 
 vi.mock('../../../src/repositories/WithdrawalRepository');
 vi.mock('../../../src/repositories/BatchRepository');

@@ -3,9 +3,8 @@ import bcrypt from 'bcryptjs';
 import { AuthService } from '../../../src/services/AuthService';
 import { UserRepository } from '../../../src/repositories/UserRepository';
 import { PatientRepository } from '../../../src/repositories/PatientRepository';
-import { prisma } from '../../../src/utils/prisma';
-import { mockUser } from '../../fixtures/users.fixture';
-import { mockPatient } from '../../fixtures/patients.fixture';
+import { prisma } from '../../../src/utils/Prisma';
+import { mockUser } from '../../fixtures/Users.fixture';
 
 vi.mock('../../../src/repositories/UserRepository');
 vi.mock('../../../src/repositories/PatientRepository');

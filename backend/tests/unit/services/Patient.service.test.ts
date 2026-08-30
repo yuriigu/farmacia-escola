@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PatientService } from '../../../src/services/PatientService';
 import { PatientRepository } from '../../../src/repositories/PatientRepository';
-import { mockPatient, mockPatientsList } from '../../fixtures/patients.fixture';
+import { mockPatient, mockPatientsList } from '../../fixtures/Patients.fixture';
 
 vi.mock('../../../src/repositories/PatientRepository');
 vi.mock('../../../src/services/ActivityLogService');

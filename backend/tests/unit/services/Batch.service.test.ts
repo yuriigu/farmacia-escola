@@ -2,8 +2,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { BatchService } from '../../../src/services/BatchService';
 import { BatchRepository } from '../../../src/repositories/BatchRepository';
 import { MedicineRepository } from '../../../src/repositories/MedicineRepository';
-import { mockBatch, mockBatchesList } from '../../fixtures/batches.fixture';
-import { mockMedicine } from '../../fixtures/medicines.fixture';
+import { mockBatch, mockBatchesList } from '../../fixtures/Batches.fixture';
+import { mockMedicine } from '../../fixtures/Medicines.fixture';
 
 vi.mock('../../../src/repositories/BatchRepository');
 vi.mock('../../../src/repositories/MedicineRepository');

@@ -1,11 +1,9 @@
 import { vi, beforeEach } from 'vitest';
 
-// Environment setup for testing
 process.env.JWT_SECRET = 'test-secret-key-12345';
 process.env.JWT_EXPIRES_IN = '1d';
 process.env.NODE_ENV = 'test';
 
-// Mock @prisma/client globally for tests
 vi.mock('@prisma/client', () => {
   return {
     PrismaClient: class {
@@ -92,7 +90,6 @@ vi.mock('@prisma/client', () => {
   };
 });
 
-// Reset all mocks before each test
 beforeEach(() => {
   vi.clearAllMocks();
 });

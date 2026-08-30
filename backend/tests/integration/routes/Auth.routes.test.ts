@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { generateToken } from '../../../src/utils/jwt';
-import { prisma } from '../../../src/utils/prisma';
+import { generateToken } from '../../../src/utils/Jwt';
+import { prisma } from '../../../src/utils/Prisma';
 
 vi.mock('../../../src/controllers/AuthController', () => {
   return {
@@ -33,7 +33,7 @@ vi.mock('../../../src/utils/prisma', () => ({
   },
 }));
 
-import authRoutes from '../../../src/routes/authRoutes';
+import authRoutes from '../../../src/routes/AuthRoutes';
 
 describe('Auth Routes Integration', () => {
   let app: express.Express;

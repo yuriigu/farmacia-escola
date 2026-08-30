@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { generateToken } from '../../../src/utils/jwt';
-import { prisma } from '../../../src/utils/prisma';
-import { mockMedicine, mockMedicinesList } from '../../fixtures/medicines.fixture';
+import { generateToken } from '../../../src/utils/Jwt';
+import { prisma } from '../../../src/utils/Prisma';
+import { mockMedicine, mockMedicinesList } from '../../fixtures/Medicines.fixture';
 
 vi.mock('../../../src/controllers/MedicineController', () => {
   return {
@@ -37,7 +37,7 @@ vi.mock('../../../src/utils/prisma', () => ({
   },
 }));
 
-import medicineRoutes from '../../../src/routes/medicineRoutes';
+import medicineRoutes from '../../../src/routes/MedicineRoutes';
 
 describe('Medicine Routes Integration', () => {
   let app: express.Express;

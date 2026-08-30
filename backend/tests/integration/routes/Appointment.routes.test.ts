@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import express from 'express';
 import request from 'supertest';
-import { generateToken } from '../../../src/utils/jwt';
-import { prisma } from '../../../src/utils/prisma';
-import { mockAppointment, mockAppointmentsList } from '../../fixtures/appointments.fixture';
+import { generateToken } from '../../../src/utils/Jwt';
+import { prisma } from '../../../src/utils/Prisma';
+import { mockAppointment, mockAppointmentsList } from '../../fixtures/Appointments.fixture';
 
 vi.mock('../../../src/controllers/AppointmentController', () => {
   return {
@@ -40,7 +40,7 @@ vi.mock('../../../src/utils/prisma', () => ({
   },
 }));
 
-import appointmentRoutes from '../../../src/routes/appointmentRoutes';
+import appointmentRoutes from '../../../src/routes/AppointmentRoutes';
 
 describe('Appointment Routes Integration', () => {
   let app: express.Express;

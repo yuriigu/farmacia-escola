@@ -1,7 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import apiRoutes from './routes';
+import apiRoutes from './routes/Index';
 import { errorMiddleware } from './middlewares/ErrorMiddleware';
 
 dotenv.config();
@@ -9,12 +9,10 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Configuração robusta de CORS
 const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',');
 
 app.use(cors({
   origin: (origin, callback) => {
-    // Permite requisições sem origin (como mobile apps, Postman ou curl)
     if (!origin) return callback(null, true);
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
       return callback(null, true);
@@ -28,10 +26,8 @@ app.use(cors({
 
 app.use(express.json());
 
-// Rotas da API
 app.use('/api', apiRoutes);
 
-// Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -40,9 +36,8 @@ app.get('/health', (req, res) => {
   });
 });
 
-// Middleware de tratamento de erros
 app.use(errorMiddleware);
 
 app.listen(PORT, () => {
-  console.log(`🚀 [API] Servidor Express iniciado em http://localhost:${PORT}`);
+  console.log(`[API] Servidor Express iniciado em http://localhost:${PORT}`);
 });

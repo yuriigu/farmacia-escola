@@ -1,17 +1,17 @@
 import { Router } from 'express';
-import { MedicineController } from '../controllers/MedicineController';
+import { PatientController } from '../controllers/PatientController';
 import { authMiddleware } from '../middlewares/AuthMiddleware';
 import { authorizeRoles, requirePermission } from '../middlewares/RoleMiddleware';
 
 const router = Router();
-const controller = new MedicineController();
+const controller = new PatientController();
 
 router.use(authMiddleware);
 
 router.get('/', controller.getAll);
 router.get('/:id', controller.getById);
-router.post('/', requirePermission('medicines'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.create);
-router.put('/:id', requirePermission('medicines'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.update);
+router.post('/', requirePermission('patients'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO', 'MEDICO'), controller.create);
+router.put('/:id', requirePermission('patients'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.update);
 router.delete('/:id', authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.delete);
 
 export default router;

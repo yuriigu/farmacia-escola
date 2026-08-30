@@ -1,6 +1,6 @@
-import { mockPatient } from './patients.fixture';
-import { mockMedicine } from './medicines.fixture';
-import { mockUser } from './users.fixture';
+import { mockPatient } from './Patients.fixture';
+import { mockMedicine } from './Medicines.fixture';
+import { mockUser } from './Users.fixture';
 
 export const mockAppointment = {
   id: 1,

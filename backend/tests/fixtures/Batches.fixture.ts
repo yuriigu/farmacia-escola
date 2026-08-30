@@ -1,4 +1,4 @@
-import { mockMedicine } from './medicines.fixture';
+import { mockMedicine } from './Medicines.fixture';
 
 export const mockBatch = {
   id: 1,

@@ -48,6 +48,12 @@ export function WithdrawalsPage() {
     }
   };
 
+  // Função auxiliar para obter o código do lote
+  const getBatchCode = (withdrawal: Withdrawal) => {
+    // O tipo Batch expõe o campo 'code' para identificar o lote
+    return withdrawal.batch?.code || withdrawal.batch?.id?.toString() || 'N/A';
+  };
+
   return (
     <div className="space-y-6 page-enter">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -63,7 +69,15 @@ export function WithdrawalsPage() {
           {canExport && (
           <Button variant="outline" onClick={() => {
             const header = ['Paciente', 'CPF', 'Medicamento', 'Dosagem', 'Quantidade', 'Dispensado por', 'Data/Hora'];
-            const rows = withdrawals.map((w) => [w.patient.name, w.patient.cpf, w.batch.medicine.name, w.batch.medicine.dosage, String(w.quantity), w.user.name, w.createdAt ? new Date(w.createdAt).toLocaleString('pt-BR') : '-']);
+            const rows = withdrawals.map((w) => [
+              w.patient?.name || 'N/A', 
+              w.patient?.cpf || 'N/A', 
+              w.batch?.medicine?.name || 'N/A', 
+              w.batch?.medicine?.dosage || 'N/A', 
+              String(w.quantity), 
+              w.user?.name || 'N/A', 
+              w.createdAt ? new Date(w.createdAt).toLocaleString('pt-BR') : '-'
+            ]);
             downloadCSV('retiradas_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
             toast.success('Relatório exportado com sucesso!');
           }} disabled={withdrawals.length === 0} className="rounded-xl gap-2 active:scale-[0.98] transition-transform">
@@ -105,30 +119,42 @@ export function WithdrawalsPage() {
                     </div>
                   </td></tr>
                 ) : (
-                  withdrawals.map((w, idx) => (
-                    <tr key={w.id} className={(idx % 2 === 1 ? 'bg-slate-50/50 dark:bg-slate-800/30 ' : '') + 'table-row-hover'}>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-8 h-8 rounded-full ${getAvatarColor(w.patient.name)} text-white flex items-center justify-center text-xs font-bold shrink-0`}>
-                            {w.patient.name.charAt(0)}
+                  withdrawals.map((w, idx) => {
+                    // Verificação de segurança para evitar o erro
+                    const medicineName = w.batch?.medicine?.name || 'Medicamento não disponível';
+                    const medicineDosage = w.batch?.medicine?.dosage || 'N/A';
+                    const patientName = w.patient?.name || 'Paciente não identificado';
+                    const patientCpf = w.patient?.cpf || 'N/A';
+                    const userName = w.user?.name || 'Usuário não identificado';
+
+                    return (
+                      <tr key={w.id} className={(idx % 2 === 1 ? 'bg-slate-50/50 dark:bg-slate-800/30 ' : '') + 'table-row-hover'}>
+                        <td className="p-4">
+                          <div className="flex items-center gap-2">
+                            <div className={`w-8 h-8 rounded-full ${getAvatarColor(patientName)} text-white flex items-center justify-center text-xs font-bold shrink-0`}>
+                              {patientName.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-900 dark:text-slate-100">{patientName}</p>
+                              <p className="text-xs text-slate-400 font-mono">{patientCpf}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-slate-900 dark:text-slate-100">{w.patient.name}</p>
-                            <p className="text-xs text-slate-400 font-mono">{w.patient.cpf}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4 font-medium text-emerald-800 dark:text-emerald-300">{w.batch.medicine.name} <span className="text-slate-400 font-normal">({w.batch.medicine.dosage})</span></td>
-                      <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{w.quantity} un.</td>
-                      <td className="p-4 text-slate-600 dark:text-slate-300">{w.user.name}</td>
-                      <td className="p-4 text-xs text-slate-400">{w.createdAt ? new Date(w.createdAt).toLocaleString('pt-BR') : '-'}</td>
-                      <td className="p-4">
-                        <Button variant="ghost" size="sm" onClick={() => setSelectedWithdrawal(w)} className="rounded-lg h-8 w-8 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" title="Ver detalhes">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))
+                        </td>
+                        <td className="p-4 font-medium text-emerald-800 dark:text-emerald-300">
+                          {medicineName} 
+                          <span className="text-slate-400 font-normal">({medicineDosage})</span>
+                        </td>
+                        <td className="p-4 font-bold text-slate-800 dark:text-slate-200">{w.quantity} un.</td>
+                        <td className="p-4 text-slate-600 dark:text-slate-300">{userName}</td>
+                        <td className="p-4 text-xs text-slate-400">{w.createdAt ? new Date(w.createdAt).toLocaleString('pt-BR') : '-'}</td>
+                        <td className="p-4">
+                          <Button variant="ghost" size="sm" onClick={() => setSelectedWithdrawal(w)} className="rounded-lg h-8 w-8 p-0 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/20" title="Ver detalhes">
+                            <Eye className="w-4 h-4" />
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
@@ -153,12 +179,12 @@ export function WithdrawalsPage() {
               {/* Patient info */}
               <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className={`w-10 h-10 rounded-full ${getAvatarColor(selectedWithdrawal.patient.name)} text-white flex items-center justify-center font-bold`}>
-                    {selectedWithdrawal.patient.name.charAt(0)}
+                  <div className={`w-10 h-10 rounded-full ${getAvatarColor(selectedWithdrawal.patient?.name || 'P')} text-white flex items-center justify-center font-bold`}>
+                    {(selectedWithdrawal.patient?.name || 'P').charAt(0)}
                   </div>
                   <div>
-                    <p className="font-bold text-slate-800 dark:text-slate-200">{selectedWithdrawal.patient.name}</p>
-                    <p className="text-xs text-slate-400 font-mono">{selectedWithdrawal.patient.cpf}</p>
+                    <p className="font-bold text-slate-800 dark:text-slate-200">{selectedWithdrawal.patient?.name || 'Paciente não identificado'}</p>
+                    <p className="text-xs text-slate-400 font-mono">{selectedWithdrawal.patient?.cpf || 'N/A'}</p>
                   </div>
                 </div>
               </div>
@@ -170,15 +196,19 @@ export function WithdrawalsPage() {
                     <Pill className="w-3.5 h-3.5 text-emerald-500" />
                     <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Medicamento</p>
                   </div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{selectedWithdrawal.batch.medicine.name}</p>
-                  <p className="text-xs text-slate-400">{selectedWithdrawal.batch.medicine.dosage}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                    {selectedWithdrawal.batch?.medicine?.name || 'Medicamento não disponível'}
+                  </p>
+                  <p className="text-xs text-slate-400">{selectedWithdrawal.batch?.medicine?.dosage || 'N/A'}</p>
                 </div>
                 <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-800">
                   <div className="flex items-center gap-1.5 mb-1">
                     <Boxes className="w-3.5 h-3.5 text-amber-500" />
                     <p className="text-[10px] font-bold text-amber-600 uppercase tracking-wider">Lote</p>
                   </div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">{selectedWithdrawal.batch.code}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 font-mono">
+                    {selectedWithdrawal.batch?.code || selectedWithdrawal.batch?.id?.toString() || 'N/A'}
+                  </p>
                 </div>
               </div>
 
@@ -196,7 +226,7 @@ export function WithdrawalsPage() {
                     <User className="w-3.5 h-3.5 text-slate-400" />
                     <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dispensado por</p>
                   </div>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{selectedWithdrawal.user.name}</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{selectedWithdrawal.user?.name || 'Usuário não identificado'}</p>
                 </div>
               </div>
 
@@ -250,7 +280,7 @@ export function WithdrawalsPage() {
                 <SelectContent>
                   {batches.filter((b) => b.currentQuantity > 0).map((b) => (
                     <SelectItem key={b.id} value={String(b.id)}>
-                      {b.medicine?.name} {b.medicine?.dosage} — Lote {b.batchNumber} — saldo: {b.currentQuantity}
+                      {b.medicine?.name || 'Medicamento'} {b.medicine?.dosage || ''} — Lote {b.batchNumber || b.id} — saldo: {b.currentQuantity}
                     </SelectItem>
                   ))}
                 </SelectContent>

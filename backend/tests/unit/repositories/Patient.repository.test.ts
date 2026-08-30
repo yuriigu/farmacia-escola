@@ -1,9 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { PatientRepository } from '../../../src/repositories/PatientRepository';
-import { prisma } from '../../../src/utils/prisma';
-import { mockPatient, mockPatientsList } from '../../fixtures/patients.fixture';
+import { prisma } from '../../../src/utils/Prisma';
+import { mockPatient, mockPatientsList } from '../../fixtures/Patients.fixture';
 
-vi.mock('../../../src/utils/prisma', () => ({
+vi.mock('../../../src/utils/Prisma', () => ({
   prisma: {
     patient: {
       findUnique: vi.fn(),

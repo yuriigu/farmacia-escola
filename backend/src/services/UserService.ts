@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { UserRepository } from '../repositories/UserRepository';
 import { ActivityLogService } from './ActivityLogService';
-import { Role } from '@prisma/client';  // 👈 Importe o enum
+import { Role } from '../types/enums';
 
 export class UserService {
   private userRepo: UserRepository;

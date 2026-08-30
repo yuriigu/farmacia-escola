@@ -1,5 +1,5 @@
 import { prisma } from '../utils/prisma';
-import { Role } from '@prisma/client';  // 👈 Importe o enum Role
+import { Role } from '../types/enums';
 
 export class UserRepository {
   async findByEmail(email: string) {

@@ -12,7 +12,7 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Farmácia Escola — Sistema de Gestão Farmacêutica",
+  title: "Farmácia Escola",
   description: "Sistema web para gerenciamento de uma Farmácia Escola universitária. Estoque, retiradas, descartes, agendamentos e gestão de pacientes.",
 };
 

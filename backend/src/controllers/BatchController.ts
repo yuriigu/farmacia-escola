@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middlewares/authMiddleware';
+import { AuthenticatedRequest } from '../middlewares/AuthMiddleware';
 import { BatchService } from '../services/BatchService';
 
 export class BatchController {

@@ -1,5 +1,5 @@
 import { Response } from 'express';
-import { AuthenticatedRequest } from '../middlewares/authMiddleware';
+import { AuthenticatedRequest } from '../middlewares/AuthMiddleware';
 import { AppointmentService } from '../services/AppointmentService';
 
 export class AppointmentController {

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { WithdrawalController } from '../controllers/WithdrawalController';
-import { authMiddleware } from '../middlewares/authMiddleware';
-import { authorizeRoles, requirePermission } from '../middlewares/roleMiddleware';
+import { authMiddleware } from '../middlewares/AuthMiddleware';
+import { authorizeRoles, requirePermission } from '../middlewares/RoleMiddleware';
 
 const router = Router();
 const controller = new WithdrawalController();

@@ -1,5 +1,3 @@
-// src/types/enums.ts
-
 export const Role = {
   ADMIN: 'ADMIN',
   FARMACEUTICO: 'FARMACEUTICO',
@@ -8,7 +6,7 @@ export const Role = {
   PACIENTE: 'PACIENTE',
 } as const;
 
-export type Role = (typeof Role)[keyof typeof Role];
+export type Role = typeof Role[keyof typeof Role];
 
 export const AppointmentStatus = {
   PENDING: 'PENDING',
@@ -17,4 +15,4 @@ export const AppointmentStatus = {
   CANCELLED: 'CANCELLED',
 } as const;
 
-export type AppointmentStatus = (typeof AppointmentStatus)[keyof typeof AppointmentStatus];
+export type AppointmentStatus = typeof AppointmentStatus[keyof typeof AppointmentStatus];

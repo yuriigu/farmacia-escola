@@ -1,5 +1,5 @@
 import { PrismaClient } from '@prisma/client';
-import { Role } from '../types/enums';
+import { Role } from '../types/Enums';
 import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();

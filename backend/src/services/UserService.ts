@@ -1,7 +1,7 @@
 import bcrypt from 'bcryptjs';
 import { UserRepository } from '../repositories/UserRepository';
 import { ActivityLogService } from './ActivityLogService';
-import { Role } from '../types/enums';
+import { Role } from '../types/Enums';
 
 export class UserService {
   private userRepo: UserRepository;

@@ -16,6 +16,14 @@ export class WithdrawalService {
     this.logService = new ActivityLogService();
   }
 
+  private isAuthorizedRole(role: string): boolean {
+    return role === 'FARMACEUTICO' || role === 'ADMIN';
+  }
+
+  private sanitizeCpf(cpf: string): string {
+    return cpf.replace(/\D/g, '');
+  }
+
   async getAll(userRole: string, patientId?: number | null) {
     if (userRole === 'PACIENTE' && patientId) {
       return this.withdrawalRepo.findAll(patientId);
@@ -42,48 +50,55 @@ export class WithdrawalService {
     notes?: string;
     appointmentId?: number;
   }) {
-    const { patientName, patientCpf, batchId, quantity, notes, appointmentId } = data;
+    const cleanName = data.patientName?.trim();
+    const cleanCpf = data.patientCpf ? this.sanitizeCpf(data.patientCpf) : '';
+    const parsedBatchId = Number(data.batchId);
+    const parsedQuantity = Number(data.quantity);
 
-    if (!patientName || !patientCpf || !batchId || !quantity) {
+    if (!cleanName || !cleanCpf || !parsedBatchId || !parsedQuantity) {
       throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
     }
 
-    if (quantity <= 0) {
+    if (cleanCpf.length !== 11) {
+      throw { statusCode: 400, message: 'CPF inválido' };
+    }
+
+    if (isNaN(parsedQuantity) || parsedQuantity <= 0) {
       throw { statusCode: 400, message: 'A quantidade deve ser maior que zero' };
     }
 
-    const batch = await this.batchRepo.findById(batchId);
+    const batch = await this.batchRepo.findById(parsedBatchId);
     if (!batch) {
       throw { statusCode: 404, message: 'Lote não encontrado' };
     }
 
-    if (batch.currentQuantity < quantity) {
+    if (batch.currentQuantity < parsedQuantity) {
       throw { statusCode: 400, message: 'Estoque insuficiente para esta dispensação' };
     }
 
-    let patient = await this.patientRepo.findByCpf(patientCpf);
+    let patient = await this.patientRepo.findByCpf(cleanCpf);
     if (!patient) {
       patient = await this.patientRepo.create({
-        name: patientName,
-        cpf: patientCpf,
+        name: cleanName,
+        cpf: cleanCpf,
       });
     }
 
     const withdrawal = await this.withdrawalRepo.create({
       patientId: patient.id,
       userId,
-      notes,
-      appointmentId,
-      items: [{ batchId, quantity }],
+      notes: data.notes?.trim(),
+      appointmentId: data.appointmentId ? Number(data.appointmentId) : undefined,
+      items: [{ batchId: parsedBatchId, quantity: parsedQuantity }],
     });
 
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
+    if (this.isAuthorizedRole(role)) {
       await this.logService.log(
         userId,
         'create',
         'withdrawals',
         withdrawal.id,
-        `Dispensou ${quantity} unidade(s) do lote ${batch.batchNumber} para ${patient.name}`
+        `Dispensou ${parsedQuantity} unidade(s) do lote ${batch.batchNumber} para ${patient.name}`
       );
     }
 
@@ -94,9 +109,14 @@ export class WithdrawalService {
     const withdrawal = await this.withdrawalRepo.findById(id);
     if (!withdrawal) throw { statusCode: 404, message: 'Dispensação não encontrada' };
 
-    const updated = await this.withdrawalRepo.update(id, data);
+    const updateData: { notes?: string } = {};
+    if (data.notes !== undefined) {
+      updateData.notes = data.notes.trim();
+    }
 
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
+    const updated = await this.withdrawalRepo.update(id, updateData);
+
+    if (this.isAuthorizedRole(role)) {
       await this.logService.log(
         userId,
         'update',
@@ -115,7 +135,7 @@ export class WithdrawalService {
 
     await this.withdrawalRepo.delete(id);
 
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
+    if (this.isAuthorizedRole(role)) {
       await this.logService.log(
         userId,
         'cancel',

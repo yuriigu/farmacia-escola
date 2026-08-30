@@ -11,9 +11,26 @@ export class ScheduleSlotService {
   }
 
   async getAll(startDate?: string, endDate?: string) {
+    let parsedStartDate: Date | undefined;
+    let parsedEndDate: Date | undefined;
+
+    if (startDate) {
+      parsedStartDate = new Date(startDate);
+      if (isNaN(parsedStartDate.getTime())) {
+        throw { statusCode: 400, message: 'Data inicial inválida' };
+      }
+    }
+
+    if (endDate) {
+      parsedEndDate = new Date(endDate);
+      if (isNaN(parsedEndDate.getTime())) {
+        throw { statusCode: 400, message: 'Data final inválida' };
+      }
+    }
+
     return this.slotRepo.findAll({
-      startDate: startDate ? new Date(startDate) : undefined,
-      endDate: endDate ? new Date(endDate) : undefined,
+      startDate: parsedStartDate,
+      endDate: parsedEndDate,
     });
   }
 
@@ -27,20 +44,36 @@ export class ScheduleSlotService {
     date: string | Date;
     timeSlot: string;
     maxCapacity?: number;
-    assignedToId?: number;
+    assignedToId?: number | null;
   }) {
     const { date, timeSlot, maxCapacity, assignedToId } = data;
 
-    if (!date || !timeSlot) {
+    const cleanTimeSlot = timeSlot?.trim();
+    if (!date || !cleanTimeSlot) {
       throw { statusCode: 400, message: 'Data e horário do slot são obrigatórios' };
+    }
+
+    const parsedDate = new Date(date);
+    if (isNaN(parsedDate.getTime())) {
+      throw { statusCode: 400, message: 'Data da escala inválida' };
+    }
+
+    const parsedCapacity = maxCapacity !== undefined ? Number(maxCapacity) : 5;
+    if (isNaN(parsedCapacity) || parsedCapacity <= 0) {
+      throw { statusCode: 400, message: 'A capacidade máxima deve ser um número inteiro positivo' };
+    }
+
+    const parsedAssignedTo = assignedToId ? Number(assignedToId) : null;
+    if (assignedToId && isNaN(parsedAssignedTo!)) {
+      throw { statusCode: 400, message: 'ID de responsável inválido' };
     }
 
     try {
       const slot = await this.slotRepo.create({
-        date: new Date(date),
-        timeSlot,
-        maxCapacity: maxCapacity || 5,
-        assignedToId: assignedToId || null,
+        date: parsedDate,
+        timeSlot: cleanTimeSlot,
+        maxCapacity: parsedCapacity,
+        assignedToId: parsedAssignedTo,
       });
 
       if (role === 'FARMACEUTICO' || role === 'ADMIN') {
@@ -55,7 +88,7 @@ export class ScheduleSlotService {
 
       return slot;
     } catch (err: any) {
-      if (err.message?.includes('Unique constraint')) {
+      if (err.message?.includes('Unique constraint') || err.code === 'P2002') {
         throw { statusCode: 409, message: 'Já existe um horário cadastrado nessa mesma data e hora' };
       }
       throw err;
@@ -66,30 +99,67 @@ export class ScheduleSlotService {
     date?: string | Date;
     timeSlot?: string;
     maxCapacity?: number;
-    assignedToId?: number;
+    assignedToId?: number | null;
   }) {
     const slot = await this.slotRepo.findById(id);
     if (!slot) throw { statusCode: 404, message: 'Horário de escala não encontrado' };
 
     const updateData: any = {};
-    if (data.date) updateData.date = new Date(data.date);
-    if (data.timeSlot) updateData.timeSlot = data.timeSlot;
-    if (data.maxCapacity !== undefined) updateData.maxCapacity = Number(data.maxCapacity);
-    if (data.assignedToId !== undefined) updateData.assignedToId = data.assignedToId || null;
 
-    const updated = await this.slotRepo.update(id, updateData);
-
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
-      await this.logService.log(
-        userId,
-        'update',
-        'scheduleSlots',
-        id,
-        `Atualizou escala #${id}`
-      );
+    if (data.date) {
+      const parsedDate = new Date(data.date);
+      if (isNaN(parsedDate.getTime())) {
+        throw { statusCode: 400, message: 'Data da escala inválida' };
+      }
+      updateData.date = parsedDate;
     }
 
-    return updated;
+    if (data.timeSlot !== undefined) {
+      const cleanTimeSlot = data.timeSlot.trim();
+      if (!cleanTimeSlot) throw { statusCode: 400, message: 'Horário do slot não pode ser vazio' };
+      updateData.timeSlot = cleanTimeSlot;
+    }
+
+    if (data.maxCapacity !== undefined) {
+      const parsedCapacity = Number(data.maxCapacity);
+      if (isNaN(parsedCapacity) || parsedCapacity <= 0) {
+        throw { statusCode: 400, message: 'A capacidade máxima deve ser um número inteiro positivo' };
+      }
+      updateData.maxCapacity = parsedCapacity;
+    }
+
+    if (data.assignedToId !== undefined) {
+      if (data.assignedToId === null) {
+        updateData.assignedToId = null;
+      } else {
+        const parsedAssignedTo = Number(data.assignedToId);
+        if (isNaN(parsedAssignedTo)) {
+          throw { statusCode: 400, message: 'ID de responsável inválido' };
+        }
+        updateData.assignedToId = parsedAssignedTo;
+      }
+    }
+
+    try {
+      const updated = await this.slotRepo.update(id, updateData);
+
+      if (role === 'FARMACEUTICO' || role === 'ADMIN') {
+        await this.logService.log(
+          userId,
+          'update',
+          'scheduleSlots',
+          id,
+          `Atualizou escala #${id}`
+        );
+      }
+
+      return updated;
+    } catch (err: any) {
+      if (err.message?.includes('Unique constraint') || err.code === 'P2002') {
+        throw { statusCode: 409, message: 'Já existe um horário cadastrado nessa mesma data e hora' };
+      }
+      throw err;
+    }
   }
 
   async delete(userId: number, role: string, id: number) {

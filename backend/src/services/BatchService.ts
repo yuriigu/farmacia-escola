@@ -35,6 +35,16 @@ export class BatchService {
       throw { statusCode: 400, message: 'Todos os campos do lote são obrigatórios' };
     }
 
+    const qty = Number(currentQuantity);
+    if (isNaN(qty) || qty < 0) {
+      throw { statusCode: 400, message: 'A quantidade inicial do lote deve ser um número maior ou igual a zero' };
+    }
+
+    const expDate = new Date(expirationDate);
+    if (isNaN(expDate.getTime())) {
+      throw { statusCode: 400, message: 'Data de validade inválida' };
+    }
+
     const medicine = await this.medicineRepo.findById(medicineId);
     if (!medicine) {
       throw { statusCode: 404, message: 'Medicamento não encontrado' };
@@ -43,19 +53,17 @@ export class BatchService {
     const batch = await this.batchRepo.create({
       medicineId,
       batchNumber,
-      currentQuantity: Number(currentQuantity),
-      expirationDate: new Date(expirationDate),
+      currentQuantity: qty,
+      expirationDate: expDate,
     });
 
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
-      await this.logService.log(
-        userId,
-        'create',
-        'batches',
-        batch.id,
-        `Cadastrou lote ${batch.batchNumber} com quantidade ${batch.currentQuantity}`
-      );
-    }
+    await this.logService.log(
+      userId,
+      'create',
+      'batches',
+      batch.id,
+      `Cadastrou lote ${batch.batchNumber} com quantidade ${batch.currentQuantity}`
+    );
 
     return batch;
   }
@@ -69,21 +77,36 @@ export class BatchService {
     if (!batch) throw { statusCode: 404, message: 'Lote não encontrado' };
 
     const updateData: any = {};
-    if (data.batchNumber) updateData.batchNumber = data.batchNumber;
-    if (data.currentQuantity !== undefined) updateData.currentQuantity = Number(data.currentQuantity);
-    if (data.expirationDate) updateData.expirationDate = new Date(data.expirationDate);
+
+    if (data.batchNumber !== undefined) {
+      updateData.batchNumber = data.batchNumber;
+    }
+
+    if (data.currentQuantity !== undefined) {
+      const qty = Number(data.currentQuantity);
+      if (isNaN(qty) || qty < 0) {
+        throw { statusCode: 400, message: 'A quantidade do lote deve ser um número maior ou igual a zero' };
+      }
+      updateData.currentQuantity = qty;
+    }
+
+    if (data.expirationDate) {
+      const expDate = new Date(data.expirationDate);
+      if (isNaN(expDate.getTime())) {
+        throw { statusCode: 400, message: 'Data de validade inválida' };
+      }
+      updateData.expirationDate = expDate;
+    }
 
     const updated = await this.batchRepo.update(id, updateData);
 
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
-      await this.logService.log(
-        userId,
-        'update',
-        'batches',
-        id,
-        `Atualizou lote ${updated.batchNumber}`
-      );
-    }
+    await this.logService.log(
+      userId,
+      'update',
+      'batches',
+      id,
+      `Atualizou lote ${updated.batchNumber}`
+    );
 
     return updated;
   }
@@ -94,15 +117,13 @@ export class BatchService {
 
     await this.batchRepo.delete(id);
 
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
-      await this.logService.log(
-        userId,
-        'delete',
-        'batches',
-        id,
-        `Excluiu lote ${batch.batchNumber}`
-      );
-    }
+    await this.logService.log(
+      userId,
+      'delete',
+      'batches',
+      id,
+      `Excluiu lote ${batch.batchNumber}`
+    );
 
     return { message: 'Lote excluído com sucesso' };
   }

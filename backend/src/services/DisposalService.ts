@@ -54,15 +54,17 @@ export class DisposalService {
       reason,
     });
 
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
-      await this.logService.log(
-        userId,
-        'create',
-        'disposals',
-        disposal.id,
-        `Registrou descarte de ${quantity} un. do lote ${batch.batchNumber}. Motivo: ${reason || 'Não informado'}`
-      );
-    }
+    await this.batchRepo.update(batchId, {
+      currentQuantity: batch.currentQuantity - quantity,
+    });
+
+    await this.logService.log(
+      userId,
+      'create',
+      'disposals',
+      disposal.id,
+      `Registrou descarte de ${quantity} un. do lote ${batch.batchNumber}. Motivo: ${reason || 'Não informado'}`
+    );
 
     return disposal;
   }
@@ -73,15 +75,13 @@ export class DisposalService {
 
     const updated = await this.disposalRepo.update(id, data);
 
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
-      await this.logService.log(
-        userId,
-        'update',
-        'disposals',
-        id,
-        `Atualizou motivo do descarte #${id}`
-      );
-    }
+    await this.logService.log(
+      userId,
+      'update',
+      'disposals',
+      id,
+      `Atualizou motivo do descarte #${id}`
+    );
 
     return updated;
   }
@@ -90,33 +90,46 @@ export class DisposalService {
     const disposal = await this.disposalRepo.findById(id);
     if (!disposal) throw { statusCode: 404, message: 'Descarte não encontrado' };
 
+    const batch = await this.batchRepo.findById(disposal.batchId);
+    if (batch) {
+      await this.batchRepo.update(batch.id, {
+        currentQuantity: batch.currentQuantity + disposal.quantity,
+      });
+    }
+
     await this.disposalRepo.delete(id);
 
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
-      await this.logService.log(
-        userId,
-        'delete',
-        'disposals',
-        id,
-        `Excluiu descarte #${id}`
-      );
-    }
+    await this.logService.log(
+      userId,
+      'delete',
+      'disposals',
+      id,
+      `Excluiu descarte #${id}`
+    );
 
     return { message: 'Descarte excluído com sucesso' };
   }
 
   async revert(userId: number, role: string, disposalId: number) {
+    const disposal = await this.disposalRepo.findById(disposalId);
+    if (!disposal) throw { statusCode: 404, message: 'Descarte não encontrado' };
+
+    const batch = await this.batchRepo.findById(disposal.batchId);
+    if (batch) {
+      await this.batchRepo.update(batch.id, {
+        currentQuantity: batch.currentQuantity + disposal.quantity,
+      });
+    }
+
     const reverted = await this.disposalRepo.revert(disposalId);
 
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
-      await this.logService.log(
-        userId,
-        'revert',
-        'disposals',
-        disposalId,
-        `Reverteu o descarte #${disposalId}`
-      );
-    }
+    await this.logService.log(
+      userId,
+      'revert',
+      'disposals',
+      disposalId,
+      `Reverteu o descarte #${disposalId}`
+    );
 
     return reverted;
   }

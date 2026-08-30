@@ -26,11 +26,16 @@ export class AppointmentService {
       if (!patient) return [];
       return this.appointmentRepo.findAll(patient.id);
     }
-    return this.appointmentRepo.findAll();
+    return this.appointmentRepo.findAll(patientId ?? undefined);
   }
 
   async getById(id: number, user: { userId: number; role: string }) {
-    const appt = await this.appointmentRepo.findById(id);
+    const numericId = Number(id);
+    if (!numericId || isNaN(numericId)) {
+      throw { statusCode: 400, message: 'ID de agendamento inválido' };
+    }
+
+    const appt = await this.appointmentRepo.findById(numericId);
     if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
 
     if (user.role === 'PACIENTE') {
@@ -59,30 +64,39 @@ export class AppointmentService {
       throw { statusCode: 400, message: 'Data do agendamento é obrigatória' };
     }
 
+    const parsedDate = new Date(scheduledDate);
+    if (isNaN(parsedDate.getTime())) {
+      throw { statusCode: 400, message: 'Data de agendamento inválida' };
+    }
+
     if (!items || !Array.isArray(items) || items.length === 0) {
       throw { statusCode: 400, message: 'Ao menos um medicamento deve ser adicionado ao agendamento' };
     }
 
-    if (slotId) {
-      const slot = await this.slotRepo.findById(slotId);
+    const numericSlotId = slotId ? Number(slotId) : undefined;
+    if (numericSlotId) {
+      const slot = await this.slotRepo.findById(numericSlotId);
       if (!slot) throw { statusCode: 404, message: 'Horário de escala não encontrado' };
-      const currentCount = await prisma.appointment.count({ where: { slotId } });
+      const currentCount = await prisma.appointment.count({ where: { slotId: numericSlotId } });
       if (currentCount >= slot.maxCapacity) {
         throw { statusCode: 400, message: 'Este horário de atendimento já atingiu a capacidade máxima' };
       }
     }
 
     for (const item of items) {
-      if (!item.medicineId || !item.quantity || item.quantity <= 0) {
+      const medId = Number(item.medicineId);
+      const qty = Number(item.quantity);
+
+      if (!medId || isNaN(medId) || !qty || isNaN(qty) || qty <= 0) {
         throw { statusCode: 400, message: 'Todos os medicamentos devem ter ID válido e quantidade positiva' };
       }
-      const med = await this.medicineRepo.findById(item.medicineId);
+      const med = await this.medicineRepo.findById(medId);
       if (!med) {
-        throw { statusCode: 404, message: `Medicamento #${item.medicineId} não encontrado` };
+        throw { statusCode: 404, message: `Medicamento #${medId} não encontrado` };
       }
     }
 
-    let targetPatientId = patientId;
+    let targetPatientId = patientId ? Number(patientId) : undefined;
 
     if (user.role === 'PACIENTE') {
       const patient = await this.patientRepo.findByUserId(user.userId);
@@ -90,11 +104,12 @@ export class AppointmentService {
       targetPatientId = patient.id;
     } else if (user.role === 'MEDICO') {
       if (patientCpf) {
-        let patient = await this.patientRepo.findByCpf(patientCpf);
+        const cleanCpf = patientCpf.replace(/\D/g, '');
+        let patient = await this.patientRepo.findByCpf(cleanCpf);
         if (!patient && patientName) {
           patient = await this.patientRepo.create({
-            name: patientName,
-            cpf: patientCpf,
+            name: patientName.trim(),
+            cpf: cleanCpf,
           });
         } else if (!patient) {
           throw { statusCode: 400, message: 'Nome do paciente é obrigatório para cadastrar novo prontuário' };
@@ -110,12 +125,12 @@ export class AppointmentService {
     }
 
     const appointment = await this.appointmentRepo.create({
-      patientId: targetPatientId!,
-      scheduledDate: new Date(scheduledDate),
-      scheduledTime,
-      slotId,
-      notes,
-      items,
+      patientId: targetPatientId,
+      scheduledDate: parsedDate,
+      scheduledTime: scheduledTime?.trim(),
+      slotId: numericSlotId,
+      notes: notes?.trim(),
+      items: items.map(i => ({ medicineId: Number(i.medicineId), quantity: Number(i.quantity) })),
     });
 
     await this.logService.log(
@@ -130,17 +145,26 @@ export class AppointmentService {
   }
 
   async updateStatus(userId: number, role: string, id: number, status: string, notes?: string) {
-    const appt = await this.appointmentRepo.findById(id);
+    const numericId = Number(id);
+    if (!numericId || isNaN(numericId)) {
+      throw { statusCode: 400, message: 'ID de agendamento inválido' };
+    }
+
+    if (!status || !status.trim()) {
+      throw { statusCode: 400, message: 'Status é obrigatório' };
+    }
+
+    const appt = await this.appointmentRepo.findById(numericId);
     if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
 
-    const updated = await this.appointmentRepo.updateStatus(id, status, notes);
+    const updated = await this.appointmentRepo.updateStatus(numericId, status.trim(), notes?.trim());
 
     await this.logService.log(
       userId,
       'update_status',
       'appointments',
-      id,
-      `Atualizou status do agendamento #${id} para ${status}`
+      numericId,
+      `Atualizou status do agendamento #${numericId} para ${status}`
     );
 
     return updated;
@@ -153,31 +177,48 @@ export class AppointmentService {
     notes?: string;
     status?: string;
   }) {
-    const appt = await this.appointmentRepo.findById(id);
+    const numericId = Number(id);
+    if (!numericId || isNaN(numericId)) {
+      throw { statusCode: 400, message: 'ID de agendamento inválido' };
+    }
+
+    const appt = await this.appointmentRepo.findById(numericId);
     if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
 
     const updateData: any = {};
-    if (data.scheduledDate) updateData.scheduledDate = new Date(data.scheduledDate);
-    if (data.scheduledTime !== undefined) updateData.scheduledTime = data.scheduledTime;
-    if (data.slotId !== undefined) updateData.slotId = data.slotId;
-    if (data.notes !== undefined) updateData.notes = data.notes;
-    if (data.status) updateData.status = data.status;
+    if (data.scheduledDate) {
+      const parsedDate = new Date(data.scheduledDate);
+      if (isNaN(parsedDate.getTime())) {
+        throw { statusCode: 400, message: 'Data de agendamento inválida' };
+      }
+      updateData.scheduledDate = parsedDate;
+    }
 
-    const updated = await this.appointmentRepo.update(id, updateData);
+    if (data.scheduledTime !== undefined) updateData.scheduledTime = data.scheduledTime.trim();
+    if (data.slotId !== undefined) updateData.slotId = data.slotId ? Number(data.slotId) : null;
+    if (data.notes !== undefined) updateData.notes = data.notes.trim();
+    if (data.status) updateData.status = data.status.trim();
+
+    const updated = await this.appointmentRepo.update(numericId, updateData);
 
     await this.logService.log(
       userId,
       'update',
       'appointments',
-      id,
-      `Atualizou agendamento #${id}`
+      numericId,
+      `Atualizou agendamento #${numericId}`
     );
 
     return updated;
   }
 
   async delete(userId: number, role: string, id: number) {
-    const appt = await this.appointmentRepo.findById(id);
+    const numericId = Number(id);
+    if (!numericId || isNaN(numericId)) {
+      throw { statusCode: 400, message: 'ID de agendamento inválido' };
+    }
+
+    const appt = await this.appointmentRepo.findById(numericId);
     if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
 
     if (role === 'PACIENTE') {
@@ -187,14 +228,14 @@ export class AppointmentService {
       }
     }
 
-    await this.appointmentRepo.delete(id);
+    await this.appointmentRepo.delete(numericId);
 
     await this.logService.log(
       userId,
       'delete',
       'appointments',
-      id,
-      `Cancelou/excluiu agendamento #${id}`
+      numericId,
+      `Cancelou/excluiu agendamento #${numericId}`
     );
 
     return { message: 'Agendamento cancelado/excluído com sucesso' };

@@ -14,6 +14,23 @@ export class AuthService {
     this.patientRepo = new PatientRepository();
   }
 
+  private isValidCPF(cpf: string): boolean {
+    const digits = cpf.replace(/\D/g, '');
+    if (digits.length !== 11 || /^(.)\1{10}$/.test(digits)) return false;
+
+    let sum = 0;
+    for (let i = 0; i < 9; i++) sum += parseInt(digits.charAt(i)) * (10 - i);
+    let rev = 11 - (sum % 11);
+    if (rev === 10 || rev === 11) rev = 0;
+    if (rev !== parseInt(digits.charAt(9))) return false;
+
+    sum = 0;
+    for (let i = 0; i < 10; i++) sum += parseInt(digits.charAt(i)) * (11 - i);
+    rev = 11 - (sum % 11);
+    if (rev === 10 || rev === 11) rev = 0;
+    return rev === parseInt(digits.charAt(10));
+  }
+
   async login(email: string, password: string) {
     if (!email || !password) {
       throw { statusCode: 400, message: 'Email e senha são obrigatórios' };
@@ -62,9 +79,7 @@ export class AuthService {
       throw { statusCode: 400, message: 'Nome, email, senha e CPF são obrigatórios' };
     }
 
-    const digitsOnly = (v: string) => v.replace(/\D/g, '');
-    const cpfDigits = digitsOnly(cpf);
-    if (cpfDigits.length !== 11 || /^(.)\1{10}$/.test(cpfDigits)) {
+    if (!this.isValidCPF(cpf)) {
       throw { statusCode: 400, message: 'CPF inválido' };
     }
 
@@ -86,7 +101,7 @@ export class AuthService {
           name,
           email,
           password: hashedPassword,
-          role: Role.PACIENTE,  // 👈 Use o enum Role
+          role: Role.PACIENTE,
           phone,
         },
         include: { patient: true },

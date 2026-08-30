@@ -27,38 +27,54 @@ export class MedicineService {
     accessibleDesc?: string;
     category?: string;
   }) {
-    if (!data.name) throw { statusCode: 400, message: 'Nome do medicamento é obrigatório' };
-
-    const medicine = await this.medicineRepo.create(data);
-
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
-      await this.logService.log(
-        userId,
-        'create',
-        'medicines',
-        medicine.id,
-        `Cadastrou medicamento: ${medicine.name}`
-      );
+    if (!data.name || !data.name.trim()) {
+      throw { statusCode: 400, message: 'Nome do medicamento é obrigatório' };
     }
+
+    const medicine = await this.medicineRepo.create({
+      ...data,
+      name: data.name.trim(),
+    });
+
+    await this.logService.log(
+      userId,
+      'create',
+      'medicines',
+      medicine.id,
+      `Cadastrou medicamento: ${medicine.name}`
+    );
 
     return medicine;
   }
 
-  async update(userId: number, role: string, id: number, data: any) {
+  async update(userId: number, role: string, id: number, data: {
+    name?: string;
+    activeIngredient?: string;
+    dosage?: string;
+    accessibleDesc?: string;
+    category?: string;
+  }) {
     const existing = await this.medicineRepo.findById(id);
     if (!existing) throw { statusCode: 404, message: 'Medicamento não encontrado' };
 
-    const updated = await this.medicineRepo.update(id, data);
-
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
-      await this.logService.log(
-        userId,
-        'update',
-        'medicines',
-        id,
-        `Atualizou medicamento: ${updated.name}`
-      );
+    if (data.name !== undefined && !data.name.trim()) {
+      throw { statusCode: 400, message: 'Nome do medicamento não pode ser vazio' };
     }
+
+    const updateData = { ...data };
+    if (updateData.name) {
+      updateData.name = updateData.name.trim();
+    }
+
+    const updated = await this.medicineRepo.update(id, updateData);
+
+    await this.logService.log(
+      userId,
+      'update',
+      'medicines',
+      id,
+      `Atualizou medicamento: ${updated.name}`
+    );
 
     return updated;
   }
@@ -69,15 +85,13 @@ export class MedicineService {
 
     const deleted = await this.medicineRepo.delete(id);
 
-    if (role === 'FARMACEUTICO' || role === 'ADMIN') {
-      await this.logService.log(
-        userId,
-        'delete',
-        'medicines',
-        id,
-        `Excluiu medicamento: ${existing.name}`
-      );
-    }
+    await this.logService.log(
+      userId,
+      'delete',
+      'medicines',
+      id,
+      `Excluiu medicamento: ${existing.name}`
+    );
 
     return deleted;
   }

@@ -3,7 +3,7 @@ import { ScheduleSlotRepository } from '../repositories/ScheduleSlotRepository';
 import { MedicineRepository } from '../repositories/MedicineRepository';
 import { PatientRepository } from '../repositories/PatientRepository';
 import { ActivityLogService } from './ActivityLogService';
-import { prisma } from '../utils/prisma';
+import { prisma } from '../utils/Prisma';
 
 export class AppointmentService {
   private appointmentRepo: AppointmentRepository;

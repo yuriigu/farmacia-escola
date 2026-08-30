@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
-import { verifyToken, TokenPayload } from '../utils/jwt';
-import { prisma } from '../utils/prisma';
+import { verifyToken, TokenPayload } from '../utils/Jwt';
+import { prisma } from '../utils/Prisma';
 
 export interface AuthenticatedRequest extends Request {
   user?: TokenPayload & { permissions?: Record<string, boolean> | null };

@@ -1,4 +1,4 @@
-import { prisma } from '../utils/prisma';
+import { prisma } from '../utils/Prisma';
 
 export interface CreateActivityLogDTO {
   userId: number;

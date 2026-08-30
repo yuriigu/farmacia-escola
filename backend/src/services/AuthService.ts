@@ -1,8 +1,8 @@
 import bcrypt from 'bcryptjs';
 import { UserRepository } from '../repositories/UserRepository';
 import { PatientRepository } from '../repositories/PatientRepository';
-import { generateToken } from '../utils/jwt';
-import { prisma } from '../utils/prisma';
+import { generateToken } from '../utils/Jwt';
+import { prisma } from '../utils/Prisma';
 import { Role } from '../types/Enums';
 
 export class AuthService {

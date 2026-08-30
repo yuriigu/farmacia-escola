@@ -1,4 +1,4 @@
-import { prisma } from '../utils/prisma';
+import { prisma } from '../utils/Prisma';
 
 export class ScheduleSlotRepository {
   async findAll(filters?: { startDate?: Date; endDate?: Date }) {

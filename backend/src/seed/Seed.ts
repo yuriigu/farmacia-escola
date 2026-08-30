@@ -5,7 +5,6 @@ import bcrypt from 'bcryptjs';
 const prisma = new PrismaClient();
 
 async function main() {
-  // Clean existing data (in order of dependencies)
   await prisma.appointmentItem.deleteMany();
   await prisma.disposal.deleteMany();
   await prisma.withdrawalItem.deleteMany();
@@ -18,7 +17,6 @@ async function main() {
   await prisma.activityLog.deleteMany();
   await prisma.user.deleteMany();
 
-  // ===== USERS =====
   const adminPass = await bcrypt.hash('admin123', 10);
   const farmPass = await bcrypt.hash('farm123', 10);
   const medPass = await bcrypt.hash('medico123', 10);
@@ -49,7 +47,6 @@ async function main() {
     data: { name: 'João Silva', email: 'joao@email.com', password: pacPass, role: Role.PACIENTE, active: true },
   });
 
-  // ===== PATIENTS =====
   const pac1 = await prisma.patient.create({
     data: { name: 'João Silva', cpf: '123.456.789-00', phone: '(11) 99999-0001', birthDate: new Date('1990-05-15'), address: 'Rua A, 100, São Paulo', userId: pacUser.id },
   });
@@ -62,7 +59,6 @@ async function main() {
     data: { name: 'Carlos Santos', cpf: '456.789.123-00', phone: '(11) 99999-0003', birthDate: new Date('1975-03-10') },
   });
 
-  // ===== MEDICINES =====
   const med1 = await prisma.medicine.create({
     data: { name: 'Paracetamol', activeIngredient: 'Paracetamol', dosage: '750mg', accessibleDesc: 'Analgésico e antitérmico para dor e febre. Tomar 1 comprimido a cada 8 horas, não excedendo 4 por dia.', category: 'analgesico' },
   });
@@ -87,7 +83,6 @@ async function main() {
     data: { name: 'Omeprazol', activeIngredient: 'Omeprazol', dosage: '20mg', accessibleDesc: 'Inibidor de bomba de prótons. Para gastrite e úlcera. Tomar em jejum.', category: 'antihipertensivo' },
   });
 
-  // ===== STOCK BATCHES =====
   const now = new Date();
   const batch1 = await prisma.stockBatch.create({
     data: { medicineId: med1.id, batchNumber: 'LOT-2024-001', currentQuantity: 150, expirationDate: new Date(now.getFullYear() + 1, 5, 15) },
@@ -113,17 +108,16 @@ async function main() {
     data: { medicineId: med6.id, batchNumber: 'LOT-2024-006', currentQuantity: 30, expirationDate: new Date(now.getFullYear() + 1, 7, 18) },
   });
 
-  // ===== WITHDRAWALS (histórico) =====
   await prisma.withdrawal.create({
     data: {
-      patientId: pac1.id, userId: farm1.id, notes: 'Orientações de uso fornecidas',
+      patientId: pac1.id, userId: farm1.id, notes: 'Orientacoes de uso fornecidas',
       items: { create: { batchId: batch1.id, quantity: 10 } },
     },
   });
 
   await prisma.withdrawal.create({
     data: {
-      patientId: pac2.id, userId: farm2.id, notes: 'Paciente com dor de cabeça persistente',
+      patientId: pac2.id, userId: farm2.id, notes: 'Paciente com dor de cabeca persistente',
       items: { create: { batchId: batch2.id, quantity: 20 } },
     },
   });
@@ -135,16 +129,14 @@ async function main() {
     },
   });
 
-  // ===== DISPOSALS =====
   await prisma.disposal.create({
     data: { batchId: batch3.id, userId: farm1.id, quantity: 5, reason: 'Embalagem Danificada' },
   });
 
   await prisma.disposal.create({
-    data: { batchId: batch1.id, userId: farm2.id, quantity: 3, reason: 'Vencimento próximo' },
+    data: { batchId: batch1.id, userId: farm2.id, quantity: 3, reason: 'Vencimento proximo' },
   });
 
-  // ===== SCHEDULE SLOTS (Escala de Horários) =====
   const today = new Date();
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
   const dayAfter = new Date(today); dayAfter.setDate(today.getDate() + 2);
@@ -152,7 +144,6 @@ async function main() {
 
   const TIME_SLOTS = ['08:00', '09:00', '10:00', '13:00', '14:00', '15:00'];
 
-  // Create slots for next several days, assigned to farmacêuticos
   for (const date of [tomorrow, dayAfter, day3]) {
     for (const ts of TIME_SLOTS) {
       await prisma.scheduleSlot.create({
@@ -167,7 +158,6 @@ async function main() {
     }
   }
 
-  // Today's remaining slots
   const todaySlots = ['14:00', '15:00'];
   for (const ts of todaySlots) {
     await prisma.scheduleSlot.create({
@@ -181,8 +171,6 @@ async function main() {
     });
   }
 
-  // ===== APPOINTMENTS (Novo fluxo: agendamento de retirada) =====
-  // Pending appointment with items
   const slotTomorrow9 = await prisma.scheduleSlot.findFirst({
     where: { date: tomorrow, timeSlot: '09:00' },
   });
@@ -220,7 +208,7 @@ async function main() {
         scheduledTime: '14:00',
         slotId: slotDayAfter14.id,
         status: 'CONFIRMED',
-        notes: 'Paciente já orientado pelo farmacêutico',
+        notes: 'Paciente ja orientado pelo farmaceutico',
         items: {
           create: [
             { medicineId: med2.id, quantity: 20 },
@@ -249,22 +237,22 @@ async function main() {
     });
   }
 
-  console.log('✅ Seed data created successfully!');
+  console.log('Seed data created successfully!');
   console.log('');
-  console.log('👥 Users:');
+  console.log('Users:');
   console.log('   ADMIN:      admin@farmaciaescola.edu.br / admin123');
   console.log('   FARM:       luciana@farmaciaescola.edu.br / farm123');
   console.log('   FARM:       pedro@farmaciaescola.edu.br / farm123');
   console.log('   ALUNO:      ana.aluna@farmaciaescola.edu.br / aluno123');
   console.log('   PACIENTE:   joao@email.com / paciente123');
   console.log('');
-  console.log('📦 Medicines:', 6);
-  console.log('📊 Batches:', 6);
-  console.log('📋 Patients:', 3);
-  console.log('🕐 Schedule Slots: ~20');
-  console.log('📅 Appointments: 3');
-  console.log('📤 Withdrawals: 3');
-  console.log('🗑️  Disposals: 2');
+  console.log('Medicines:', 6);
+  console.log('Batches:', 6);
+  console.log('Patients:', 3);
+  console.log('Schedule Slots: ~20');
+  console.log('Appointments: 3');
+  console.log('Withdrawals: 3');
+  console.log('Disposals: 2');
 }
 
 main()

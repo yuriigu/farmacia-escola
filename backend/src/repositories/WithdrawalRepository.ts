@@ -112,7 +112,6 @@ export class WithdrawalRepository {
         throw new Error('Dispensação não encontrada');
       }
 
-      // Devolve a quantidade de cada item de volta ao estoque do lote
       for (const item of withdrawal.items) {
         await tx.stockBatch.update({
           where: { id: item.batchId },

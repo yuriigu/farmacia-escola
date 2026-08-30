@@ -38,7 +38,7 @@ export class UserRepository {
     name: string;
     email: string;
     password: string;
-    role: Role;  // 👈 Mude de string para Role
+    role: Role;
     registerDoc?: string | null;
     phone?: string | null;
     permissions?: any;
@@ -48,7 +48,7 @@ export class UserRepository {
         name: data.name,
         email: data.email,
         password: data.password,
-        role: data.role,  // 👈 Agora é Role
+        role: data.role,
         registerDoc: data.registerDoc,
         phone: data.phone,
         permissions: data.permissions,
@@ -73,7 +73,7 @@ export class UserRepository {
       name?: string;
       email?: string;
       password?: string;
-      role?: Role;  // 👈 Mude de string para Role
+      role?: Role;
       registerDoc?: string | null;
       phone?: string | null;
       active?: boolean;
@@ -82,7 +82,7 @@ export class UserRepository {
   ) {
     return prisma.user.update({
       where: { id },
-      data,  // 👈 Agora o data tem o tipo Role correto
+      data,
       select: {
         id: true,
         name: true,

@@ -1,12 +1,23 @@
+# Dependências locais
 node_modules
+
+# Arquivo de build e produção
 dist
+
+# Logs de erro de pacotes (npm/yarn)
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Controle de versão e git
 .git
 .gitignore
+
+# Variáveis de ambiente e credenciais
 .env
 .env.local
 .env.*.local
+
+# Testes e relatórios de cobertura
 coverage
 tests

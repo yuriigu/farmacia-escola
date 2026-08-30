@@ -1,4 +1,7 @@
+# Lista de serviços que vão rodar
 services:
+  
+  # Container do servidor backend
   backend:
     build:
       context: ./backend
@@ -21,6 +24,7 @@ services:
       - farmacia-network
     command: sh -c "npx prisma db push && npm run dev"
 
+  # Container do servidor frontend
   frontend:
     build:
       context: ./frontend

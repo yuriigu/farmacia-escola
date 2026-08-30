@@ -24,5 +24,5 @@ EXPOSE 3001
 ENV PORT=3001
 ENV NODE_ENV=development
 
-# Executa em modo desenvolvimento com nodemon e hot-reload
+# Executa em modo desenvolvimento com nodemon e hot-reload 
 CMD ["npm", "run", "dev"]

@@ -1,15 +1,26 @@
+# Dependências locais
 node_modules
+
+# Pastas de build e produção (Next.js/Gerais)
 .next
 out
 dist
 build
+
+# Logs de erro de pacotes (npm/yarn)
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Controle de versão e git
 .git
 .gitignore
+
+# Variáveis de ambiente e credenciais
 .env
 .env.local
 .env.*.local
+
+# Testes e relatórios de cobertura
 coverage
 __tests__

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { AppointmentController } from '../../../src/controllers/AppointmentController';
 import { AppointmentService } from '../../../src/services/AppointmentService';
-import { mockAppointment, mockAppointmentsList } from '../../fixtures/appointments.fixture';
+import { mockAppointment, mockAppointmentsList } from '../../fixtures/Appointments.fixture';
 
 vi.mock('../../../src/services/AppointmentService');
 vi.mock('../../../src/services/ActivityLogService');

@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { verifyToken, TokenPayload } from '../utils/Jwt';
 import { prisma } from '../utils/Prisma';
+import { Role } from '../types/Enums';
 
 export interface AuthenticatedRequest extends Request {
   user?: TokenPayload & { permissions?: Record<string, boolean> | null };
@@ -33,7 +34,7 @@ export async function authMiddleware(
 
     req.user = {
       userId: user.id,
-      role: user.role,
+      role: user.role as Role,
       email: user.email,
       patientId: user.patient?.id ?? null,
       permissions: user.permissions as Record<string, boolean> | null,

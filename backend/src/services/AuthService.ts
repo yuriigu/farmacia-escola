@@ -48,7 +48,7 @@ export class AuthService {
 
     const token = generateToken({
       userId: user.id,
-      role: user.role,
+      role: user.role as Role,
       email: user.email,
       patientId: user.patient?.id ?? null,
     });
@@ -101,7 +101,7 @@ export class AuthService {
           name,
           email,
           password: hashedPassword,
-          role: Role.PACIENTE,
+          role: 'PACIENTE',
           phone,
         },
         include: { patient: true },
@@ -123,7 +123,7 @@ export class AuthService {
 
     const token = generateToken({
       userId: user.id,
-      role: user.role,
+      role: user.role as Role,
       email: user.email,
       patientId: user.patient?.id ?? null,
     });

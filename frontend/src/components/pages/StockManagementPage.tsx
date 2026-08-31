@@ -2,25 +2,30 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
-import { Boxes, ArrowUpRight, Plus, Search, History, Package, Pencil, Trash2, Loader2 } from 'lucide-react';
+import {
+  Boxes, Plus, Search, Package, Pencil, Trash2, Eye, X, Calendar, Clock, ArrowRight
+} from 'lucide-react';
 import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/pharmacy-store';
 import type { BatchEntryDraft, Batch } from '@/lib/types';
 import { ExpiryBadge } from '@/components/shared/ExpiryBadge';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { DataTable, Column } from '@/components/shared/DataTable';
 import { api } from '@/lib/api';
 import { canWriteClient } from '@/lib/constants';
 import { useAuthStore } from '@/lib/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
 export function StockManagementPage() {
-  const { medicines, batches, withdrawals, disposals } = usePharmacyStore();
+  const { medicines, batches, withdrawals, disposals, loading } = usePharmacyStore();
   const { user } = useAuthStore();
   const canWrite = canWriteClient(user?.role, user?.permissions, 'batches');
+  const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<BatchEntryDraft>({ medicineId: 0, batchNumber: '', currentQuantity: 0, expirationDate: '' });
   const [batchSearch, setBatchSearch] = useState('');
   const [batchStatusFilter, setBatchStatusFilter] = useState<string>('all');
@@ -31,7 +36,9 @@ export function StockManagementPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
-  useEffect(() => { fetchBatchesData(); }, [fetchBatchesData]);
+  useEffect(() => {
+    fetchBatchesData();
+  }, [fetchBatchesData]);
 
   const now = new Date();
   const getBatchStatus = (expDate: string, qty: number) => {
@@ -43,12 +50,17 @@ export function StockManagementPage() {
     return 'ok';
   };
 
-  const filteredBatches = batches.filter((b) => {
-    const matchesSearch = !batchSearch || b.batchNumber.toLowerCase().includes(batchSearch.toLowerCase()) || b.medicine?.name.toLowerCase().includes(batchSearch.toLowerCase());
-    const status = getBatchStatus(b.expirationDate, b.currentQuantity);
-    const matchesStatus = batchStatusFilter === 'all' || status === batchStatusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredBatches = useMemo(() => {
+    return batches.filter((b) => {
+      const matchesSearch =
+        !batchSearch ||
+        b.batchNumber.toLowerCase().includes(batchSearch.toLowerCase()) ||
+        (b.medicine?.name && b.medicine.name.toLowerCase().includes(batchSearch.toLowerCase()));
+      const status = getBatchStatus(b.expirationDate, b.currentQuantity);
+      const matchesStatus = batchStatusFilter === 'all' || status === batchStatusFilter;
+      return matchesSearch && matchesStatus;
+    });
+  }, [batches, batchSearch, batchStatusFilter]);
 
   const batchWithdrawals = useMemo(() => {
     if (!selectedBatch) return [];
@@ -85,11 +97,15 @@ export function StockManagementPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.medicineId || !form.batchNumber || !form.currentQuantity || !form.expirationDate) return;
+    if (!form.medicineId || !form.batchNumber || !form.currentQuantity || !form.expirationDate) {
+      toast.error('Preencha todos os campos obrigatórios.');
+      return;
+    }
     try {
       await api.createBatch(form);
-      toast.success('Lote registrado com sucesso!');
+      toast.success('Lote registrado com sucesso no estoque!');
       setForm({ medicineId: 0, batchNumber: '', currentQuantity: 0, expirationDate: '' });
+      setCreateOpen(false);
       fetchAllData();
       fetchBatchesData();
     } catch (err: unknown) {
@@ -99,6 +115,7 @@ export function StockManagementPage() {
   };
 
   const openEditDialog = (batch: Batch) => {
+    setSelectedBatch(batch);
     setEditForm({
       batchNumber: batch.batchNumber,
       currentQuantity: batch.currentQuantity,
@@ -144,115 +161,290 @@ export function StockManagementPage() {
     }
   };
 
+  const columns: Column<Batch>[] = [
+    {
+      header: 'Número do Lote',
+      width: '180px',
+      cell: (batch) => (
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <Boxes className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-mono leading-tight">
+              {batch.batchNumber}
+            </p>
+            <p className="text-[10px] text-slate-400">ID #{batch.id}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'Medicamento',
+      cell: (batch) => (
+        <div>
+          <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+            {batch.medicine?.name || 'Medicamento não identificado'}
+          </p>
+          {batch.medicine?.dosage && (
+            <p className="text-[11px] text-slate-400 mt-0.5">{batch.medicine.dosage}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      header: 'Quantidade',
+      width: '140px',
+      cell: (batch) => (
+        <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200">
+          {batch.currentQuantity} un.
+        </span>
+      ),
+    },
+    {
+      header: 'Validade',
+      width: '140px',
+      cell: (batch) => {
+        const exp = new Date(batch.expirationDate);
+        return (
+          <div className="flex items-center gap-1.5">
+            <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+            <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+              {Number.isNaN(exp.getTime()) ? '—' : exp.toLocaleDateString('pt-BR')}
+            </span>
+          </div>
+        );
+      },
+    },
+    {
+      header: 'Status',
+      width: '130px',
+      cell: (batch) => <ExpiryBadge expirationDate={batch.expirationDate} />,
+    },
+    {
+      header: 'Ações',
+      width: '120px',
+      align: 'right',
+      cell: (batch) => (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedBatch(batch)}
+            className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700"
+            title="Visualizar histórico e detalhes"
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
+          {canWrite && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => openEditDialog(batch)}
+                className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                title="Editar lote"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setSelectedBatch(batch);
+                  setDeleteOpen(true);
+                }}
+                className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                title="Excluir lote"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ];
+
   return (
-    <div className="space-y-6 page-enter">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-          <Boxes className="w-6 h-6 text-emerald-600" />Entrada de Lotes e Controle de Estoque
-        </h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">Cadastre novas remessas de medicamentos</p>
+    <div className="space-y-5 page-enter">
+      {/* Standardized PageHeader */}
+      <PageHeader
+        title="Entrada e Gestão de Lotes"
+        description="Cadastre novas remessas de medicamentos, acompanhe validades e audite o saldo em estoque."
+        icon={Boxes}
+        actions={
+          canWrite ? (
+            <Button
+              onClick={() => setCreateOpen(true)}
+              className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Lote</span>
+            </Button>
+          ) : undefined
+        }
+      />
+
+      {/* Compact Filters Toolbar */}
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+        <div className="relative w-full sm:w-80">
+          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Input
+            type="text"
+            placeholder="Buscar por lote ou medicamento..."
+            value={batchSearch}
+            onChange={(e) => setBatchSearch(e.target.value)}
+            className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
+          />
+          {batchSearch && (
+            <button
+              onClick={() => setBatchSearch('')}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
+        </div>
+
+        {/* Status Filter Chips */}
+        <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto no-scrollbar">
+          {[
+            { id: 'all', label: 'Todos os Lotes' },
+            { id: 'ok', label: 'Em Dia' },
+            { id: 'expiring', label: 'Vencendo em 30d' },
+            { id: 'expired', label: 'Vencidos' },
+            { id: 'empty', label: 'Esgotados' },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setBatchStatusFilter(tab.id)}
+              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                batchStatusFilter === tab.id
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      {canWrite && (
-      <Card className="max-w-3xl">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ArrowUpRight className="w-5 h-5 text-emerald-600" />Formulário de Entrada de Lote
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Medicamento</Label>
-                <Select value={form.medicineId ? String(form.medicineId) : ''} onValueChange={(v) => setForm({ ...form, medicineId: Number(v) })}>
-                  <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"><SelectValue placeholder="Selecione um medicamento..." /></SelectTrigger>
-                  <SelectContent>
-                    {medicines.map((m) => (
-                      <SelectItem key={m.id} value={String(m.id)}>{m.name} {m.dosage}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Número do Lote</Label>
-                <Input value={form.batchNumber} onChange={(e) => setForm({ ...form, batchNumber: e.target.value })} placeholder="Ex: LOT-2026-08A" required className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-              </div>
-            </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Quantidade Recebida</Label>
-                <Input type="number" min={1} required value={form.currentQuantity || ''} onChange={(e) => setForm({ ...form, currentQuantity: Number(e.target.value) })} placeholder="0" className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-              </div>
-              <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Data de Validade</Label>
-                <Input type="date" required value={form.expirationDate} onChange={(e) => setForm({ ...form, expirationDate: e.target.value })} className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-              </div>
-            </div>
-            <Button type="submit" className="w-full rounded-xl bg-emerald-600 hover:bg-emerald-700 gap-2 active:scale-[0.98] transition-transform">
-              <Plus className="w-4 h-4" />Salvar Lote no Estoque
+      {/* Standardized DataTable */}
+      <DataTable
+        columns={columns}
+        data={filteredBatches}
+        isLoading={loading}
+        emptyIcon={Boxes}
+        emptyTitle="Nenhum lote encontrado"
+        emptyDescription="Tente ajustar a busca ou cadastre uma nova remessa de lote."
+        emptyAction={
+          canWrite ? (
+            <Button
+              onClick={() => setCreateOpen(true)}
+              className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Novo Lote
             </Button>
-          </form>
-        </CardContent>
-      </Card>
-      )}
+          ) : undefined
+        }
+        onRowClick={(b) => setSelectedBatch(b)}
+      />
 
-      {batches.length > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <CardTitle className="flex items-center gap-2">Lotes Cadastrados</CardTitle>
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 bg-white dark:bg-slate-800 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 text-sm">
-                  <Search className="w-3.5 h-3.5 text-slate-400" />
-                  <input type="text" placeholder="Buscar lote..." value={batchSearch} onChange={(e) => setBatchSearch(e.target.value)} className="bg-transparent border-none outline-none text-xs w-32 placeholder:text-slate-400" />
-                </div>
-                <div className="flex gap-1">
-                  {(['all', 'ok', 'expiring', 'expired', 'empty'] as const).map((s) => {
-                    const labels: Record<string, string> = { all: 'Todos', ok: 'Ok', expiring: 'Vence', expired: 'Vencido', empty: 'Esgotado' };
-                    const colors: Record<string, string> = { all: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300', ok: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400', expiring: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400', expired: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400', empty: 'bg-slate-200 dark:bg-slate-700 text-slate-500 dark:text-slate-400' };
-                    return (
-                      <button key={s} onClick={() => setBatchStatusFilter(s)} className={'px-2 py-1 rounded text-[9px] font-semibold transition-all ' + (batchStatusFilter === s ? colors[s] : 'bg-white dark:bg-slate-700 text-slate-400 dark:text-slate-300 hover:text-slate-600 dark:hover:text-slate-200')}>
-                        {labels[s]}
-                      </button>
-                    );
-                  })}
-                </div>
+      {/* Create Batch Dialog */}
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent className="sm:max-w-[500px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+              <Boxes className="w-5 h-5 text-emerald-600" />
+              Entrada de Novo Lote
+            </DialogTitle>
+            <DialogDescription>
+              Cadastre uma nova remessa de medicamentos recebida no estoque.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+            <div>
+              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                Medicamento *
+              </Label>
+              <Select
+                value={form.medicineId ? String(form.medicineId) : ''}
+                onValueChange={(v) => setForm({ ...form, medicineId: Number(v) })}
+              >
+                <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50">
+                  <SelectValue placeholder="Selecione um medicamento..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {medicines.map((m) => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {m.name} {m.dosage ? `(${m.dosage})` : ''}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                  Número do Lote *
+                </Label>
+                <Input
+                  value={form.batchNumber}
+                  onChange={(e) => setForm({ ...form, batchNumber: e.target.value })}
+                  placeholder="Ex: LOT-2026-08A"
+                  required
+                  className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+                />
+              </div>
+
+              <div>
+                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                  Quantidade Recebida *
+                </Label>
+                <Input
+                  type="number"
+                  min={1}
+                  required
+                  value={form.currentQuantity || ''}
+                  onChange={(e) => setForm({ ...form, currentQuantity: Number(e.target.value) })}
+                  placeholder="Ex: 100"
+                  className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+                />
               </div>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">{filteredBatches.length} de {batches.length} lotes exibidos</p>
-          </CardHeader>
-          <CardContent className="p-0">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300 min-w-[640px]">
-                <thead className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 border-l-[3px] border-l-emerald-500">
-                  <tr>
-                    <th className="p-4">Lote</th>
-                    <th className="p-4">Medicamento</th>
-                    <th className="p-4">Quantidade</th>
-                    <th className="p-4">Validade</th>
-                    <th className="p-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                  {filteredBatches.slice(0, 15).map((b, idx) => (
-                    <tr key={b.id} className={(idx % 2 === 1 ? 'bg-slate-50/50 dark:bg-slate-800/30 ' : '') + 'table-row-hover cursor-pointer'} onClick={() => setSelectedBatch(b)}>
-                      <td className="p-4 font-mono font-bold text-slate-900 dark:text-slate-100">{b.batchNumber}</td>
-                      <td className="p-4">{b.medicine?.name} {b.medicine?.dosage}</td>
-                      <td className="p-4 font-semibold">{b.currentQuantity}</td>
-                      <td className="p-4 text-slate-500 dark:text-slate-400">{new Date(b.expirationDate).toLocaleDateString('pt-BR')}</td>
-                      <td className="p-4"><ExpiryBadge expirationDate={b.expirationDate} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
-      {/* Batch Detail Dialog */}
-      <Dialog open={Boolean(selectedBatch)} onOpenChange={() => setSelectedBatch(null)}>
+            <div>
+              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                Data de Validade *
+              </Label>
+              <Input
+                type="date"
+                required
+                value={form.expirationDate}
+                onChange={(e) => setForm({ ...form, expirationDate: e.target.value })}
+                className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button type="submit" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+                Registrar Lote
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Batch Details / History Dialog */}
+      <Dialog open={Boolean(selectedBatch && !editOpen && !deleteOpen)} onOpenChange={() => setSelectedBatch(null)}>
         <DialogContent className="rounded-2xl max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
@@ -260,80 +452,87 @@ export function StockManagementPage() {
                 <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600">
                   <Boxes className="w-5 h-5" />
                 </div>
-                Detalhes do Lote
+                Lote {selectedBatch?.batchNumber}
               </DialogTitle>
               {canWrite && (
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => selectedBatch && openEditDialog(selectedBatch)} className="rounded-xl gap-1.5 text-xs">
-                  <Pencil className="w-3.5 h-3.5" />Editar
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)} className="rounded-xl gap-1.5 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/30">
-                  <Trash2 className="w-3.5 h-3.5" />Excluir
-                </Button>
-              </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => selectedBatch && openEditDialog(selectedBatch)}
+                    className="rounded-xl gap-1.5 text-xs"
+                  >
+                    <Pencil className="w-3.5 h-3.5" /> Editar
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setDeleteOpen(true)}
+                    className="rounded-xl gap-1.5 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/30"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Excluir
+                  </Button>
+                </div>
               )}
             </div>
-            <DialogDescription>Informações completas e histórico de movimentações</DialogDescription>
+            <DialogDescription>Informações do lote e histórico de movimentações</DialogDescription>
           </DialogHeader>
+
           {selectedBatch && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Número do Lote</p>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1 font-mono">{selectedBatch.batchNumber}</p>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Medicamento</p>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1 flex items-center gap-1.5">
-                    <Package className="w-3.5 h-3.5 text-emerald-500" />
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">
                     {selectedBatch.medicine?.name} {selectedBatch.medicine?.dosage}
                   </p>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
                   <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quantidade Atual</p>
-                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-1">{selectedBatch.currentQuantity} un.</p>
+                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-1">
+                    {selectedBatch.currentQuantity} unidades
+                  </p>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Validade</p>
-                  <div className="mt-1 flex items-center gap-2">
-                    <span className="text-sm font-semibold text-slate-800 dark:text-slate-200">{new Date(selectedBatch.expirationDate).toLocaleDateString('pt-BR')}</span>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Data de Validade</p>
+                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">
+                    {new Date(selectedBatch.expirationDate).toLocaleDateString('pt-BR')}
+                  </p>
+                </div>
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status de Validade</p>
+                  <div className="mt-1">
                     <ExpiryBadge expirationDate={selectedBatch.expirationDate} />
                   </div>
                 </div>
               </div>
 
-              {selectedBatch.receivedAt && (
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Data de Recebimento</p>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">{new Date(selectedBatch.receivedAt).toLocaleDateString('pt-BR')}</p>
-                </div>
-              )}
-
-              {/* History Section */}
+              {/* History */}
               <div>
-                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <History className="w-3.5 h-3.5" />Histórico ({batchHistory.length})
+                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                  Histórico de Movimentações ({batchHistory.length})
                 </h4>
                 {batchHistory.length === 0 ? (
-                  <div className="p-6 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/30 text-center">
-                    <p className="text-sm text-slate-400">Nenhuma movimentação registrada para este lote.</p>
-                  </div>
+                  <p className="text-xs text-slate-400 italic py-2">Nenhuma movimentação registrada para este lote.</p>
                 ) : (
-                  <div className="space-y-2 max-h-64 overflow-y-auto custom-scrollbar">
-                    {batchHistory.map((item, i) => (
-                      <div key={i} className="p-3 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className={'w-8 h-8 rounded-lg flex items-center justify-center text-white text-xs font-bold shrink-0 ' + (item.type === 'disposal' ? 'bg-rose-500' : 'bg-emerald-500')}>
-                            {item.type === 'disposal' ? 'D' : 'R'}
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium text-slate-800 dark:text-slate-200">{item.description}</p>
-                            <p className="text-[10px] text-slate-400">{item.userName} • {item.date ? new Date(item.date).toLocaleDateString('pt-BR') : '-'}</p>
-                          </div>
+                  <div className="space-y-2 max-h-48 overflow-y-auto">
+                    {batchHistory.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between text-xs"
+                      >
+                        <div>
+                          <p className="font-medium text-slate-800 dark:text-slate-200">{item.description}</p>
+                          <p className="text-[10px] text-slate-400 mt-0.5">
+                            Operador: {item.userName} • {new Date(item.date).toLocaleString('pt-BR')}
+                          </p>
                         </div>
-                        <span className={'text-[10px] font-semibold px-2 py-0.5 rounded-md ' + (item.type === 'disposal' ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/20' : 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/20')}>
-                          {item.type === 'disposal' ? 'Descarte' : 'Retirada'}
-                        </span>
+                        <Badge
+                          variant="outline"
+                          className={item.type === 'withdrawal' ? 'text-teal-600 border-teal-200' : 'text-amber-600 border-amber-200'}
+                        >
+                          {item.type === 'withdrawal' ? 'Retirada' : 'Descarte'}
+                        </Badge>
                       </div>
                     ))}
                   </div>
@@ -346,41 +545,66 @@ export function StockManagementPage() {
 
       {/* Edit Batch Dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="rounded-2xl max-w-lg">
+        <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Editar Lote</DialogTitle>
-            <DialogDescription>Atualize as informações do lote selecionado.</DialogDescription>
+            <DialogDescription>Atualize os dados do lote cadastrado.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEdit} className="space-y-4">
+          <form onSubmit={handleEdit} className="space-y-4 pt-1">
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Número do Lote</Label>
-              <Input value={editForm.batchNumber} onChange={(e) => setEditForm({ ...editForm, batchNumber: e.target.value })} placeholder="LOT-2026-08A" required className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                Número do Lote
+              </Label>
+              <Input
+                value={editForm.batchNumber}
+                onChange={(e) => setEditForm({ ...editForm, batchNumber: e.target.value })}
+                required
+                className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+              />
             </div>
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Quantidade Atual</Label>
-              <Input type="number" min={0} required value={editForm.currentQuantity || ''} onChange={(e) => setEditForm({ ...editForm, currentQuantity: Number(e.target.value) })} placeholder="0" className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                Quantidade em Estoque
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                value={editForm.currentQuantity}
+                onChange={(e) => setEditForm({ ...editForm, currentQuantity: Number(e.target.value) })}
+                required
+                className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+              />
             </div>
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Data de Validade</Label>
-              <Input type="date" required value={editForm.expirationDate} onChange={(e) => setEditForm({ ...editForm, expirationDate: e.target.value })} className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                Data de Validade
+              </Label>
+              <Input
+                type="date"
+                value={editForm.expirationDate}
+                onChange={(e) => setEditForm({ ...editForm, expirationDate: e.target.value })}
+                required
+                className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+              />
             </div>
-            <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="rounded-xl" disabled={editLoading}>Cancelar</Button>
-              <Button type="submit" className="rounded-xl bg-emerald-600 hover:bg-emerald-700" disabled={editLoading}>
-                {editLoading && <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />}
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={editLoading} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
                 {editLoading ? 'Salvando...' : 'Salvar Alterações'}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Dialog */}
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Excluir Lote"
-        description={`Tem certeza que deseja excluir o lote "${selectedBatch?.batchNumber}"? Esta ação não pode ser desfeita. Se o lote possuir retiradas ou descartes associados, a exclusão será bloqueada.`}
+        description={`Tem certeza que deseja excluir o lote "${selectedBatch?.batchNumber}"? Se o lote possuir retiradas ou descartes vinculados, a exclusão será bloqueada.`}
         onConfirm={handleDelete}
         confirmLabel="Excluir"
         variant="danger"

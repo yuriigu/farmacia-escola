@@ -1,0 +1,1 @@
+export { TabBar, TabsNav, type TabItem } from './TabBar';

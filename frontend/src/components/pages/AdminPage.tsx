@@ -2,17 +2,18 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { toast } from 'sonner';
-import { ShieldCheck, Plus, Pencil, Power } from 'lucide-react';
+import { ShieldCheck, Plus, Pencil, Power, User as UserIcon, Mail } from 'lucide-react';
 
 import type { User } from '@/lib/types';
 import { api } from '@/lib/api';
+import { getAvatarColor } from '@/lib/constants';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { DataTable, Column } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
 export function AdminPage() {
@@ -20,18 +21,34 @@ export function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<User | null>(null);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'FARMACEUTICO', registerDoc: '', phone: '', active: true });
+  const [form, setForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    role: 'FARMACEUTICO',
+    registerDoc: '',
+    phone: '',
+    active: true,
+  });
 
   const ROLES = ['ADMIN', 'FARMACEUTICO', 'ALUNO', 'PACIENTE'];
-  const ROLE_LABEL: Record<string, string> = { ADMIN: 'Administrador', FARMACEUTICO: 'Farmacêutico', ALUNO: 'Aluno', PACIENTE: 'Paciente' };
+  const ROLE_LABEL: Record<string, string> = {
+    ADMIN: 'Administrador',
+    FARMACEUTICO: 'Farmacêutico',
+    ALUNO: 'Aluno / Estagiário',
+    PACIENTE: 'Paciente',
+  };
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       const data = await api.getUsers();
       setUsers(data);
-    } catch { toast.error('Erro ao carregar usuários.'); }
-    finally { setLoading(false); }
+    } catch {
+      toast.error('Erro ao carregar usuários.');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -39,14 +56,23 @@ export function AdminPage() {
     (async () => {
       if (mounted) await load();
     })();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, [load]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
       if (editing) {
-        const payload: Record<string, unknown> = { name: form.name, email: form.email, role: form.role, registerDoc: form.registerDoc, phone: form.phone, active: form.active };
+        const payload: Record<string, unknown> = {
+          name: form.name,
+          email: form.email,
+          role: form.role,
+          registerDoc: form.registerDoc,
+          phone: form.phone,
+          active: form.active,
+        };
         if (form.password) payload.password = form.password;
         await api.updateUser(Number(editing.id), payload);
         toast.success('Usuário atualizado.');
@@ -54,7 +80,9 @@ export function AdminPage() {
         await api.createUser(form);
         toast.success('Usuário cadastrado.');
       }
-      setModalOpen(false); setEditing(null); load();
+      setModalOpen(false);
+      setEditing(null);
+      load();
     } catch (err: unknown) {
       const error = err as { error?: string };
       toast.error(error.error || 'Erro ao salvar usuário.');
@@ -62,132 +90,282 @@ export function AdminPage() {
   };
 
   const handleToggleActive = async (u: User) => {
-    try { await api.updateUser(Number(u.id), { active: !u.active }); toast.success(u.active ? 'Usuário desativado.' : 'Usuário ativado.'); load(); }
-    catch { toast.error('Erro ao atualizar usuário.'); }
+    try {
+      await api.updateUser(Number(u.id), { active: !u.active });
+      toast.success(u.active ? 'Usuário desativado.' : 'Usuário ativado.');
+      load();
+    } catch {
+      toast.error('Erro ao atualizar usuário.');
+    }
   };
 
-  return (
-    <div className="space-y-6 page-enter">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <ShieldCheck className="w-6 h-6 text-emerald-600" />Painel Administrativo — Usuários
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Gestão de perfis e acesso (somente ADMIN)</p>
-        </div>
-        <Button onClick={() => { setEditing(null); setForm({ name: '', email: '', password: '', role: 'FARMACEUTICO', registerDoc: '', phone: '', active: true }); setModalOpen(true); }} className="rounded-xl gap-2 active:scale-[0.98] transition-transform">
-          <Plus className="w-4 h-4" />Novo Usuário
-        </Button>
-      </div>
-
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300 min-w-[640px]">
-              <thead className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 border-l-[3px] border-l-emerald-500">
-                <tr>
-                  <th className="p-4">Nome</th>
-                  <th className="p-4">E-mail</th>
-                  <th className="p-4">Perfil</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4 text-right">Ações</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
-                {loading ? (
-                  <tr><td colSpan={5} className="p-8 text-center"><Skeleton className="h-6 w-full max-w-sm mx-auto" /></td></tr>
-                ) : users.length === 0 ? (
-                  <tr><td colSpan={5} className="p-12">
-                    <div className="flex flex-col items-center justify-center text-slate-400 py-8">
-                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-emerald-100 to-emerald-50 dark:from-emerald-900/30 dark:to-emerald-900/10 flex items-center justify-center mb-4">
-                        <ShieldCheck className="w-10 h-10 text-emerald-300" />
-                      </div>
-                      <p className="text-sm font-medium text-slate-500">Nenhum usuário encontrado</p>
-                      <p className="text-xs text-slate-400 mt-1">Adicione usuários ao sistema.</p>
-                    </div>
-                  </td></tr>
-                ) : (
-                  users.map((u, idx) => (
-                    <tr key={String(u.id)} className={(idx % 2 === 1 ? 'bg-slate-50/50 dark:bg-slate-800/30 ' : '') + 'table-row-hover'}>
-                      <td className="p-4 font-bold text-slate-900 dark:text-white">{u.name}</td>
-                      <td className="p-4 text-slate-600 dark:text-slate-300">{u.email}</td>
-                      <td className="p-4">
-                        <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800">
-                          {ROLE_LABEL[u.role] ?? u.role}
-                        </Badge>
-                      </td>
-                      <td className="p-4">
-                        {u.active !== false ? (
-                          <Badge variant="outline" className="bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-800">Ativo</Badge>
-                        ) : (
-                          <Badge variant="outline" className="bg-rose-50 dark:bg-rose-900/20 text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-800">Inativo</Badge>
-                        )}
-                      </td>
-                      <td className="p-4 text-right whitespace-nowrap">
-                        <Button size="sm" variant="ghost" onClick={() => { setEditing(u); setForm({ name: u.name, email: u.email, password: '', role: u.role ?? 'FARMACEUTICO', registerDoc: u.registerDoc ?? '', phone: u.phone ?? '', active: u.active ?? true }); setModalOpen(true); }} className="rounded-xl h-8 w-8 p-0">
-                          <Pencil className="w-4 h-4" />
-                        </Button>
-                        <Button size="sm" variant="ghost" onClick={() => handleToggleActive(u)} className="rounded-xl h-8 w-8 p-0 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-900/30">
-                          <Power className="w-4 h-4" />
-                        </Button>
-                      </td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
+  const columns: Column<User>[] = [
+    {
+      header: 'Nome do Usuário',
+      width: '260px',
+      cell: (u) => (
+        <div className="flex items-center gap-2.5">
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getAvatarColor(
+              u.name
+            )}`}
+          >
+            {u.name[0]?.toUpperCase()}
           </div>
-        </CardContent>
-      </Card>
-
-      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="rounded-2xl">
-          <DialogHeader>
-            <DialogTitle>{editing ? 'Editar Usuário' : 'Novo Usuário'}</DialogTitle>
-            <DialogDescription>{editing ? 'Atualize os dados.' : 'Cadastre um novo usuário.'}</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSave} className="space-y-4">
-            <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Nome</Label>
-              <Input required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">E-mail</Label>
-              <Input type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Senha {editing && <span className="text-slate-400 dark:text-slate-500 font-normal">(deixe vazio para manter)</span>}</Label>
-              <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required={!editing} minLength={!editing ? 6 : undefined} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-            </div>
-            <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Perfil</Label>
-              <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
-                <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {ROLES.map((r) => (<SelectItem key={r} value={r}>{ROLE_LABEL[r]}</SelectItem>))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Registro</Label>
-                <Input value={form.registerDoc} onChange={(e) => setForm({ ...form, registerDoc: e.target.value })} placeholder="CRF / RA" className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-              </div>
-              <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Telefone</Label>
-                <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="(00) 00000-0000" className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-              </div>
-            </div>
-            {editing && (
-              <div className="flex items-center gap-2">
-                <input type="checkbox" id="user-active" checked={form.active} onChange={(e) => setForm({ ...form, active: e.target.checked })} className="w-4 h-4 rounded text-emerald-600" />
-                <Label htmlFor="user-active" className="text-sm font-medium text-slate-700 dark:text-slate-200">Usuário ativo</Label>
-              </div>
+          <div>
+            <p className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm">{u.name}</p>
+            {u.registerDoc && (
+              <p className="text-[11px] text-slate-400 font-mono mt-0.5">CRF/Doc: {u.registerDoc}</p>
             )}
-            <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={() => setModalOpen(false)} className="rounded-xl">Cancelar</Button>
-              <Button type="submit" className="rounded-xl bg-emerald-600 hover:bg-emerald-700">{editing ? 'Salvar Alterações' : 'Cadastrar'}</Button>
+          </div>
+        </div>
+      ),
+    },
+    {
+      header: 'E-mail',
+      cell: (u) => (
+        <div className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+          <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+          <span>{u.email}</span>
+        </div>
+      ),
+    },
+    {
+      header: 'Perfil de Acesso',
+      width: '170px',
+      cell: (u) => {
+        const badgeColors =
+          u.role === 'ADMIN'
+            ? 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400'
+            : u.role === 'FARMACEUTICO'
+            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400'
+            : u.role === 'ALUNO'
+            ? 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400'
+            : 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300';
+        return (
+          <Badge variant="outline" className={`text-[10px] ${badgeColors}`}>
+            {ROLE_LABEL[u.role] || u.role}
+          </Badge>
+        );
+      },
+    },
+    {
+      header: 'Status',
+      width: '120px',
+      cell: (u) => (
+        <Badge
+          variant="outline"
+          className={
+            u.active
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 text-[10px]'
+              : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 text-[10px]'
+          }
+        >
+          {u.active ? 'Ativo' : 'Inativo'}
+        </Badge>
+      ),
+    },
+    {
+      header: 'Ações',
+      width: '110px',
+      align: 'right',
+      cell: (u) => (
+        <div className="flex items-center justify-end gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => {
+              setEditing(u);
+              setForm({
+                name: u.name,
+                email: u.email,
+                password: '',
+                role: u.role,
+                registerDoc: u.registerDoc || '',
+                phone: u.phone || '',
+                active: Boolean(u.active),
+              });
+              setModalOpen(true);
+            }}
+            className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+            title="Editar usuário"
+          >
+            <Pencil className="w-3.5 h-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => handleToggleActive(u)}
+            className={`h-8 w-8 p-0 rounded-lg ${
+              u.active
+                ? 'text-slate-500 hover:text-rose-600 hover:bg-rose-50'
+                : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50'
+            }`}
+            title={u.active ? 'Desativar acesso' : 'Ativar acesso'}
+          >
+            <Power className="w-3.5 h-3.5" />
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-5 page-enter">
+      {/* Standardized PageHeader */}
+      <PageHeader
+        title="Gestão de Usuários e Permissões"
+        description="Gerenciamento de contas, papéis de acesso e credenciais de operadores da Farmácia Escola."
+        icon={ShieldCheck}
+        actions={
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setForm({
+                name: '',
+                email: '',
+                password: '',
+                role: 'FARMACEUTICO',
+                registerDoc: '',
+                phone: '',
+                active: true,
+              });
+              setModalOpen(true);
+            }}
+            className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Novo Usuário</span>
+          </Button>
+        }
+      />
+
+      {/* Standardized DataTable */}
+      <DataTable
+        columns={columns}
+        data={users}
+        isLoading={loading}
+        emptyIcon={ShieldCheck}
+        emptyTitle="Nenhum usuário cadastrado"
+        emptyDescription="Cadastre novos usuários com diferentes perfis de acesso."
+        emptyAction={
+          <Button
+            onClick={() => {
+              setEditing(null);
+              setForm({
+                name: '',
+                email: '',
+                password: '',
+                role: 'FARMACEUTICO',
+                registerDoc: '',
+                phone: '',
+                active: true,
+              });
+              setModalOpen(true);
+            }}
+            className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Novo Usuário
+          </Button>
+        }
+      />
+
+      {/* Create / Edit User Dialog */}
+      <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+        <DialogContent className="sm:max-w-[480px] rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+              <ShieldCheck className="w-5 h-5 text-emerald-600" />
+              {editing ? 'Editar Usuário' : 'Novo Usuário'}
+            </DialogTitle>
+            <DialogDescription>
+              {editing ? 'Atualize as credenciais e o nível de acesso.' : 'Defina os dados e o perfil de permissão do usuário.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSave} className="space-y-4 pt-1">
+            <div>
+              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                Nome Completo *
+              </Label>
+              <Input
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Ex: Dr. Roberto Alcantara"
+                required
+                className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+              />
             </div>
+
+            <div>
+              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                E-mail Institucional *
+              </Label>
+              <Input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                placeholder="usuario@farmacia.edu.br"
+                required
+                className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+              />
+            </div>
+
+            <div>
+              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                Senha {editing ? '(deixe em branco para manter)' : '*'}
+              </Label>
+              <Input
+                type="password"
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder={editing ? '••••••••' : 'Mínimo 6 caracteres'}
+                required={!editing}
+                className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                  Perfil de Acesso *
+                </Label>
+                <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+                  <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50">
+                    <SelectValue placeholder="Selecione o perfil" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ROLES.map((r) => (
+                      <SelectItem key={r} value={r}>
+                        {ROLE_LABEL[r]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div>
+                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                  CRF / Matrícula
+                </Label>
+                <Input
+                  value={form.registerDoc}
+                  onChange={(e) => setForm({ ...form, registerDoc: e.target.value })}
+                  placeholder="Ex: 12345/SP"
+                  className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+                />
+              </div>
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setModalOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button type="submit" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+                {editing ? 'Salvar Alterações' : 'Criar Usuário'}
+              </Button>
+            </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>

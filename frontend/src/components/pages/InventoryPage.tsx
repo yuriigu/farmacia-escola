@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import { toast } from 'sonner';
-import { Package, Pill, Boxes, Plus, Search, Download, Pencil, Trash2 } from 'lucide-react';
+import { Package, Pill, Boxes, Plus, Search, Download, Pencil, Trash2, Eye, X } from 'lucide-react';
 import { usePharmacyStore, fetchAllData } from '@/lib/pharmacy-store';
 import { computeStockStatus } from '@/lib/types';
 import type { Medicine } from '@/lib/types';
@@ -11,13 +11,13 @@ import { useAuthStore } from '@/lib/auth-store';
 import { StockStatusBadge } from '@/components/shared/StockStatusBadge';
 import { ExpiryBadge } from '@/components/shared/ExpiryBadge';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
+import { PageHeader } from '@/components/shared/PageHeader';
+import { DataTable, Column } from '@/components/shared/DataTable';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 
@@ -47,38 +47,36 @@ export function InventoryPage() {
     return ids;
   }, [isPatient, myMedsOnly, withdrawals]);
 
-  const filtered = medicines.filter((m) => {
-    const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.activeIngredient?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      m.dosage?.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || computeStockStatus(m) === statusFilter;
-    const matchesCategory = categoryFilter === 'all' || m.category === categoryFilter;
-    const matchesMyMeds = !patientWithdrawalMedicineIds || patientWithdrawalMedicineIds.has(m.id);
-    return matchesSearch && matchesStatus && matchesCategory && matchesMyMeds;
-  });
+  const filtered = useMemo(() => {
+    return medicines.filter((m) => {
+      const matchesSearch = m.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (m.activeIngredient && m.activeIngredient.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (m.dosage && m.dosage.toLowerCase().includes(searchTerm.toLowerCase()));
+      const matchesStatus = statusFilter === 'all' || computeStockStatus(m) === statusFilter;
+      const matchesCategory = categoryFilter === 'all' || m.category === categoryFilter;
+      const matchesMyMeds = !patientWithdrawalMedicineIds || patientWithdrawalMedicineIds.has(m.id);
+      return matchesSearch && matchesStatus && matchesCategory && matchesMyMeds;
+    });
+  }, [medicines, searchTerm, statusFilter, categoryFilter, patientWithdrawalMedicineIds]);
 
   const medicineBatches = useMemo(() => {
     if (!selectedMedicine) return [];
     return batches.filter((b) => b.medicineId === selectedMedicine.id).sort((a, b) => new Date(b.expirationDate).getTime() - new Date(a.expirationDate).getTime());
   }, [selectedMedicine, batches]);
 
-  const expiringBatchMap = useMemo(() => {
-    const now = new Date();
-    const threshold = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
-    const map: Record<number, boolean> = {};
-    batches.forEach((b) => {
-      const exp = new Date(b.expirationDate);
-      if (exp <= threshold && exp >= now && b.currentQuantity > 0) {
-        map[b.medicineId] = true;
-      }
-    });
-    return map;
-  }, [batches]);
-
   const handleExportCSV = () => {
     const header = ['Medicamento', 'Categoria', 'Principio Ativo', 'Dosagem', 'Estoque Total', 'Lotes', 'Status'];
-    const rows = filtered.map((m) => [m.name, m.category ? MEDICINE_CATEGORY_LABELS[m.category] || m.category : '', m.activeIngredient || '', m.dosage || '', String(m.totalQuantity), String(m.batchesCount), computeStockStatus(m)]);
+    const rows = filtered.map((m) => [
+      m.name,
+      m.category ? MEDICINE_CATEGORY_LABELS[m.category] || m.category : '',
+      m.activeIngredient || '',
+      m.dosage || '',
+      String(m.totalQuantity),
+      String(m.batchesCount),
+      computeStockStatus(m),
+    ]);
     downloadCSV('medicamentos_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
+    toast.success('Relatório exportado com sucesso!');
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -96,7 +94,14 @@ export function InventoryPage() {
   };
 
   const openEditDialog = (med: Medicine) => {
-    setEditDraft({ name: med.name, activeIngredient: med.activeIngredient || '', dosage: med.dosage || '', accessibleDesc: med.accessibleDesc || '', category: med.category || '' });
+    setSelectedMedicine(med);
+    setEditDraft({
+      name: med.name,
+      activeIngredient: med.activeIngredient || '',
+      dosage: med.dosage || '',
+      accessibleDesc: med.accessibleDesc || '',
+      category: med.category || '',
+    });
     setEditOpen(true);
   };
 
@@ -123,13 +128,13 @@ export function InventoryPage() {
     setDeleteLoading(true);
     try {
       await api.deleteMedicine(selectedMedicine.id);
-      toast.success('Medicamento descartado com sucesso.');
+      toast.success('Medicamento excluído com sucesso.');
       setDeleteOpen(false);
       setSelectedMedicine(null);
       fetchAllData();
     } catch (err: unknown) {
       const error = err as { error?: string };
-      toast.error(error.error || 'Não é possível descartar: o medicamento possui lotes ativos.');
+      toast.error(error.error || 'Não é possível excluir: o medicamento possui lotes ativos.');
     } finally {
       setDeleteLoading(false);
     }
@@ -137,172 +142,282 @@ export function InventoryPage() {
 
   const totalFilteredItems = filtered.reduce((s, m) => s + (m.totalQuantity ?? 0), 0);
 
-  return (
-    <div className="space-y-6 page-enter">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
-            <Package className="w-6 h-6 text-emerald-600" />Catálogo de Medicamentos
-          </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400">Consulte o saldo disponível e validades</p>
+  const columns: Column<Medicine>[] = [
+    {
+      header: 'Medicamento',
+      width: '260px',
+      cell: (m) => (
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <Pill className="w-4 h-4" />
+          </div>
+          <div>
+            <p className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm leading-tight">
+              {m.name}
+            </p>
+            {m.dosage && (
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">
+                {m.dosage}
+              </p>
+            )}
+          </div>
         </div>
-        {canWrite && (
-        <div className="flex items-center gap-2">
-          {canExport && (
-          <Button variant="outline" onClick={handleExportCSV} disabled={filtered.length === 0} className="rounded-xl gap-2 active:scale-[0.98] transition-transform">
-            <Download className="w-4 h-4" />Exportar CSV
-          </Button>
-          )}
-          <Button onClick={() => setModalOpen(true)} className="rounded-xl gap-2 active:scale-[0.98] transition-transform">
-            <Plus className="w-4 h-4" />Novo Medicamento
-          </Button>
-        </div>
-        )}
-      </div>
-
-      <div className="flex items-center gap-3 bg-white dark:bg-slate-800 p-2 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-        <Search className="w-5 h-5 text-slate-400 ml-2" />
-        <Input
-          type="text" placeholder="Buscar por nome, principio ativo ou dosagem..."
-          value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)}
-          className="border-none shadow-none focus-visible:ring-0"
-        />
-        {!isPatient && (
-        <div className="flex gap-1 ml-auto mr-1">
-          {(['all', 'ok', 'low', 'critical', 'expired'] as const).map((s) => {
-            const labels: Record<string, string> = { all: 'Todos', ok: 'Em Dia', low: 'Baixo', critical: 'Crítico', expired: 'Vencido' };
-            const colors: Record<string, string> = { all: 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300', ok: 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800', low: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800', critical: 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-800', expired: 'bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 border-purple-200 dark:border-purple-800' };
-            return (
-              <button key={s} onClick={() => setStatusFilter(s)} className={'px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all ' + (statusFilter === s ? colors[s] + ' ring-1 ring-offset-1' : 'bg-white dark:bg-slate-700 text-slate-400 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500')}>
-                {labels[s]}
-              </button>
-            );
-          })}
-        </div>
-        )}
-      </div>
-
-      {/* Category filter chips */}
-      <div className="flex flex-wrap items-center gap-1">
-        {MEDICINE_CATEGORIES.map((cat) => (
-          <button
-            key={cat.id}
-            onClick={() => setCategoryFilter(cat.id)}
-            className={'px-2.5 py-1 rounded-lg text-[10px] font-semibold border transition-all ' + (categoryFilter === cat.id ? cat.color + ' ring-1 ring-offset-1' : 'bg-white dark:bg-slate-700 text-slate-400 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:border-slate-300 dark:hover:border-slate-500')}
+      ),
+    },
+    {
+      header: 'Categoria',
+      width: '140px',
+      cell: (m) =>
+        m.category ? (
+          <span
+            className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${
+              MEDICINE_CATEGORY_COLORS[m.category] || 'bg-slate-100 text-slate-600'
+            }`}
           >
-            {cat.label}
-          </button>
-        ))}
-        {isPatient && (
-          <div className="flex items-center gap-2 ml-2">
-            <input
-              type="checkbox"
-              id="my-meds"
-              checked={myMedsOnly}
-              onChange={(e) => setMyMedsOnly(e.target.checked)}
-              className="w-4 h-4 rounded text-emerald-600 border-slate-300 dark:border-slate-600"
+            {MEDICINE_CATEGORY_LABELS[m.category] || m.category}
+          </span>
+        ) : (
+          <span className="text-slate-300">—</span>
+        ),
+    },
+    {
+      header: 'Princípio Ativo',
+      cell: (m) => (
+        <span className="text-xs text-slate-600 dark:text-slate-300">
+          {m.activeIngredient || '—'}
+        </span>
+      ),
+    },
+    {
+      header: 'Estoque Total',
+      width: '130px',
+      cell: (m) => (
+        <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200">
+          {m.totalQuantity} un.
+        </span>
+      ),
+    },
+    {
+      header: 'Lotes',
+      width: '80px',
+      align: 'center',
+      cell: (m) => (
+        <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+          {m.batchesCount}
+        </span>
+      ),
+    },
+    {
+      header: 'Status',
+      width: '120px',
+      cell: (m) => <StockStatusBadge status={computeStockStatus(m)} />,
+    },
+    {
+      header: 'Ações',
+      width: '120px',
+      align: 'right',
+      cell: (m) => (
+        <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedMedicine(m)}
+            className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700"
+            title="Visualizar detalhes"
+          >
+            <Eye className="w-4 h-4" />
+          </Button>
+          {!isPatient && canWrite && (
+            <>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => openEditDialog(m)}
+                className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                title="Editar medicamento"
+              >
+                <Pencil className="w-3.5 h-3.5" />
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => {
+                  setSelectedMedicine(m);
+                  setDeleteOpen(true);
+                }}
+                className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                title="Excluir medicamento"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </Button>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  return (
+    <div className="space-y-5 page-enter">
+      {/* Standardized PageHeader */}
+      <PageHeader
+        title="Catálogo de Medicamentos"
+        description="Consulte a disponibilidade em tempo real, saldo em estoque e validades de insumos."
+        icon={Package}
+        actions={
+          <>
+            {canExport && (
+              <Button
+                variant="outline"
+                onClick={handleExportCSV}
+                disabled={filtered.length === 0}
+                className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
+              >
+                <Download className="w-4 h-4" />
+                <span>Exportar CSV</span>
+              </Button>
+            )}
+            {canWrite && (
+              <Button
+                onClick={() => setModalOpen(true)}
+                className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Novo Medicamento</span>
+              </Button>
+            )}
+          </>
+        }
+      />
+
+      {/* Compact Filters & Search Toolbar */}
+      <div className="bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="relative w-full sm:w-80">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input
+              type="text"
+              placeholder="Buscar por nome, princípio ativo ou dosagem..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
             />
-            <label htmlFor="my-meds" className="text-xs font-medium text-slate-600 dark:text-slate-400 cursor-pointer">
-              Meus Medicamentos
-            </label>
+            {searchTerm && (
+              <button
+                onClick={() => setSearchTerm('')}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
-        )}
+
+          {!isPatient && (
+            <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto no-scrollbar">
+              {(['all', 'ok', 'low', 'critical', 'expired'] as const).map((s) => {
+                const labels: Record<string, string> = { all: 'Todos', ok: 'Em Dia', low: 'Baixo', critical: 'Crítico', expired: 'Vencido' };
+                return (
+                  <button
+                    key={s}
+                    onClick={() => setStatusFilter(s)}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
+                      statusFilter === s
+                        ? 'bg-emerald-600 text-white shadow-sm'
+                        : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
+                    }`}
+                  >
+                    {labels[s]}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Category Chips Bar */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-700/60">
+          {MEDICINE_CATEGORIES.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setCategoryFilter(cat.id)}
+              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-all ${
+                categoryFilter === cat.id
+                  ? 'bg-slate-800 text-white dark:bg-slate-200 dark:text-slate-900 shadow-xs'
+                  : 'bg-slate-100 dark:bg-slate-700/60 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+              }`}
+            >
+              {cat.label}
+            </button>
+          ))}
+
+          {isPatient && (
+            <div className="flex items-center gap-2 ml-auto">
+              <input
+                type="checkbox"
+                id="my-meds"
+                checked={myMedsOnly}
+                onChange={(e) => setMyMedsOnly(e.target.checked)}
+                className="w-4 h-4 rounded text-emerald-600 border-slate-300 dark:border-slate-600"
+              />
+              <label htmlFor="my-meds" className="text-xs font-medium text-slate-600 dark:text-slate-400 cursor-pointer">
+                Meus Medicamentos
+              </label>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Status summary bar */}
-      {!isPatient && (
-      <div className="flex items-center gap-4 text-xs text-slate-500 dark:text-slate-400">
-        <span>{filtered.length} de {medicines.length} medicamentos</span>
-        <span className="h-3 w-px bg-slate-200 dark:bg-slate-700" />
-        <span>{filtered.reduce((s, m) => s + (m.totalQuantity ?? 0), 0).toLocaleString('pt-BR')} un. em estoque</span>
-        <span className="h-3 w-px bg-slate-200 dark:bg-slate-700" />
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-emerald-500" />{medicines.filter((m) => computeStockStatus(m) === 'ok').length} em dia</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-amber-500" />{medicines.filter((m) => computeStockStatus(m) === 'low').length} baixo</span>
-        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-rose-500" />{medicines.filter((m) => computeStockStatus(m) === 'critical').length} crítico</span>
-      </div>
-      )}
-
-      <Card>
-        <CardContent className="p-0">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300 min-w-[800px]">
-              <thead className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 border-l-[3px] border-l-emerald-500">
-                <tr>
-                  <th className="p-4">Medicamento</th>
-                  <th className="p-4">Categoria</th>
-                  <th className="p-4">Principio Ativo</th>
-                  <th className="p-4">Estoque Total</th>
-                  <th className="p-4">Lotes</th>
-                  <th className="p-4">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {loading ? (
-                  <tr><td colSpan={6} className="p-8 text-center"><Skeleton className="h-6 w-full max-w-sm mx-auto" /></td></tr>
-                ) : filtered.length === 0 ? (
-                  <tr><td colSpan={6} className="p-12">
-                    <div className="flex flex-col items-center justify-center text-slate-400 py-8">
-                      <div className="w-20 h-20 rounded-full bg-gradient-to-br from-slate-100 to-slate-50 dark:from-slate-800 dark:to-slate-800/50 flex items-center justify-center mb-4">
-                        <Package className="w-10 h-10 text-slate-300" />
-                      </div>
-                      <p className="text-sm font-medium text-slate-500">Nenhum resultado</p>
-                      <p className="text-xs text-slate-400 mt-1">Tente ajustar os termos da busca.</p>
-                    </div>
-                  </td></tr>
-                ) : (
-                  filtered.map((m, idx) => (
-                    <tr key={m.id} className={(idx % 2 === 1 ? 'bg-slate-50/50 dark:bg-slate-800/30 ' : '') + 'table-row-hover cursor-pointer'} onClick={() => setSelectedMedicine(m)}>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 flex items-center justify-center shrink-0">
-                            <Pill className="w-4 h-4" />
-                          </div>
-                          <div>
-                            <p className="font-bold text-slate-900 dark:text-slate-100">{m.name}</p>
-                            <p className="text-xs text-slate-400">{m.dosage}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-4">
-                        {m.category ? (
-                          <span className={'inline-block px-2 py-0.5 rounded-full text-[10px] font-semibold ' + (MEDICINE_CATEGORY_COLORS[m.category] || 'bg-slate-50 text-slate-500')}>
-                            {MEDICINE_CATEGORY_LABELS[m.category] || m.category}
-                          </span>
-                        ) : (
-                          <span className="text-slate-300">—</span>
-                        )}
-                      </td>
-                      <td className="p-4 text-slate-600 dark:text-slate-300">{m.activeIngredient || '-'}</td>
-                      <td className="p-4 font-semibold text-slate-800 dark:text-slate-200">{m.totalQuantity} un.</td>
-                      <td className="p-4">{m.batchesCount}</td>
-                      <td className="p-4"><StockStatusBadge status={computeStockStatus(m)} /></td>
-                    </tr>
-                  ))
-                )}
-              </tbody>
-              <tfoot className="border-t border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50">
-                <tr>
-                  <td colSpan={3} className="p-4 text-sm font-semibold text-slate-600 dark:text-slate-300">Total de itens em estoque</td>
-                  <td className="p-4 font-bold text-emerald-700 dark:text-emerald-400">{totalFilteredItems.toLocaleString('pt-BR')} un.</td>
-                  <td className="p-4 text-slate-500 dark:text-slate-400">{filtered.length} medicamentos</td>
-                  <td className="p-4" />
-                </tr>
-              </tfoot>
-            </table>
+      {/* Standardized DataTable */}
+      <DataTable
+        columns={columns}
+        data={filtered}
+        isLoading={loading}
+        emptyIcon={Package}
+        emptyTitle="Nenhum medicamento encontrado"
+        emptyDescription="Tente ajustar os termos de busca ou os filtros aplicados."
+        emptyAction={
+          canWrite ? (
+            <Button
+              onClick={() => setModalOpen(true)}
+              className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Novo Medicamento
+            </Button>
+          ) : undefined
+        }
+        onRowClick={(m) => setSelectedMedicine(m)}
+        footer={
+          <div className="px-4 py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-slate-500 dark:text-slate-400 bg-slate-50/50 dark:bg-slate-800/50">
+            <span>
+              Total: <strong className="text-slate-700 dark:text-slate-300">{filtered.length}</strong> medicamentos ({totalFilteredItems.toLocaleString('pt-BR')} unidades em estoque)
+            </span>
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500" /> Em Dia ({medicines.filter((m) => computeStockStatus(m) === 'ok').length})
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500" /> Baixo ({medicines.filter((m) => computeStockStatus(m) === 'low').length})
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-rose-500" /> Crítico ({medicines.filter((m) => computeStockStatus(m) === 'critical').length})
+              </span>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        }
+      />
 
+      {/* Create Medicine Dialog */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="rounded-2xl">
           <DialogHeader>
             <DialogTitle>Novo Medicamento</DialogTitle>
-            <DialogDescription>Cadastre um medicamento no catálogo.</DialogDescription>
+            <DialogDescription>Cadastre um novo medicamento no catálogo do sistema.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreate} className="space-y-4">
+          <form onSubmit={handleCreate} className="space-y-4 pt-1">
             <div>
               <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Nome do medicamento</Label>
-              <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Dipirona Sódica" required className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+              <Input value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Ex: Dipirona Sódica" required className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
             </div>
             <div>
               <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Categoria</Label>
@@ -319,26 +434,26 @@ export function InventoryPage() {
             </div>
             <div>
               <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Princípio Ativo</Label>
-              <Input value={draft.activeIngredient} onChange={(e) => setDraft({ ...draft, activeIngredient: e.target.value })} placeholder="Dipirona sódica" className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+              <Input value={draft.activeIngredient} onChange={(e) => setDraft({ ...draft, activeIngredient: e.target.value })} placeholder="Ex: Dipirona monoidratada" className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
             </div>
             <div>
               <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Dosagem</Label>
-              <Input value={draft.dosage} onChange={(e) => setDraft({ ...draft, dosage: e.target.value })} placeholder="500mg" className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+              <Input value={draft.dosage} onChange={(e) => setDraft({ ...draft, dosage: e.target.value })} placeholder="Ex: 500mg ou 50mg/mL" className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
             </div>
             <div>
               <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Descrição Acessível</Label>
-              <Textarea value={draft.accessibleDesc} onChange={(e) => setDraft({ ...draft, accessibleDesc: e.target.value })} placeholder="Descrição simples do medicamento..." rows={3} className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+              <Textarea value={draft.accessibleDesc} onChange={(e) => setDraft({ ...draft, accessibleDesc: e.target.value })} placeholder="Orientações e indicações de uso..." rows={3} className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="outline" onClick={() => setModalOpen(false)} className="rounded-xl">Cancelar</Button>
-              <Button type="submit" className="rounded-xl bg-emerald-600 hover:bg-emerald-700">Cadastrar</Button>
+              <Button type="submit" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">Cadastrar</Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
       {/* Medicine Detail Dialog */}
-      <Dialog open={Boolean(selectedMedicine)} onOpenChange={() => setSelectedMedicine(null)}>
+      <Dialog open={Boolean(selectedMedicine && !editOpen && !deleteOpen)} onOpenChange={() => setSelectedMedicine(null)}>
         <DialogContent className="rounded-2xl max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
@@ -349,14 +464,14 @@ export function InventoryPage() {
                 {selectedMedicine?.name}
               </DialogTitle>
               {!isPatient && canWrite && (
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" onClick={() => selectedMedicine && openEditDialog(selectedMedicine)} className="rounded-xl gap-1.5 text-xs">
-                  <Pencil className="w-3.5 h-3.5" />Editar
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)} className="rounded-xl gap-1.5 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/30">
-                  <Trash2 className="w-3.5 h-3.5" />Descartar
-                </Button>
-              </div>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => selectedMedicine && openEditDialog(selectedMedicine)} className="rounded-xl gap-1.5 text-xs">
+                    <Pencil className="w-3.5 h-3.5" />Editar
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setDeleteOpen(true)} className="rounded-xl gap-1.5 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/30">
+                    <Trash2 className="w-3.5 h-3.5" />Excluir
+                  </Button>
+                </div>
               )}
             </div>
             <DialogDescription>Detalhes completos do medicamento e lotes associados</DialogDescription>
@@ -435,7 +550,7 @@ export function InventoryPage() {
             <DialogTitle>Editar Medicamento</DialogTitle>
             <DialogDescription>Atualize as informações do medicamento.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleEdit} className="space-y-4">
+          <form onSubmit={handleEdit} className="space-y-4 pt-1">
             <div>
               <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Nome do medicamento</Label>
               <Input value={editDraft.name} onChange={(e) => setEditDraft({ ...editDraft, name: e.target.value })} placeholder="Dipirona Sódica" required className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
@@ -467,7 +582,7 @@ export function InventoryPage() {
             </div>
             <div className="flex justify-end gap-3 pt-2">
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="rounded-xl" disabled={editLoading}>Cancelar</Button>
-              <Button type="submit" className="rounded-xl bg-emerald-600 hover:bg-emerald-700" disabled={editLoading}>{editLoading ? 'Salvando...' : 'Salvar Alterações'}</Button>
+              <Button type="submit" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold" disabled={editLoading}>{editLoading ? 'Salvando...' : 'Salvar Alterações'}</Button>
             </div>
           </form>
         </DialogContent>
@@ -477,10 +592,10 @@ export function InventoryPage() {
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
-        title="Descartar Medicamento"
-        description={`Tem certeza que deseja descartar "${selectedMedicine?.name}"? Esta ação não pode ser desfeita. Se o medicamento possuir lotes ativos, o descarte será bloqueado.`}
+        title="Excluir Medicamento"
+        description={`Tem certeza que deseja excluir "${selectedMedicine?.name}"? Esta ação não pode ser desfeita. Se o medicamento possuir lotes ativos, o descarte será bloqueado.`}
         onConfirm={handleDelete}
-        confirmLabel="Descartar"
+        confirmLabel="Excluir"
         variant="danger"
         loading={deleteLoading}
       />

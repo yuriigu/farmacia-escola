@@ -54,10 +54,6 @@ export class DisposalService {
       reason,
     });
 
-    await this.batchRepo.update(batchId, {
-      currentQuantity: batch.currentQuantity - quantity,
-    });
-
     await this.logService.log(
       userId,
       'create',
@@ -90,13 +86,6 @@ export class DisposalService {
     const disposal = await this.disposalRepo.findById(id);
     if (!disposal) throw { statusCode: 404, message: 'Descarte não encontrado' };
 
-    const batch = await this.batchRepo.findById(disposal.batchId);
-    if (batch) {
-      await this.batchRepo.update(batch.id, {
-        currentQuantity: batch.currentQuantity + disposal.quantity,
-      });
-    }
-
     await this.disposalRepo.delete(id);
 
     await this.logService.log(
@@ -113,13 +102,6 @@ export class DisposalService {
   async revert(userId: number, role: string, disposalId: number) {
     const disposal = await this.disposalRepo.findById(disposalId);
     if (!disposal) throw { statusCode: 404, message: 'Descarte não encontrado' };
-
-    const batch = await this.batchRepo.findById(disposal.batchId);
-    if (batch) {
-      await this.batchRepo.update(batch.id, {
-        currentQuantity: batch.currentQuantity + disposal.quantity,
-      });
-    }
 
     const reverted = await this.disposalRepo.revert(disposalId);
 

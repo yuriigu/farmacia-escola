@@ -29,7 +29,7 @@ vi.mock('../../../src/controllers/MedicineController', () => {
   };
 });
 
-vi.mock('../../../src/utils/prisma', () => ({
+vi.mock('../../../src/utils/Prisma', () => ({
   prisma: {
     user: {
       findUnique: vi.fn(),

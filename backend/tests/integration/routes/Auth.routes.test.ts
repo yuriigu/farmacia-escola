@@ -25,7 +25,7 @@ vi.mock('../../../src/controllers/AuthController', () => {
   };
 });
 
-vi.mock('../../../src/utils/prisma', () => ({
+vi.mock('../../../src/utils/Prisma', () => ({
   prisma: {
     user: {
       findUnique: vi.fn(),

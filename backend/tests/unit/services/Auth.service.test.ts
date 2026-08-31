@@ -8,7 +8,7 @@ import { mockUser } from '../../fixtures/Users.fixture';
 
 vi.mock('../../../src/repositories/UserRepository');
 vi.mock('../../../src/repositories/PatientRepository');
-vi.mock('../../../src/utils/prisma', () => ({
+vi.mock('../../../src/utils/Prisma', () => ({
   prisma: {
     $transaction: vi.fn(),
   },

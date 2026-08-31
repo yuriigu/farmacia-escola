@@ -68,7 +68,7 @@ describe('UserService', () => {
     mockUserRepo.findById.mockResolvedValue(mockUser);
     mockUserRepo.delete.mockResolvedValue(mockUser);
 
-    const result = await userService.deleteUser(1, 1);
+    const result = await userService.deleteUser(2, 1);
 
     expect(result).toBeDefined();
     expect(mockUserRepo.delete).toHaveBeenCalledWith(1);

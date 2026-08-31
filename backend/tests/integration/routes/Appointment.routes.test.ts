@@ -32,7 +32,7 @@ vi.mock('../../../src/controllers/AppointmentController', () => {
   };
 });
 
-vi.mock('../../../src/utils/prisma', () => ({
+vi.mock('../../../src/utils/Prisma', () => ({
   prisma: {
     user: {
       findUnique: vi.fn(),

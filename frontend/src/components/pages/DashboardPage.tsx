@@ -88,7 +88,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
               asChild
               className="bg-white text-emerald-800 hover:bg-emerald-50 rounded-xl font-bold shadow-md shadow-black/10 gap-2"
             >
-              <Link href="/appointments/new">
+              <Link href="/appointments?new=1">
                 <Calendar className="w-4 h-4" />
                 Novo Agendamento
               </Link>
@@ -173,7 +173,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
                   Você não tem nenhum agendamento pendente.
                 </p>
                 <Button asChild size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-                  <Link href="/appointments/new">
+                  <Link href="/appointments?new=1">
                     <Plus className="w-4 h-4 mr-1" />
                     Agendar Retirada
                   </Link>
@@ -261,7 +261,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
             asChild
             className="bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-bold text-xs"
           >
-            <Link href="/appointments/new">
+            <Link href="/appointments?new=1">
               <Plus className="w-4 h-4 mr-1.5" />
               Agendar Atendimento
             </Link>

@@ -3,7 +3,7 @@
 import { useState, useEffect, ReactNode, Suspense } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Toaster } from 'sonner';
+import { Toaster, toast } from 'sonner';
 import {
   Pill, LogOut, Menu, XIcon, Sun, Moon, Plus, UserRound,
 } from 'lucide-react';
@@ -58,21 +58,6 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
 
   const currentModuleId = activeModuleId || PATH_MODULE_MAP[pathname] || 'dashboard';
   const activeModule = getModuleById(currentModuleId);
-
-  const currentTab = searchParams.get('tab') || activeModule?.defaultTab || '';
-  const actionLabel = activeModule?.actionLabels[currentTab] || '';
-
-  const TAB_ENTITY_MAP: Record<string, string> = {
-    medicamentos: 'medicines',
-    lotes: 'batches',
-    retiradas: 'withdrawals',
-    descartes: 'disposals',
-    agenda: 'schedule-slots',
-    agendamentos: 'appointments',
-    pacientes: 'patients',
-    usuarios: 'users',
-  };
-  const canShowAction = actionLabel && canWriteClient(user?.role, user?.permissions, TAB_ENTITY_MAP[currentTab] || '');
 
   // Hydrate on mount
   useEffect(() => {
@@ -203,23 +188,6 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Dynamic Action Button */}
-            {canShowAction && (
-              <Button
-                onClick={() => {
-                  window.dispatchEvent(
-                    new CustomEvent('pharmacy:action', {
-                      detail: { module: currentModuleId, tab: currentTab },
-                    })
-                  );
-                }}
-                className="rounded-xl gap-2 active:scale-[0.98] transition-transform text-sm"
-              >
-                <Plus className="w-4 h-4" />
-                <span className="hidden sm:inline">{actionLabel}</span>
-              </Button>
-            )}
-
             {/* User Profile Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

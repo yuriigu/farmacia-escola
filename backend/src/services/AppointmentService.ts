@@ -157,14 +157,26 @@ export class AppointmentService {
     const appt = await this.appointmentRepo.findById(numericId);
     if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
 
-    const updated = await this.appointmentRepo.updateStatus(numericId, status.trim(), notes?.trim());
+    const normalizedStatus = status.trim().toUpperCase();
+
+    if (role === 'PACIENTE') {
+      const patient = await this.patientRepo.findByUserId(userId);
+      if (!patient || appt.patientId !== patient.id) {
+        throw { statusCode: 403, message: 'Acesso não autorizado: você só pode alterar seus próprios agendamentos' };
+      }
+      if (normalizedStatus !== 'CANCELLED') {
+        throw { statusCode: 403, message: 'Pacientes só têm permissão para cancelar seus próprios agendamentos' };
+      }
+    }
+
+    const updated = await this.appointmentRepo.updateStatus(numericId, normalizedStatus, notes?.trim());
 
     await this.logService.log(
       userId,
       'update_status',
       'appointments',
       numericId,
-      `Atualizou status do agendamento #${numericId} para ${status}`
+      `Atualizou status do agendamento #${numericId} para ${normalizedStatus}`
     );
 
     return updated;
@@ -185,6 +197,16 @@ export class AppointmentService {
     const appt = await this.appointmentRepo.findById(numericId);
     if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
 
+    if (role === 'PACIENTE') {
+      const patient = await this.patientRepo.findByUserId(userId);
+      if (!patient || appt.patientId !== patient.id) {
+        throw { statusCode: 403, message: 'Acesso não autorizado: você só pode alterar seus próprios agendamentos' };
+      }
+      if (data.status && data.status.trim().toUpperCase() !== 'CANCELLED') {
+        throw { statusCode: 403, message: 'Pacientes só têm permissão para cancelar seus próprios agendamentos' };
+      }
+    }
+
     const updateData: any = {};
     if (data.scheduledDate) {
       const parsedDate = new Date(data.scheduledDate);
@@ -197,7 +219,7 @@ export class AppointmentService {
     if (data.scheduledTime !== undefined) updateData.scheduledTime = data.scheduledTime.trim();
     if (data.slotId !== undefined) updateData.slotId = data.slotId ? Number(data.slotId) : null;
     if (data.notes !== undefined) updateData.notes = data.notes.trim();
-    if (data.status) updateData.status = data.status.trim();
+    if (data.status) updateData.status = data.status.trim().toUpperCase();
 
     const updated = await this.appointmentRepo.update(numericId, updateData);
 

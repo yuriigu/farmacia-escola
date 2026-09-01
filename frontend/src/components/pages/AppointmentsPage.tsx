@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
   Calendar, Plus, Check, X, Clock, Download, CircleCheckBig,
@@ -302,15 +303,25 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
 
 // ==================== APPOINTMENTS PAGE ====================
 export function AppointmentsPage() {
+  const searchParams = useSearchParams();
+  const initialNew = searchParams.get('new') === '1' || !!searchParams.get('medicineId');
+  const initialMedId = searchParams.get('medicineId') ? Number(searchParams.get('medicineId')) : 0;
+
   const { appointments, medicines, patients, loading } = usePharmacyStore();
-  const [modalOpen, setModalOpen] = useState(false);
+  const [modalOpen, setModalOpen] = useState(initialNew);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const user = useAuthStore((s) => s.user);
   const isPatient = user?.role === 'PACIENTE';
   const isMedico = user?.role === 'MEDICO';
-  const defaultForm: AppointmentDraft = { items: [{ medicineId: 0, quantity: 1 }], scheduledDate: '', scheduledTime: '', patientId: undefined, notes: '' };
+  const defaultForm: AppointmentDraft = {
+    items: [{ medicineId: initialMedId, quantity: 1 }],
+    scheduledDate: '',
+    scheduledTime: '',
+    patientId: undefined,
+    notes: '',
+  };
   const [form, setForm] = useState<AppointmentDraft>(defaultForm);
   const [loadingPatients, setLoadingPatients] = useState(false);
 

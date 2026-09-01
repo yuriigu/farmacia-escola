@@ -1,29 +1,31 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
+import { toast } from 'sonner';
 import {
-  Package, Search, Plus, Calendar, ArrowRight,
-  Pill, CheckCircle2, AlertCircle, X, Eye
+  Package, Search, Plus, Calendar,
+  Pill, CheckCircle2, AlertCircle, X, Eye,
+  HeartPulse, ShieldCheck, Layers, Clock, User
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
-import { useMedicines, useCreateMedicine } from '@/services/queries';
+import { useMedicines, useCreateMedicine, useCreateAppointment, usePatients } from '@/services/queries';
 import { useAuthStore } from '@/lib/auth-store';
 import { MEDICINE_CATEGORIES, MEDICINE_CATEGORY_COLORS, MEDICINE_CATEGORY_LABELS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle
 } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Medicine } from '@/lib/types';
 
 const newMedicineSchema = z.object({
@@ -37,22 +39,36 @@ const newMedicineSchema = z.object({
 type NewMedicineFormData = z.infer<typeof newMedicineSchema>;
 
 export default function MedicinesPage() {
-  const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const { data: medicines = [], isLoading, isError, refetch } = useMedicines();
+  const isPatient = user?.role === 'PACIENTE';
+  const isStaff = user?.role === 'ADMIN' || user?.role === 'FARMACEUTICO' || user?.role === 'ALUNO';
+  const canCreateMedicine = user?.role === 'ADMIN' || user?.role === 'FARMACEUTICO';
+
+  const { data: medicines = [], isLoading } = useMedicines();
+  const { data: patients = [] } = usePatients();
   const createMedicineMutation = useCreateMedicine();
+  const createAppointmentMutation = useCreateAppointment();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [stockFilter, setStockFilter] = useState<'all' | 'available' | 'out_of_stock'>('all');
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
 
-  const canCreate = user?.role === 'ADMIN' || user?.role === 'FARMACEUTICO';
+  // Modals state
+  const [isCreateMedicineOpen, setIsCreateMedicineOpen] = useState(false);
+  const [selectedMedicineForDetails, setSelectedMedicineForDetails] = useState<Medicine | null>(null);
+  const [selectedMedicineForAppointment, setSelectedMedicineForAppointment] = useState<Medicine | null>(null);
+
+  // Appointment Form State
+  const [appointmentDate, setAppointmentDate] = useState('');
+  const [appointmentTime, setAppointmentTime] = useState('09:00');
+  const [appointmentQuantity, setAppointmentQuantity] = useState(1);
+  const [appointmentNotes, setAppointmentNotes] = useState('');
+  const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>(undefined);
 
   const {
     register,
     handleSubmit,
-    reset,
+    reset: resetMedicineForm,
     formState: { errors },
   } = useForm<NewMedicineFormData>({
     resolver: zodResolver(newMedicineSchema),
@@ -65,13 +81,68 @@ export default function MedicinesPage() {
     },
   });
 
-  const onSubmit = (data: NewMedicineFormData) => {
+  const onSubmitMedicine = (data: NewMedicineFormData) => {
     createMedicineMutation.mutate(data, {
       onSuccess: () => {
-        setIsDialogOpen(false);
-        reset();
+        setIsCreateMedicineOpen(false);
+        resetMedicineForm();
+        toast.success('Medicamento cadastrado com sucesso!');
+      },
+      onError: (err: any) => {
+        toast.error(err?.message || 'Erro ao cadastrar medicamento.');
       },
     });
+  };
+
+  const handleOpenAppointmentModal = (med: Medicine) => {
+    setSelectedMedicineForAppointment(med);
+    setAppointmentQuantity(1);
+    setAppointmentNotes('');
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setAppointmentDate(tomorrow.toISOString().split('T')[0]);
+    setAppointmentTime('09:00');
+    if (!isPatient && patients.length > 0) {
+      setSelectedPatientId(patients[0].id);
+    }
+  };
+
+  const handleCreateAppointment = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedMedicineForAppointment || !appointmentDate) {
+      toast.error('Informe a data do agendamento.');
+      return;
+    }
+
+    if (!isPatient && !selectedPatientId) {
+      toast.error('Selecione o paciente para o agendamento.');
+      return;
+    }
+
+    createAppointmentMutation.mutate(
+      {
+        scheduledDate: appointmentDate,
+        scheduledTime: appointmentTime,
+        patientId: isPatient ? undefined : selectedPatientId,
+        notes: appointmentNotes.trim() || undefined,
+        items: [
+          {
+            medicineId: selectedMedicineForAppointment.id,
+            quantity: appointmentQuantity,
+          },
+        ],
+      },
+      {
+        onSuccess: () => {
+          toast.success('Agendamento realizado com sucesso!');
+          setSelectedMedicineForAppointment(null);
+          setSelectedMedicineForDetails(null);
+        },
+        onError: (err: any) => {
+          toast.error(err?.message || 'Erro ao realizar agendamento.');
+        },
+      }
+    );
   };
 
   // Filter medicines
@@ -143,7 +214,6 @@ export default function MedicinesPage() {
       header: 'Estoque Total',
       width: '140px',
       cell: (med) => {
-        const isAvailable = (med.totalQuantity ?? 0) > 0;
         return (
           <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200">
             {med.totalQuantity ?? 0} un.
@@ -182,35 +252,34 @@ export default function MedicinesPage() {
     },
     {
       header: 'Ações',
-      width: '140px',
+      width: '170px',
       align: 'right',
-      cell: (med) => (
-        <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-          <Button
-            size="sm"
-            variant="ghost"
-            asChild
-            className="h-8 px-2.5 rounded-lg text-xs gap-1 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-950/30"
-          >
-            <Link href={`/medicines/${med.id}`}>
-              <Eye className="w-3.5 h-3.5" />
-              <span>Ver</span>
-            </Link>
-          </Button>
-          {(med.totalQuantity ?? 0) > 0 && (
+      cell: (med) => {
+        const isAvailable = (med.totalQuantity ?? 0) > 0;
+        return (
+          <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
             <Button
               size="sm"
-              asChild
-              className="h-8 px-2.5 rounded-lg text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+              variant="ghost"
+              onClick={() => setSelectedMedicineForDetails(med)}
+              className="h-8 px-2.5 rounded-lg text-xs gap-1 text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 dark:text-slate-300 dark:hover:text-emerald-400 dark:hover:bg-emerald-950/30"
             >
-              <Link href={`/appointments/new?medicineId=${med.id}`}>
+              <Eye className="w-3.5 h-3.5" />
+              <span>Ver</span>
+            </Button>
+            {isAvailable && (
+              <Button
+                size="sm"
+                onClick={() => handleOpenAppointmentModal(med)}
+                className="h-8 px-2.5 rounded-lg text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+              >
                 <Calendar className="w-3.5 h-3.5" />
                 <span>Agendar</span>
-              </Link>
-            </Button>
-          )}
-        </div>
-      ),
+              </Button>
+            )}
+          </div>
+        );
+      },
     },
   ];
 
@@ -223,9 +292,9 @@ export default function MedicinesPage() {
           description="Consulte medicamentos disponíveis para retirada gratuita na Farmácia Escola Universitária."
           icon={Package}
           actions={
-            canCreate ? (
+            canCreateMedicine ? (
               <Button
-                onClick={() => setIsDialogOpen(true)}
+                onClick={() => setIsCreateMedicineOpen(true)}
                 className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
               >
                 <Plus className="w-4 h-4" />
@@ -297,9 +366,9 @@ export default function MedicinesPage() {
           emptyTitle="Nenhum medicamento encontrado"
           emptyDescription="Tente ajustar os termos de busca ou os filtros selecionados."
           emptyAction={
-            canCreate ? (
+            canCreateMedicine ? (
               <Button
-                onClick={() => setIsDialogOpen(true)}
+                onClick={() => setIsCreateMedicineOpen(true)}
                 className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -307,11 +376,270 @@ export default function MedicinesPage() {
               </Button>
             ) : undefined
           }
-          onRowClick={(med) => router.push(`/medicines/${med.id}`)}
+          onRowClick={(med) => setSelectedMedicineForDetails(med)}
         />
 
-        {/* Create Medicine Dialog */}
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        {/* ==================== MEDICINE DETAILS MODAL ==================== */}
+        <Dialog
+          open={selectedMedicineForDetails !== null}
+          onOpenChange={(open) => {
+            if (!open) setSelectedMedicineForDetails(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-[620px] rounded-3xl max-h-[90vh] overflow-y-auto">
+            {selectedMedicineForDetails && (() => {
+              const med = selectedMedicineForDetails;
+              const isAvail = (med.totalQuantity ?? 0) > 0;
+              const catKey = (med.category || 'outro').toLowerCase();
+              const categoryLabel = MEDICINE_CATEGORY_LABELS[catKey] || med.category || 'Geral';
+              const categoryColor = MEDICINE_CATEGORY_COLORS[catKey] || 'bg-slate-100 text-slate-600';
+
+              return (
+                <div className="space-y-5">
+                  <DialogHeader>
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${categoryColor}`}>
+                        {categoryLabel}
+                      </span>
+                      <Badge
+                        variant="outline"
+                        className={
+                          isAvail
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold text-xs'
+                            : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 font-semibold text-xs'
+                        }
+                      >
+                        {isAvail ? `Em estoque (${med.totalQuantity} un.)` : 'Em falta'}
+                      </Badge>
+                    </div>
+                    <DialogTitle className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
+                      <Pill className="w-6 h-6 text-emerald-600" />
+                      {med.name}
+                    </DialogTitle>
+                    {med.dosage && (
+                      <DialogDescription className="text-emerald-700 dark:text-emerald-400 font-semibold text-sm">
+                        Dosagem: {med.dosage}
+                      </DialogDescription>
+                    )}
+                  </DialogHeader>
+
+                  {/* Informações Básicas */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs">
+                    <div>
+                      <span className="text-slate-400 block font-medium">Princípio Ativo</span>
+                      <span className="text-slate-800 dark:text-slate-200 font-bold text-sm">
+                        {med.activeIngredient || 'Não informado'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-slate-400 block font-medium">Disponibilidade</span>
+                      <span className="text-slate-800 dark:text-slate-200 font-bold text-sm">
+                        {med.totalQuantity ?? 0} unidades gratuitas
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Orientações ao Paciente */}
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <HeartPulse className="w-4 h-4 text-emerald-600" />
+                      Orientações e Instruções
+                    </h4>
+                    {med.accessibleDesc ? (
+                      <div className="p-3.5 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-xl text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                        {med.accessibleDesc}
+                      </div>
+                    ) : (
+                      <p className="text-xs text-slate-400 italic">
+                        Nenhuma orientação específica registrada para este medicamento.
+                      </p>
+                    )}
+
+                    <div className="flex items-start gap-2 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400">
+                      <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+                      <span>
+                        Apresente a receita médica válida e documento com foto no momento da retirada na Farmácia Escola Universitária.
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Lotes em Estoque (se houver) */}
+                  {med.batchesCount > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                        <Layers className="w-4 h-4 text-teal-600" />
+                        Lotes Registrados ({med.batchesCount})
+                      </h4>
+                      <div className="p-3 bg-teal-50/60 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 rounded-xl text-xs text-slate-700 dark:text-slate-300">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold">Total em Estoque:</span>
+                          <span className="font-bold text-teal-700 dark:text-teal-300">{med.totalQuantity} unidades</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Footer Ações */}
+                  <DialogFooter className="pt-2 gap-2 sm:gap-0">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setSelectedMedicineForDetails(null)}
+                      className="rounded-xl text-xs"
+                    >
+                      Fechar
+                    </Button>
+                    {isAvail && (
+                      <Button
+                        type="button"
+                        onClick={() => {
+                          const currentMed = med;
+                          setSelectedMedicineForDetails(null);
+                          handleOpenAppointmentModal(currentMed);
+                        }}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs gap-1.5 shadow-sm"
+                      >
+                        <Calendar className="w-4 h-4" />
+                        Agendar Retirada
+                      </Button>
+                    )}
+                  </DialogFooter>
+                </div>
+              );
+            })()}
+          </DialogContent>
+        </Dialog>
+
+        {/* ==================== CREATE APPOINTMENT MODAL ==================== */}
+        <Dialog
+          open={selectedMedicineForAppointment !== null}
+          onOpenChange={(open) => {
+            if (!open) setSelectedMedicineForAppointment(null);
+          }}
+        >
+          <DialogContent className="sm:max-w-[500px] rounded-3xl">
+            <DialogHeader>
+              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                <Calendar className="w-5 h-5 text-emerald-600" />
+                Agendar Retirada de Medicamento
+              </DialogTitle>
+              <DialogDescription>
+                {selectedMedicineForAppointment
+                  ? `Agendando: ${selectedMedicineForAppointment.name} ${selectedMedicineForAppointment.dosage ? `(${selectedMedicineForAppointment.dosage})` : ''}`
+                  : 'Preencha as informações para agendar a dispensação.'}
+              </DialogDescription>
+            </DialogHeader>
+
+            <form onSubmit={handleCreateAppointment} className="space-y-4 py-2">
+              {/* Paciente (se staff) */}
+              {!isPatient && (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                    <User className="w-3.5 h-3.5 text-emerald-600" />
+                    Paciente *
+                  </Label>
+                  <Select
+                    value={selectedPatientId ? String(selectedPatientId) : ''}
+                    onValueChange={(val) => setSelectedPatientId(Number(val))}
+                  >
+                    <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                      <SelectValue placeholder="Selecione o paciente..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {patients.map((p) => (
+                        <SelectItem key={p.id} value={String(p.id)} className="text-xs">
+                          {p.name} {p.cpf ? `(CPF: ${p.cpf})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              {/* Data & Horário */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                    Data da Retirada *
+                  </Label>
+                  <Input
+                    type="date"
+                    required
+                    value={appointmentDate}
+                    onChange={(e) => setAppointmentDate(e.target.value)}
+                    className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                    Horário Sugerido
+                  </Label>
+                  <Input
+                    type="time"
+                    value={appointmentTime}
+                    onChange={(e) => setAppointmentTime(e.target.value)}
+                    className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Quantidade */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                    Quantidade de Unidades *
+                  </Label>
+                  <span className="text-[11px] text-slate-400">
+                    Disponível: {selectedMedicineForAppointment?.totalQuantity ?? 0} un.
+                  </span>
+                </div>
+                <Input
+                  type="number"
+                  min={1}
+                  max={selectedMedicineForAppointment?.totalQuantity || 999}
+                  value={appointmentQuantity}
+                  onChange={(e) => setAppointmentQuantity(Math.max(1, Number(e.target.value)))}
+                  className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
+                />
+              </div>
+
+              {/* Observações */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
+                  Observações / Orientações adicionais
+                </Label>
+                <Textarea
+                  rows={2}
+                  placeholder="Informações adicionais para a equipe farmacêutica..."
+                  value={appointmentNotes}
+                  onChange={(e) => setAppointmentNotes(e.target.value)}
+                  className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
+                />
+              </div>
+
+              <DialogFooter className="pt-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setSelectedMedicineForAppointment(null)}
+                  className="rounded-xl text-xs"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  type="submit"
+                  disabled={createAppointmentMutation.isPending}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs"
+                >
+                  {createAppointmentMutation.isPending ? 'Confirmando...' : 'Confirmar Agendamento'}
+                </Button>
+              </DialogFooter>
+            </form>
+          </DialogContent>
+        </Dialog>
+
+        {/* ==================== CREATE MEDICINE MODAL ==================== */}
+        <Dialog open={isCreateMedicineOpen} onOpenChange={setIsCreateMedicineOpen}>
           <DialogContent className="sm:max-w-[500px] rounded-3xl">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
@@ -323,7 +651,7 @@ export default function MedicinesPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-2">
+            <form onSubmit={handleSubmit(onSubmitMedicine)} className="space-y-4 py-2">
               <div className="space-y-1.5">
                 <Label htmlFor="name" className="text-xs font-bold text-slate-600 dark:text-slate-300">
                   Nome do Medicamento *
@@ -396,7 +724,7 @@ export default function MedicinesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsDialogOpen(false)}
+                  onClick={() => setIsCreateMedicineOpen(false)}
                   className="rounded-xl"
                 >
                   Cancelar

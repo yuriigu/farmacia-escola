@@ -65,7 +65,19 @@ describe('UserRepository', () => {
   });
 
   it('deve criar usuário no Prisma', async () => {
-    (prisma.user.create as any).mockResolvedValue(mockUser);
+    const createdMockUser = {
+      id: 1,
+      name: 'Admin Teste',
+      email: 'admin@farmacia.ufba.br',
+      role: 'ADMIN' as const,
+      registerDoc: null,
+      phone: null,
+      active: true,
+      permissions: null,
+      createdAt: mockUser.createdAt,
+      patient: null,
+    };
+    (prisma.user.create as any).mockResolvedValue(createdMockUser);
 
     const created = await userRepo.create({
       name: 'Admin Teste',
@@ -74,7 +86,7 @@ describe('UserRepository', () => {
       role: 'ADMIN' as any,
     });
 
-    expect(created).toEqual(mockUser);
+    expect(created).toEqual(createdMockUser);
     expect(prisma.user.create).toHaveBeenCalled();
   });
 });

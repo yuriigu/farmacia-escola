@@ -54,3 +54,4 @@ volumes:
 networks:
   farmacia-network:
     driver: bridge
+    

@@ -1,0 +1,207 @@
+# Farmácia Escola — Frontend
+
+Farmácia Escola - Frontend
+==========================
+
+Sobre o Módulo
+--------------
+
+O frontend do Farmácia Escola é a interface web moderna, responsiva e acessível do sistema. Ele centraliza a experiência de todos os usuários da aplicação, oferecendo um portal simplificado para a comunidade e um painel operacional completo para estudantes, farmacêuticos e administradores.
+
+Principais Responsabilidades:
+* Portal do Paciente: navegação pelo catálogo de medicamentos com linguagem acessível, agendamento de atendimentos presenciais e consulta de horários.
+* Painel de Controle de Estoque: gerenciamento visual de medicamentos, controle de lotes, alertas de validade, registro de dispensações e descartes.
+* Gestão de Agendamentos e Calendário: controle de capacidade de atendimento por faixa de horário e acompanhamento do fluxo de pacientes.
+* Módulo Administrativo: gerenciamento de usuários, atribuição de perfis de acesso e visualização da trilha de auditoria do sistema.
+
+Stack Tecnológica
+-----------------
+
+Core & Framework:
+* Next.js 16
+* React 19 + React DOM 19
+* TypeScript 5.8
+
+Gerenciamento de Estado & Dados:
+* TanStack React Query v5
+* Zustand v5
+* Axios 1.19
+* js-cookie 3.0
+
+Interface & Estilização:
+* Tailwind CSS v4 + PostCSS
+* Radix UI Primitives & Shadcn UI
+* Lucide React & Recharts
+* next-themes
+* React Hook Form & Zod
+
+Testes & Qualidade:
+* Vitest 4.1 + React Testing Library (Jest-DOM)
+* ESLint 9
+
+Execução com Docker
+-------------------
+
+O frontend conta com uma imagem Docker otimizada baseada em node:22-alpine, configurada para rodar em 0.0.0.0:3000.
+
+1. Executando via Docker Compose
+
+docker compose up -d --build frontend
+
+Para visualizar os logs do contêiner:
+
+docker compose logs -f frontend
+
+2. Executando o Contêiner Standalone
+
+cd frontend
+docker build -t farmacia-frontend .
+docker run -p 3000:3000 \
+  -e PORT=3000 \
+  -e HOSTNAME="0.0.0.0" \
+  -e NEXT_PUBLIC_API_URL="http://localhost:3001" \
+  -e INTERNAL_API_URL="http://localhost:3001" \
+  farmacia-frontend
+
+Execução Local
+--------------
+
+Pré-requisitos:
+* Node.js 18 ou superior (Node.js 22 recomendado)
+* npm 9 ou superior
+* Backend da Farmácia Escola rodando na porta 3001
+
+1. Instalação das Dependências:
+
+cd frontend
+npm install
+
+2. Configuração do Arquivo .env:
+
+Crie o arquivo frontend/.env:
+
+NEXT_PUBLIC_API_URL="http://localhost:3001"
+INTERNAL_API_URL="http://localhost:3001"
+
+3. Inicialização em Modo Desenvolvimento:
+
+npm run dev
+
+A aplicação estará disponível em: http://localhost:3000
+
+4. Build e Execução em Produção:
+
+npm run build
+npm run start
+
+Variáveis de Ambiente
+---------------------
+
+* NEXT_PUBLIC_API_URL: URL pública da API consumida pelo navegador (Exemplo: http://localhost:3001)
+* INTERNAL_API_URL: URL para comunicação interna entre o servidor Next.js e o backend (Exemplo: http://localhost:3001)
+* PORT: Porta de escuta do servidor Next.js (Exemplo: 3000)
+* HOSTNAME: Endereço de escuta da aplicação (Exemplo: 0.0.0.0)
+
+Scripts Disponíveis
+-------------------
+
+* npm run dev — next dev -p 3000 -H 0.0.0.0 (Inicia o servidor com hot-reload)
+* npm run build — next build (Compila o projeto para produção)
+* npm start — next start -p 3000 -H 0.0.0.0 (Executa o servidor Next.js compilado)
+* npm run lint — eslint . (Executa a análise estática do código)
+* npm test — vitest run (Executa a suíte de testes de interface)
+
+Testes Automatizados
+--------------------
+
+O módulo possui testes de componentes e páginas utilizando Vitest e React Testing Library.
+
+* Executar todos os testes: npm test
+
+Estrutura de Diretórios
+-----------------------
+
+frontend/
+├── Dockerfile
+├── components.json
+├── eslint.config.mjs
+├── next.config.ts
+├── package.json
+├── postcss.config.mjs
+├── tailwind.config.ts
+├── tsconfig.json
+├── vitest.config.ts
+├── vitest.setup.ts
+├── README.md
+│
+├── __tests__/
+│
+└── src/
+    ├── app/
+    │   ├── layout.tsx
+    │   ├── page.tsx
+    │   ├── globals.css
+    │   ├── login/
+    │   ├── register/
+    │   ├── dashboard/
+    │   ├── estoque/
+    │   ├── agendamentos/
+    │   ├── calendario/
+    │   ├── pacientes/
+    │   ├── administracao/
+    │   ├── configuracoes/
+    │   └── profile/
+    │
+    ├── components/
+    │   ├── layout/
+    │   ├── modules/
+    │   ├── pages/
+    │   ├── shared/
+    │   └── ui/
+    │
+    ├── config/
+    │   └── rbac.ts
+    ├── hooks/
+    ├── lib/
+    ├── providers/
+    ├── services/
+    ├── types/
+    └── proxy.ts
+
+Arquitetura de Páginas e Rotas
+------------------------------
+
+* / — Portal do Paciente com catálogo acessível e agendamento (Público / Todos)
+* /login — Tela de autenticação com credenciais (Público)
+* /register — Cadastro público de novos pacientes (Público)
+* /dashboard — Painel operacional com métricas de estoque e alertas (Usuários Autenticados)
+* /estoque — Gestão de medicamentos, lotes, retiradas e descartes (ADMIN, FARMACEUTICO, ALUNO)
+* /agendamentos — Controle de solicitações de retirada e dispensações (ADMIN, FARMACEUTICO, MEDICO)
+* /calendario — Grade de horários e gestão de capacidade (ADMIN, FARMACEUTICO, MEDICO)
+* /pacientes — Cadastro de pacientes e histórico de retiradas (ADMIN, FARMACEUTICO)
+* /administracao — Gestão de operadores e visualização de auditoria (ADMIN)
+* /configuracoes — Configurações institucionais da plataforma (ADMIN)
+* /profile — Dados cadastrais e alteração de senha do usuário conectado (Todos)
+
+Padrões de Interface e Design System
+------------------------------------
+
+* Tabela de Dados (DataTable): exibição paginada e estruturada de alta densidade com estados de carregamento (Skeleton) e buscas.
+* Cabeçalhos Padronizados (PageHeader): estrutura única para títulos, ícones descritivos e ações principais.
+* Navegação por Sub-abas (TabsNav): divisão limpa de seções dentro de um mesmo módulo.
+* Acessibilidade e Temas: suporte nativo a temas Claro e Escuro, contraste adequado e notificações contextuais (Sonner Toasts).
+
+Controle de Acesso
+------------------
+
+A autorização de rotas e componentes é gerenciada de forma centralizada em src/config/rbac.ts com suporte aos perfis:
+* ADMIN: Acesso irrestrito a todas as funcionalidades e configurações.
+* FARMACEUTICO: Controle total do estoque, dispensações, horários e pacientes.
+* ALUNO: Operação assistida de lançamentos de estoque e atendimento.
+* MEDICO: Consulta ao catálogo e agenda de atendimentos.
+* PACIENTE: Acesso ao catálogo acessível e solicitações de agendamento.
+
+Licença
+-------
+
+Distribuído sob os termos da licença MIT. Consulte o arquivo LICENSE na raiz do repositório para mais detalhes.

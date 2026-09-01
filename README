@@ -1,0 +1,105 @@
+Farmácia Escola - Sistema de Gestão Farmacêutica Universitária
+=============================================================
+
+Sobre o Projeto
+---------------
+
+O Farmácia Escola é um sistema completo de gestão farmacêutica universitária desenvolvido para o gerenciamento integrado de uma farmácia escola. O projeto nasceu da necessidade de conectar o ensino superior em saúde à comunidade, automatizando a operação, garantindo rastreabilidade e oferecendo um ambiente seguro para o aprendizado supervisionado de estudantes de Farmácia.
+
+Objetivo
+--------
+
+O objetivo principal do Farmácia Escola é simplificar, padronizar e otimizar a gestão de medicamentos e atendimentos em farmácias universitárias, reduzindo perdas de estoque, otimizando o fluxo de retirada e garantindo o cumprimento de exigências regulatórias por meio de auditoria e supervisão.
+
+Problema Resolvido
+------------------
+
+A operação manual ou descentralizada de farmácias universitárias apresenta diversos desafios:
+
+* Fila excessiva e aglomeração de pacientes nos horários de pico.
+* Perda de medicamentos por falta de controle preventivo de validade e lotes.
+* Dificuldade na supervisão de estudantes em atendimentos e dispensações.
+* Comunicação técnica complexa no catálogo de medicamentos para a comunidade.
+* Falta de rastreabilidade de descartes, alterações cadastrais e histórico de retiradas.
+
+O Farmácia Escola resolve esses problemas através de uma interface intuitiva, agendamento de faixas horárias, catálogo acessível e uma rígida trilha de auditoria.
+
+Funcionalidades Principais
+--------------------------
+
+Gerenciamento de Estoque e Lotes:
+* Cadastro detalhado de medicamentos (princípio ativo, dosagem, categoria).
+* Orientações farmacoterapêuticas em linguagem simples e acessível.
+* Controle de estoque multi-lote com validade, data de recebimento e saldo.
+* Alertas visuais e automáticos para medicamentos próximos do vencimento ou vencidos.
+
+Atendimento e Agendamentos:
+* Criação de faixas horárias com controle de capacidade máxima e limite de vagas.
+* Vínculo de preceptores farmacêuticos às faixas de atendimento.
+* Agendamento prévio de retiradas por pacientes.
+* Ciclo de vida completo do agendamento (PENDING, CONFIRMED, COMPLETED, CANCELLED).
+
+Dispensação e Assistência Farmacêutica:
+* Histórico centralizado e atualizado de retiradas por paciente.
+* Baixa automática no saldo do lote no momento da dispensação.
+* Interface assistida para que estudantes realizem atendimentos sob supervisão.
+* Registro e reversão justificada de descartes motivados.
+
+Controle de Acesso e Governança:
+* Sistema de permissões baseado em papéis (ADMIN, FARMACEUTICO, MEDICO, ALUNO, PACIENTE).
+* Trilha de auditoria para acompanhamento de logins, alterações, dispensações e descartes.
+* Autenticação e segurança com criptografia de ponta a ponta.
+
+Tecnologias Utilizadas
+----------------------
+
+Frontend:
+* Next.js 16
+* React 19
+* TypeScript 5
+* Tailwind CSS v4
+* Radix UI & Shadcn UI
+* TanStack React Query v5
+* Zustand v5
+* React Hook Form & Zod
+* Lucide React & Recharts
+
+Backend:
+* Node.js
+* Express.js 4
+* TypeScript 5
+* Prisma ORM 6
+* SQLite
+* JWT
+* Bcrypt.js
+
+Instalação
+----------
+
+Clone o repositório:
+
+git clone https://github.com/yuriigu/farmacia-escola.git
+
+Documentação
+------------
+
+Para instruções detalhadas de instalação, configuração, endpoints e arquitetura do sistema, consulte as documentações específicas:
+
+* Documentação do Backend
+* Documentação do Frontend
+
+Autor
+-----
+
+Yuri Simplicio - https://github.com/yuriigu
+
+Agradecimentos
+--------------
+
+* Professor Anderson Fernandes Burnes
+* Centro Universitário Integrado
+
+Licença
+-------
+
+Este projeto está licenciado sob a Licença MIT. Veja o arquivo LICENSE para mais detalhes.

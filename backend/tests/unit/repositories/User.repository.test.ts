@@ -3,8 +3,9 @@ import { UserRepository } from '../../../src/repositories/UserRepository';
 import { prisma } from '../../../src/utils/Prisma';
 import { mockUser, mockUsersList } from '../../fixtures/Users.fixture';
 
-vi.mock('../../../src/utils/Prisma', () => ({
-  prisma: {
+vi.mock('../../../src/utils/Prisma', () => {
+  const prismaMock: any = {
+    $transaction: vi.fn((cb: any) => cb(prismaMock)),
     user: {
       findUnique: vi.fn(),
       findMany: vi.fn(),
@@ -12,8 +13,15 @@ vi.mock('../../../src/utils/Prisma', () => ({
       update: vi.fn(),
       delete: vi.fn(),
     },
-  },
-}));
+    patient: {
+      create: vi.fn(),
+      update: vi.fn(),
+    },
+  };
+  return {
+    prisma: prismaMock,
+  };
+});
 
 describe('UserRepository', () => {
   let userRepo: UserRepository;

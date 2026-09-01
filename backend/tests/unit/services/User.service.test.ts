@@ -1,7 +1,13 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { UserService } from '../../../src/services/UserService';
 import { UserRepository } from '../../../src/repositories/UserRepository';
-import { mockUser, mockUsersList } from '../../fixtures/Users.fixture';
+import { mockUser, mockUsersList as baseMockUsersList } from '../../fixtures/Users.fixture';
+
+const mockUsersList = baseMockUsersList.map((user) => ({
+  ...user,
+  address: null,
+  birthDate: null,
+}));
 
 vi.mock('../../../src/repositories/UserRepository');
 vi.mock('../../../src/services/ActivityLogService');

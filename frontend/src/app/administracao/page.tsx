@@ -1,32 +1,15 @@
 'use client';
 
 import { Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
 import { AppShell } from '@/components/layout/AppShell';
-import { AdminModule } from '@/components/modules/AdminModule';
-import { getModuleById } from '@/lib/constants';
+import { AdminPage } from '@/components/pages/AdminPage';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 function AdministracaoContent() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const activeModule = getModuleById('administracao');
-  const activeTab = searchParams.get('tab') || activeModule?.defaultTab || 'pacientes';
-
-  const handleTabChange = (tab: string) => {
-    router.push(`/administracao?tab=${tab}`);
-  };
-
-  if (!activeModule) return null;
-
   return (
     <ProtectedRoute allowedRoles={['ADMIN']}>
       <AppShell activeModuleId="administracao" pageTitle="Administração">
-        <AdminModule
-          module={activeModule}
-          activeTab={activeTab}
-          onTabChange={handleTabChange}
-        />
+        <AdminPage />
       </AppShell>
     </ProtectedRoute>
   );

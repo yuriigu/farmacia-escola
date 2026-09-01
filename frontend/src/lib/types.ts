@@ -54,9 +54,18 @@ export interface User {
   role: string;
   registerDoc?: string | null;
   phone?: string | null;
+  birthDate?: string | null;
+  address?: string | null;
   active?: boolean;
   createdAt?: string;
   permissions?: Record<string, boolean> | null;
+  patient?: {
+    id?: number;
+    cpf?: string | null;
+    birthDate?: string | null;
+    address?: string | null;
+    phone?: string | null;
+  } | null;
 }
 
 // Withdrawal matches the formatWithdrawals output from backend

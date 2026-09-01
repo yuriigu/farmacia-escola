@@ -15,7 +15,21 @@ export class UserService {
 
   private sanitizeUser(user: any) {
     const { password, ...userWithoutPassword } = user;
-    return userWithoutPassword;
+    const rawBirthDate = user.birthDate || user.patient?.birthDate || null;
+    const address = user.address || user.patient?.address || null;
+    let birthDateStr: string | null = null;
+    if (rawBirthDate) {
+      if (typeof rawBirthDate === 'string') {
+        birthDateStr = rawBirthDate.split('T')[0];
+      } else if (rawBirthDate instanceof Date && !isNaN(rawBirthDate.getTime())) {
+        birthDateStr = rawBirthDate.toISOString().split('T')[0];
+      }
+    }
+    return {
+      ...userWithoutPassword,
+      birthDate: birthDateStr,
+      address: address || null,
+    };
   }
 
   private validateEmail(email: string) {
@@ -48,6 +62,8 @@ export class UserService {
     role: Role;
     registerDoc?: string | null;
     phone?: string | null;
+    birthDate?: string | Date | null;
+    address?: string | null;
     permissions?: any;
   }) {
     const cleanName = data.name?.trim();
@@ -72,6 +88,8 @@ export class UserService {
       email: cleanEmail,
       phone: data.phone?.trim() || null,
       registerDoc: data.registerDoc?.trim() || null,
+      address: data.address?.trim() || null,
+      birthDate: data.birthDate || null,
       password: hashedPassword,
       permissions: data.role === Role.ALUNO ? data.permissions : undefined,
     });
@@ -94,6 +112,8 @@ export class UserService {
     role?: Role;
     registerDoc?: string | null;
     phone?: string | null;
+    birthDate?: string | Date | null;
+    address?: string | null;
     active?: boolean;
     permissions?: any;
   }) {
@@ -121,7 +141,7 @@ export class UserService {
       updateData.email = cleanEmail;
     }
 
-    if (data.password !== undefined) {
+    if (data.password !== undefined && data.password.trim() !== '') {
       this.validatePassword(data.password);
       updateData.password = await bcrypt.hash(data.password, 10);
     }
@@ -129,6 +149,8 @@ export class UserService {
     if (data.role !== undefined) updateData.role = data.role;
     if (data.phone !== undefined) updateData.phone = data.phone?.trim() || null;
     if (data.registerDoc !== undefined) updateData.registerDoc = data.registerDoc?.trim() || null;
+    if (data.address !== undefined) updateData.address = data.address?.trim() || null;
+    if (data.birthDate !== undefined) updateData.birthDate = data.birthDate || null;
     if (data.active !== undefined) updateData.active = Boolean(data.active);
     if (data.permissions !== undefined) updateData.permissions = data.permissions;
 

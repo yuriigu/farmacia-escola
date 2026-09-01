@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { waitFor } from '@testing-library/dom';
-import { useAgendamento } from '@/hooks/useAgendamento';
+import { useAgendamento } from '@/hooks/UseAgendamento';
 import { agendamentoService } from '@/services/agendamentoService';
 import { mockAppointmentsList, mockScheduleSlot } from '../../fixtures/appointment.fixture';
 

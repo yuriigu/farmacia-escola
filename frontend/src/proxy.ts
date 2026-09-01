@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/navigation';
+import type { NextRequest } from 'next/server';
 import { hasRouteAccess } from './config/rbac';
 
 // Public routes that do not require authentication

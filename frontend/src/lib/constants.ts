@@ -196,15 +196,9 @@ export const MODULES: ModuleConfig[] = [
     label: 'Administração',
     icon: ShieldCheck,
     forbiddenRoles: ['PACIENTE', 'MEDICO', 'ALUNO'],
-    tabs: [
-      { id: 'pacientes', label: 'Pacientes', icon: Users, permission: 'patients' },
-      { id: 'usuarios', label: 'Usuários', icon: ShieldCheck, permission: 'users' },
-    ],
-    defaultTab: 'pacientes',
-    actionLabels: {
-      pacientes: 'Novo Paciente',
-      usuarios: 'Novo Usuário',
-    },
+    tabs: [],
+    defaultTab: '',
+    actionLabels: {},
   },
   {
     id: 'configuracoes',

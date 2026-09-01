@@ -254,3 +254,64 @@ export function useScheduleSlots(params?: { startDate?: string; endDate?: string
     queryFn: () => api.scheduleSlots.getAll(params),
   });
 }
+
+// ==================== USERS ====================
+
+export function useUsers() {
+  return useQuery({
+    queryKey: QUERY_KEYS.users,
+    queryFn: () => api.users.getAll(),
+  });
+}
+
+export function useCreateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: Partial<User> & { password?: string; birthDate?: string; address?: string }) =>
+      api.users.create(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
+      toast.success('Usuário cadastrado com sucesso!');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error || err?.message || 'Erro ao cadastrar usuário.';
+      toast.error(msg);
+    },
+  });
+}
+
+export function useUpdateUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      id,
+      data,
+    }: {
+      id: number;
+      data: Partial<User> & { password?: string; birthDate?: string; address?: string };
+    }) => api.users.update(id, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
+      toast.success('Usuário atualizado com sucesso!');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error || err?.message || 'Erro ao atualizar usuário.';
+      toast.error(msg);
+    },
+  });
+}
+
+export function useDeleteUser() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: number) => api.users.delete(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
+      toast.success('Usuário excluído com sucesso!');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.error || err?.message || 'Erro ao excluir usuário.';
+      toast.error(msg);
+    },
+  });
+}

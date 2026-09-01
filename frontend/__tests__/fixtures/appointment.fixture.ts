@@ -50,11 +50,8 @@ export const mockAppointmentsList: Appointment[] = [
 export const mockScheduleSlot: ScheduleSlot = {
   id: 1,
   date: '2025-10-15',
-  startTime: '08:00',
-  endTime: '12:00',
-  capacity: 10,
-  bookedCount: 2,
+  timeSlot: '08:00 - 12:00',
+  maxCapacity: 10,
   active: true,
   createdAt: '2025-01-01T00:00:00.000Z',
-  updatedAt: '2025-01-01T00:00:00.000Z',
 };

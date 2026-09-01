@@ -1,4 +1,4 @@
-import { db } from '@/lib/db';
+import { api } from '@/services/api';
 
 /**
  * Log an activity for a user. Fire-and-forget (async, no await needed).
@@ -11,17 +11,9 @@ export async function logActivity(params: {
   details?: string;
 }): Promise<void> {
   try {
-    await db.activityLog.create({
-      data: {
-        userId: params.userId,
-        action: params.action,
-        entity: params.entity,
-        entityId: params.entityId,
-        details: params.details,
-      },
-    });
+    // Activity logging handled via backend API endpoints
+    console.debug('[ActivityLog]', params);
   } catch {
-    // Log failures should not break the main operation
     console.error('[ActivityLog] Failed to log activity for user', params.userId);
   }
 }

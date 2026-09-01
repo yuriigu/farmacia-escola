@@ -464,7 +464,7 @@ export default function MedicinesPage() {
                   </div>
 
                   {/* Lotes em Estoque (se houver) */}
-                  {med.batchesCount > 0 && (
+                  {(med.batchesCount ?? 0) > 0 && (
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                         <Layers className="w-4 h-4 text-teal-600" />

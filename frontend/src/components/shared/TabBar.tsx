@@ -59,5 +59,3 @@ export function TabBar({ tabs, activeTab, onTabChange, className = '' }: TabBarP
     </div>
   );
 }
-
-export const TabsNav = TabBar;

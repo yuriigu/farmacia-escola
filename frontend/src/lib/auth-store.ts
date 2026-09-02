@@ -76,7 +76,7 @@ export const useAuthStore = create<AuthState>((set) => ({
 }));
 
 // Helper to get user from localStorage or cookie
-export function getStoredUser(): AuthUser | null {
+function getStoredUser(): AuthUser | null {
   const cookieUser = Cookies.get('user_info');
   if (cookieUser) {
     try {

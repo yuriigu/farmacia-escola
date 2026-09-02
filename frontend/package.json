@@ -7,7 +7,14 @@
     "build": "next build",
     "start": "next start -p 3000 -H 0.0.0.0",
     "lint": "eslint .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "knip": "knip",
+    "knip:fix": "knip --fix --fix-type exports",
+    "knip:deps": "knip --dependencies",
+    "knip:files": "knip --files",
+    "knip:exports": "knip --exports",
+    "knip:json": "knip --reporter json > knip-report.json",
+    "knip:verbose": "knip --reporter verbose"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.1.1",
@@ -46,7 +53,6 @@
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.5.0",
     "js-cookie": "^3.0.8",
-    "jsonwebtoken": "^9.0.3",
     "lucide-react": "^0.525.0",
     "next": "^16.1.1",
     "next-themes": "^0.4.6",
@@ -77,6 +83,7 @@
     "eslint-config-next": "^16.1.1",
     "jest": "^30.5.0",
     "jsdom": "^30.0.1",
+    "knip": "^6.34.0",
     "tailwindcss": "^4",
     "typescript": "5.8.2",
     "vitest": "^4.1.11"

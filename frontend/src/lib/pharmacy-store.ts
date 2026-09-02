@@ -44,12 +44,6 @@ export function fetchBatchesData(): Promise<void> {
     .catch(() => {});
 }
 
-export function fetchPatientsData(): Promise<void> {
-  return api.getPatients()
-    .then((patients) => usePharmacyStore.setState({ patients }))
-    .catch(() => {});
-}
-
 export function fetchScheduleSlotsData(params?: { startDate?: string; endDate?: string }): Promise<void> {
   return api.getScheduleSlots(params)
     .then((scheduleSlots) => usePharmacyStore.setState({ scheduleSlots }))

@@ -34,19 +34,6 @@ export const DEFAULT_ALUNO_PERMISSIONS: Record<PermissionKey, boolean> = {
   scheduleSlots: false,
 };
 
-export const PERMISSION_LABELS: Record<PermissionKey, string> = {
-  inventory: 'Visualizar Estoque',
-  patients: 'Visualizar Pacientes',
-  appointments: 'Agendamentos de Retirada',
-  appointmentsOverview: 'Agenda (Calendário)',
-  batches: 'Gerenciar Lotes',
-  stockManagement: 'Entrada de Lotes',
-  withdrawals: 'Gerenciar Retiradas',
-  disposals: 'Gerenciar Descartes',
-  users: 'Gerenciar Usuários',
-  scheduleSlots: 'Gerenciar Escala de Horários',
-};
-
 /**
  * Check frontend permission for current user
  */
@@ -110,13 +97,6 @@ export function canWriteClient(
   // ALUNO
   const perms = permissions ?? DEFAULT_ALUNO_PERMISSIONS;
   return perms[permKey] ?? false;
-}
-
-/**
- * Check if the current user is an admin.
- */
-export function isAdmin(role: string | undefined | null): boolean {
-  return role === 'ADMIN';
 }
 
 // ==================== ROLE BADGES & PALETTE ====================
@@ -284,45 +264,10 @@ export function getVisibleModules(role: string, permissions?: Record<string, boo
   });
 }
 
-/** Get visible tabs for a given module and role */
-export function getVisibleTabs(module: ModuleConfig, role: string, permissions?: Record<string, boolean> | null): ModuleTab[] {
-  if (!module.tabs.length) return [];
-  return module.tabs.filter((tab) => {
-    if (tab.forbiddenRoles?.includes(role)) return false;
-    if (tab.permission && !checkPermission(role, permissions, tab.permission as PermissionKey)) return false;
-    return true;
-  });
-}
-
 /** Find module config by id */
 export function getModuleById(id: ModuleId): ModuleConfig | undefined {
   return MODULES.find((m) => m.id === id);
 }
-
-// ==================== LEGACY NAVIGATION (kept for internal use) ====================
-export type Page = 'login' | 'register' | 'profile' | 'inventory' | 'stock-management' | 'withdrawals' | 'appointments' | 'appointments-overview' | 'schedule-slots' | 'disposals' | 'patients' | 'admin' | 'settings';
-
-export const MENU_ITEMS: { id: Page; label: string; icon: typeof LayoutDashboard; permission?: PermissionKey }[] = [
-  { id: 'inventory', label: 'Estoque / Medicamentos', icon: Package, permission: 'inventory' },
-  { id: 'appointments-overview', label: 'Agenda (Calendário)', icon: CalendarDays, permission: 'appointmentsOverview' },
-  { id: 'appointments', label: 'Agendamentos de Retirada', icon: Calendar, permission: 'appointments' },
-];
-
-export const PAGE_TITLES: Record<Page, string> = {
-  login: 'Entrar no Sistema',
-  register: 'Criar Conta de Paciente',
-  inventory: 'Estoque & Catálogo de Medicamentos',
-  'stock-management': 'Gestão e Entrada de Lotes',
-  withdrawals: 'Saídas e Retiradas de Pacientes',
-  'appointments-overview': 'Agenda de Retiradas',
-  appointments: 'Agendamentos de Retirada',
-  disposals: 'Registro e Controle de Descartes',
-  patients: 'Cadastro de Pacientes',
-  admin: 'Painel Administrativo de Usuários',
-  settings: 'Configurações do Sistema',
-  profile: 'Meu Perfil',
-  'schedule-slots': 'Escala de Horários',
-};
 
 // ==================== CHART CONFIG ====================
 export const CHART_COLORS = ['#10b981', '#14b8a6', '#f59e0b', '#f43f5e', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16'];
@@ -379,9 +324,6 @@ export const MEDICINE_CATEGORY_COLORS: Record<string, string> = {
   'antidiabetico': 'bg-teal-50 text-teal-700 dark:bg-teal-900/30 dark:text-rose-400',
   'outro': 'bg-slate-50 text-slate-500 dark:bg-slate-800/50 dark:text-slate-400',
 };
-
-// ==================== VERSION ====================
-export const APP_VERSION = 'v1.10.1';
 
 export function getAvatarColor(name: string): string {
   let hash = 0;

@@ -1,9 +1,6 @@
 'use client';
 
-import { api as serviceApi, ActivityLogEntry } from '@/services/api';
-import type { AuthUser, Medicine, Batch, Patient, User, Withdrawal, Disposal, Appointment, ScheduleSlot } from './types';
-
-export type { ActivityLogEntry };
+import { api as serviceApi } from '@/services/api';
 
 export const api = {
   // Auth
@@ -84,5 +81,3 @@ export const api = {
     serviceApi.scheduleSlots.create(data),
   deleteScheduleSlot: (id: number) => serviceApi.scheduleSlots.delete(id),
 };
-
-export default api;

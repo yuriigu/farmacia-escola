@@ -1,0 +1,40 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/app/**/*.{js,jsx,ts,tsx}",
+    "src/app/layout.tsx",
+    "src/app/page.tsx"
+  ],
+  "project": [
+    "src/**/*.{js,jsx,ts,tsx}"
+  ],
+  "ignore": [
+    "**/*.test.{js,jsx,ts,tsx}",
+    "**/*.spec.{js,jsx,ts,tsx}",
+    "src/**/*.d.ts",
+    "src/app/api/**/*.ts"
+  ],
+  "ignoreDependencies": [
+    "@tailwindcss/postcss",
+    "tailwindcss",
+    "tailwindcss-animate",
+    "eslint",
+    "eslint-config-next",
+    "typescript",
+    "@types/node",
+    "@types/react",
+    "@types/react-dom",
+    "@vitejs/plugin-react",
+    "@testing-library/dom",
+    "@testing-library/jest-dom",
+    "@testing-library/react",
+    "@testing-library/user-event",
+    "jest",
+    "jsdom",
+    "vitest",
+    "next",
+    "next-themes",
+    "react-dom"
+  ],
+  "ignoreExportsUsedInFile": true
+}

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/index.ts",
+    "src/server.ts"
+  ],
+  "project": [
+    "src/**/*.ts"
+  ],
+  "ignore": [
+    "**/*.test.ts",
+    "**/*.spec.ts",
+    "src/seed/**",
+    "dist/**",
+    "prisma/**"
+  ],
+  "ignoreDependencies": [
+    "@types/cors",
+    "@types/express",
+    "@types/jsonwebtoken",
+    "@types/node",
+    "@types/supertest",
+    "deepmerge-ts",
+    "nodemon",
+    "ts-node",
+    "typescript",
+    "vitest",
+    "prisma",
+    "@prisma/client"
+  ],
+  "ignoreExportsUsedInFile": true
+}

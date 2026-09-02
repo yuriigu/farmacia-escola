@@ -11,7 +11,14 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "npx ts-node src/seed/seed.ts"
+    "db:seed": "npx ts-node src/seed/seed.ts",
+    "knip": "knip",
+    "knip:fix": "knip --fix --fix-type exports",
+    "knip:deps": "knip --dependencies",
+    "knip:files": "knip --files",
+    "knip:exports": "knip --exports",
+    "knip:json": "knip --reporter json > knip-report.json",
+    "knip:verbose": "knip --reporter verbose"
   },
   "dependencies": {
     "@prisma/client": "^5.22.0",
@@ -29,6 +36,7 @@
     "@types/node": "^22.0.0",
     "@types/supertest": "^7.2.1",
     "deepmerge-ts": "^8.0.2",
+    "knip": "^6.34.0",
     "nodemon": "^3.1.9",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",

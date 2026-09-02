@@ -59,35 +59,6 @@ export function useCreateMedicine() {
   });
 }
 
-export function useUpdateMedicine() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, data }: { id: number; data: Partial<Medicine> }) => api.medicines.update(id, data),
-    onSuccess: (_, variables) => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicine(variables.id) });
-      toast.success('Medicamento atualizado com sucesso!');
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao atualizar medicamento.');
-    },
-  });
-}
-
-export function useDeleteMedicine() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: api.medicines.delete,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
-      toast.success('Medicamento excluído com sucesso!');
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao excluir medicamento.');
-    },
-  });
-}
-
 // ==================== BATCHES (ESTOQUE) ====================
 
 export function useBatches(medicineId?: number) {
@@ -108,27 +79,6 @@ export function useCreateBatch() {
     },
     onError: (err: Error) => {
       toast.error(err.message || 'Erro ao cadastrar lote.');
-    },
-  });
-}
-
-export function useUpdateBatch() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: number;
-      data: { batchNumber?: string; currentQuantity?: number; expirationDate?: string };
-    }) => api.batches.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['batches'] });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
-      toast.success('Lote atualizado com sucesso!');
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao atualizar lote.');
     },
   });
 }
@@ -229,89 +179,5 @@ export function usePatient(id: number | null | undefined) {
     queryKey: ['patients', id || 0],
     queryFn: () => api.patients.getById(id!),
     enabled: Boolean(id && id > 0),
-  });
-}
-
-export function useCreatePatient() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: api.patients.create,
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['patients'] });
-      toast.success('Paciente cadastrado com sucesso!');
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao cadastrar paciente.');
-    },
-  });
-}
-
-// ==================== SCHEDULE SLOTS ====================
-
-export function useScheduleSlots(params?: { startDate?: string; endDate?: string }) {
-  return useQuery({
-    queryKey: QUERY_KEYS.scheduleSlots(params),
-    queryFn: () => api.scheduleSlots.getAll(params),
-  });
-}
-
-// ==================== USERS ====================
-
-export function useUsers() {
-  return useQuery({
-    queryKey: QUERY_KEYS.users,
-    queryFn: () => api.users.getAll(),
-  });
-}
-
-export function useCreateUser() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (data: Partial<User> & { password?: string; birthDate?: string; address?: string }) =>
-      api.users.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
-      toast.success('Usuário cadastrado com sucesso!');
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error || err?.message || 'Erro ao cadastrar usuário.';
-      toast.error(msg);
-    },
-  });
-}
-
-export function useUpdateUser() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({
-      id,
-      data,
-    }: {
-      id: number;
-      data: Partial<User> & { password?: string; birthDate?: string; address?: string };
-    }) => api.users.update(id, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
-      toast.success('Usuário atualizado com sucesso!');
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error || err?.message || 'Erro ao atualizar usuário.';
-      toast.error(msg);
-    },
-  });
-}
-
-export function useDeleteUser() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: (id: number) => api.users.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.users });
-      toast.success('Usuário excluído com sucesso!');
-    },
-    onError: (err: any) => {
-      const msg = err?.response?.data?.error || err?.message || 'Erro ao excluir usuário.';
-      toast.error(msg);
-    },
   });
 }

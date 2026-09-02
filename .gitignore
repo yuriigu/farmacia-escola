@@ -34,3 +34,17 @@ npm-debug.log*
 *.sqlite3
 /prisma/*.db
 /prisma/*.sqlite
+
+# Relatórios gerados pelo Knip
+knip-report.json
+knip-report.*.json
+*.knip-report.json
+
+# Cache do Knip
+.knip/
+.knip-cache/
+
+# Arquivos de configuração do Knip (opcional - mantenha se quiser versionar)
+# knip.json
+# knip.config.js
+# knip.config.ts

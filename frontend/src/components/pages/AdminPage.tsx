@@ -15,19 +15,19 @@ import {
   Search,
   KeyRound,
   FileText,
-  UserCheck,
-  UserX,
+  Download,
   AlertCircle,
 } from 'lucide-react';
 
 import type { User } from '@/lib/types';
-import { getAvatarColor } from '@/lib/constants';
+import { getAvatarColor, downloadCSV } from '@/lib/constants';
 import {
   useUsers,
   useCreateUser,
   useUpdateUser,
   useDeleteUser,
 } from '@/hooks/UseUsers';
+import { RoleBadge } from '@/components/shared/RoleBadge';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/button';
@@ -62,14 +62,6 @@ const ROLE_LABEL: Record<string, string> = {
   PACIENTE: 'Paciente',
 };
 
-const ROLE_BADGE_STYLES: Record<string, string> = {
-  ADMIN: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-400',
-  FARMACEUTICO: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400',
-  MEDICO: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-400',
-  ALUNO: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-400',
-  PACIENTE: 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300',
-};
-
 interface UserFormData {
   name: string;
   email: string;
@@ -95,7 +87,7 @@ const initialFormData: UserFormData = {
 };
 
 export function AdminPage() {
-  const { data: users = [], isLoading, refetch } = useUsers();
+  const { data: users = [], isLoading } = useUsers();
   const createUserMutation = useCreateUser();
   const updateUserMutation = useUpdateUser();
   const deleteUserMutation = useDeleteUser();
@@ -111,7 +103,6 @@ export function AdminPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
-  // Helper for document placeholder & label based on selected role
   const getDocInfo = (role: string) => {
     switch (role) {
       case 'PACIENTE':
@@ -159,6 +150,20 @@ export function AdminPage() {
     });
     setChangePassword(false);
     setModalOpen(true);
+  };
+
+  const handleExportCSV = () => {
+    const header = ['Nome', 'E-mail', 'Perfil', 'Documento', 'Telefone', 'Status'];
+    const rows = filteredUsers.map((u) => [
+      u.name,
+      u.email,
+      ROLE_LABEL[u.role] || u.role,
+      u.registerDoc || u.patient?.cpf || 'N/A',
+      u.phone || u.patient?.phone || 'N/A',
+      u.active ? 'Ativo' : 'Inativo',
+    ]);
+    downloadCSV('usuarios_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
+    toast.success('Relatório de usuários exportado com sucesso!');
   };
 
   const handleSave = async (e: React.FormEvent) => {
@@ -217,7 +222,7 @@ export function AdminPage() {
       setModalOpen(false);
       setEditingUser(null);
     } catch {
-      // Error handled by mutation hook toast
+      // Handled by hook
     }
   };
 
@@ -228,7 +233,7 @@ export function AdminPage() {
         data: { active: !u.active },
       });
     } catch {
-      // Error handled by mutation hook toast
+      // Handled by hook
     }
   };
 
@@ -239,7 +244,7 @@ export function AdminPage() {
       setDeleteConfirmOpen(false);
       setUserToDelete(null);
     } catch {
-      // Error handled by mutation hook toast
+      // Handled by hook
     }
   };
 
@@ -315,14 +320,7 @@ export function AdminPage() {
     {
       header: 'Perfil',
       width: '160px',
-      cell: (u) => {
-        const badgeStyle = ROLE_BADGE_STYLES[u.role] || 'bg-slate-100 text-slate-700 border-slate-200';
-        return (
-          <Badge variant="outline" className={`text-xs font-semibold px-2.5 py-0.5 ${badgeStyle}`}>
-            {ROLE_LABEL[u.role] || u.role}
-          </Badge>
-        );
-      },
+      cell: (u) => <RoleBadge role={u.role} />,
     },
     {
       header: 'Dados Adicionais',
@@ -434,13 +432,24 @@ export function AdminPage() {
         description="Gestão centralizada de contas de acesso, perfis de operadores e registros da Farmácia Escola."
         icon={ShieldCheck}
         actions={
-          <Button
-            onClick={handleOpenCreate}
-            className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition-all active:scale-[0.98]"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Novo Usuário</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExportCSV}
+              disabled={filteredUsers.length === 0}
+              className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
+            >
+              <Download className="w-4 h-4" />
+              <span>Exportar CSV</span>
+            </Button>
+            <Button
+              onClick={handleOpenCreate}
+              className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition-all active:scale-[0.98]"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Usuário</span>
+            </Button>
+          </div>
         }
       />
 
@@ -517,9 +526,9 @@ export function AdminPage() {
         }
       />
 
-      {/* Comprehensive User Create / Edit Modal */}
+      {/* Comprehensive User Create / Edit Modal (LG) */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-[620px] max-h-[90vh] overflow-y-auto rounded-3xl p-6">
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6">
           <DialogHeader>
             <div className="flex items-center gap-2.5">
               <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900">
@@ -727,9 +736,9 @@ export function AdminPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete Confirmation Dialog (SM) */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
-        <DialogContent className="sm:max-w-[420px] rounded-3xl">
+        <DialogContent className="sm:max-w-md rounded-3xl">
           <DialogHeader>
             <div className="w-10 h-10 rounded-2xl bg-rose-50 dark:bg-rose-950/50 text-rose-600 flex items-center justify-center mb-2">
               <AlertCircle className="w-5 h-5" />

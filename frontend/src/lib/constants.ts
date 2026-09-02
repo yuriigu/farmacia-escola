@@ -119,8 +119,36 @@ export function isAdmin(role: string | undefined | null): boolean {
   return role === 'ADMIN';
 }
 
+// ==================== ROLE BADGES & PALETTE ====================
+export const ROLE_LABELS: Record<string, string> = {
+  ADMIN: 'Administrador',
+  FARMACEUTICO: 'Farmacêutico',
+  MEDICO: 'Médico',
+  ALUNO: 'Aluno / Estagiário',
+  PACIENTE: 'Paciente',
+};
+
+export const ROLE_COLORS: Record<string, string> = {
+  ADMIN: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800',
+  FARMACEUTICO: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
+  MEDICO: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800',
+  ALUNO: 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/40 dark:text-sky-300 dark:border-sky-800',
+  PACIENTE: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800',
+};
+
 // ==================== MODULE & TAB SYSTEM ====================
-export type ModuleId = 'dashboard' | 'calendario' | 'estoque' | 'administracao' | 'configuracoes' | 'profile';
+export type ModuleId =
+  | 'dashboard'
+  | 'medicines'
+  | 'estoque'
+  | 'retiradas'
+  | 'descartes'
+  | 'agendamentos'
+  | 'calendario'
+  | 'pacientes'
+  | 'administracao'
+  | 'configuracoes';
+
 export type TabId = string;
 
 export interface ModuleTab {
@@ -136,6 +164,7 @@ export interface ModuleTab {
 export interface ModuleConfig {
   id: ModuleId;
   label: string;
+  path: string;
   icon: typeof LayoutDashboard;
   /** Permission key needed to see this module in sidebar */
   permission?: PermissionKey;
@@ -151,49 +180,83 @@ export const MODULES: ModuleConfig[] = [
   {
     id: 'dashboard',
     label: 'Dashboard',
+    path: '/dashboard',
     icon: LayoutDashboard,
     tabs: [],
     defaultTab: '',
     actionLabels: {},
   },
   {
-    id: 'medicines' as ModuleId,
+    id: 'medicines',
     label: 'Medicamentos',
+    path: '/medicines',
     icon: Package,
     tabs: [],
     defaultTab: '',
     actionLabels: {},
   },
   {
-    id: 'appointments' as ModuleId,
+    id: 'estoque',
+    label: 'Estoque de Lotes',
+    path: '/estoque',
+    icon: Boxes,
+    forbiddenRoles: ['PACIENTE', 'MEDICO'],
+    tabs: [],
+    defaultTab: '',
+    actionLabels: {},
+  },
+  {
+    id: 'retiradas',
+    label: 'Retiradas',
+    path: '/retiradas',
+    icon: ArrowUpRight,
+    forbiddenRoles: ['PACIENTE'],
+    tabs: [],
+    defaultTab: '',
+    actionLabels: {},
+  },
+  {
+    id: 'descartes',
+    label: 'Descartes',
+    path: '/descartes',
+    icon: Trash2,
+    forbiddenRoles: ['PACIENTE', 'MEDICO'],
+    tabs: [],
+    defaultTab: '',
+    actionLabels: {},
+  },
+  {
+    id: 'agendamentos',
     label: 'Agendamentos',
+    path: '/agendamentos',
     icon: Calendar,
     tabs: [],
     defaultTab: '',
     actionLabels: {},
   },
   {
-    id: 'estoque',
-    label: 'Gestão de Estoque',
-    icon: Boxes,
+    id: 'calendario',
+    label: 'Calendário Geral',
+    path: '/calendario',
+    icon: CalendarDays,
+    tabs: [],
+    defaultTab: '',
+    actionLabels: {},
+  },
+  {
+    id: 'pacientes',
+    label: 'Pacientes',
+    path: '/pacientes',
+    icon: Users,
     forbiddenRoles: ['PACIENTE'],
-    tabs: [
-      { id: 'medicamentos', label: 'Medicamentos', icon: Package, permission: 'inventory' },
-      { id: 'lotes', label: 'Entrada de Lotes', icon: Boxes, permission: 'batches', forbiddenRoles: ['PACIENTE'] },
-      { id: 'retiradas', label: 'Retiradas', icon: ArrowUpRight, permission: 'withdrawals' },
-      { id: 'descartes', label: 'Descartes', icon: Trash2, permission: 'disposals', forbiddenRoles: ['PACIENTE', 'MEDICO'] },
-    ],
-    defaultTab: 'medicamentos',
-    actionLabels: {
-      medicamentos: 'Novo Medicamento',
-      lotes: 'Salvar Lote',
-      retiradas: '',
-      descartes: 'Novo Descarte',
-    },
+    tabs: [],
+    defaultTab: '',
+    actionLabels: {},
   },
   {
     id: 'administracao',
     label: 'Administração',
+    path: '/administracao',
     icon: ShieldCheck,
     forbiddenRoles: ['PACIENTE', 'MEDICO', 'ALUNO'],
     tabs: [],
@@ -203,8 +266,8 @@ export const MODULES: ModuleConfig[] = [
   {
     id: 'configuracoes',
     label: 'Configurações',
+    path: '/configuracoes',
     icon: Settings,
-    forbiddenRoles: ['PACIENTE'],
     tabs: [],
     defaultTab: '',
     actionLabels: {},

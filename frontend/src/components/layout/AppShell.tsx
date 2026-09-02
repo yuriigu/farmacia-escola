@@ -5,19 +5,17 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
 import {
-  Pill, LogOut, Menu, XIcon, Sun, Moon, Plus, UserRound,
+  Pill, LogOut, Menu, XIcon, Sun, Moon, UserRound, ChevronRight, Settings
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 import { useAuthStore } from '@/lib/auth-store';
 import { fetchAllData, fetchBatchesData, useDataLoader } from '@/lib/pharmacy-store';
 import {
-  getVisibleModules, getVisibleTabs, getModuleById, canWriteClient,
+  getVisibleModules, getModuleById,
 } from '@/lib/constants';
-import { hasRouteAccess } from '@/config/rbac';
 import type { ModuleId } from '@/lib/constants';
-import { Badge } from '@/components/ui/badge';
+import { RoleBadge } from '@/components/shared/RoleBadge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Button } from '@/components/ui/button';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
@@ -26,17 +24,19 @@ import {
 // Map route path to ModuleId
 const PATH_MODULE_MAP: Record<string, ModuleId> = {
   '/dashboard': 'dashboard',
-  '/medicines': 'medicines' as ModuleId,
-  '/appointments': 'appointments' as ModuleId,
-  '/appointments/new': 'appointments' as ModuleId,
-  '/admin/stock': 'estoque',
+  '/medicines': 'medicines',
   '/estoque': 'estoque',
-  '/calendario': 'appointments' as ModuleId,
-  '/agendamentos': 'appointments' as ModuleId,
-  '/pacientes': 'administracao',
+  '/retiradas': 'retiradas',
+  '/descartes': 'descartes',
+  '/agendamentos': 'agendamentos',
+  '/appointments': 'agendamentos',
+  '/appointments/new': 'agendamentos',
+  '/calendario': 'calendario',
+  '/pacientes': 'pacientes',
   '/administracao': 'administracao',
+  '/admin': 'administracao',
   '/configuracoes': 'configuracoes',
-  '/profile': 'profile',
+  '/profile': 'configuracoes',
 };
 
 interface AppShellProps {
@@ -104,6 +104,8 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     );
   }
 
+  const headerTitle = pageTitle || activeModule?.label || 'Dashboard';
+
   return (
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex">
       <Toaster position="top-right" richColors />
@@ -132,7 +134,7 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
             </div>
             <div>
               <h1 className="font-bold text-white text-base leading-tight">Farmácia Escola</h1>
-              <p className="text-[10px] text-slate-400 font-medium">Sistema de Gestão Farmacêutica</p>
+              <p className="text-[10px] text-slate-400 font-medium">Gestão Integrada Universitária</p>
             </div>
           </Link>
           <button
@@ -143,12 +145,16 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
           </button>
         </div>
 
-        {/* Navigation links using Next.js Link */}
+        {/* Navigation links */}
         <ScrollArea className="flex-1 min-h-0 p-3 space-y-1 relative">
           {visibleModules.map((mod) => {
             const Icon = mod.icon;
-            const href = `/${mod.id}`;
-            const isActive = pathname === href || pathname.startsWith(`${href}/`) || (mod.id === 'calendario' && pathname === '/agendamentos') || (mod.id === 'administracao' && pathname === '/pacientes');
+            const href = mod.path || `/${mod.id}`;
+            const isActive =
+              pathname === href ||
+              (href !== '/dashboard' && pathname.startsWith(`${href}/`)) ||
+              (mod.id === 'agendamentos' && pathname === '/appointments') ||
+              (mod.id === 'administracao' && pathname === '/admin');
             return (
               <Link
                 key={mod.id}
@@ -171,7 +177,7 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
 
       {/* ==================== MAIN CONTENT ==================== */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header */}
+        {/* Header with Breadcrumbs */}
         <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <button
@@ -180,10 +186,14 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div>
-              <h2 className="text-lg sm:text-xl font-bold text-slate-800 dark:text-slate-100">
-                {pageTitle || activeModule?.label || 'Dashboard'}
-              </h2>
+            <div className="flex items-center gap-2 text-xs text-slate-400 dark:text-slate-500">
+              <Link href="/dashboard" className="hover:text-emerald-600 transition-colors">
+                Início
+              </Link>
+              <ChevronRight className="w-3.5 h-3.5" />
+              <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
+                {headerTitle}
+              </span>
             </div>
           </div>
 
@@ -191,40 +201,39 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
             {/* User Profile Dropdown */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <div className="flex items-center gap-2 cursor-pointer">
+                <div className="flex items-center gap-2.5 cursor-pointer">
                   <div className="hidden sm:block text-right">
-                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100 leading-tight">
+                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight">
                       {user?.name || 'Usuário'}
                     </p>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 uppercase tracking-wider">
-                      {user?.role || ''}
-                    </p>
+                    <RoleBadge role={user?.role} className="mt-0.5 text-[10px] py-0 px-2" />
                   </div>
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/50 dark:to-teal-900/50 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-sm ring-2 ring-emerald-200 dark:ring-emerald-800 hover:shadow-lg hover:shadow-emerald-500/20 transition-all">
                     {user?.name?.charAt(0)?.toUpperCase() || 'U'}
                   </div>
                 </div>
               </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64 rounded-xl animate-fade-in-scale">
+              <DropdownMenuContent align="end" className="w-64 rounded-2xl animate-fade-in-scale">
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">
                       {user?.name || 'Usuário'}
                     </p>
                     <p className="text-xs text-slate-400">{user?.email || ''}</p>
-                    <Badge
-                      variant="outline"
-                      className="bg-emerald-50 text-emerald-700 border-emerald-100 w-fit text-[10px] px-1.5 py-0 mt-0.5"
-                    >
-                      {user?.role || ''}
-                    </Badge>
+                    <RoleBadge role={user?.role} className="w-fit text-[10px] mt-1" />
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/profile" className="cursor-pointer gap-2 text-sm flex items-center">
+                  <Link href="/configuracoes?tab=perfil" className="cursor-pointer gap-2 text-sm flex items-center">
                     <UserRound className="w-4 h-4" />
-                    Meu Perfil
+                    Meu Perfil & Senha
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/configuracoes" className="cursor-pointer gap-2 text-sm flex items-center">
+                    <Settings className="w-4 h-4" />
+                    Configurações & Tema
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem

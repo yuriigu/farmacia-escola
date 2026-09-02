@@ -7,26 +7,27 @@ import { z } from 'zod';
 import { toast } from 'sonner';
 import {
   Package, Search, Plus, Calendar,
-  Pill, CheckCircle2, AlertCircle, X, Eye,
-  HeartPulse, ShieldCheck, Layers, Clock, User
+  Pill, X, Eye, HeartPulse, ShieldCheck,
+  Layers, Clock, User, Download
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
 import { useMedicines, useCreateMedicine, useCreateAppointment, usePatients } from '@/services/queries';
 import { useAuthStore } from '@/lib/auth-store';
-import { MEDICINE_CATEGORIES, MEDICINE_CATEGORY_COLORS, MEDICINE_CATEGORY_LABELS } from '@/lib/constants';
+import { MEDICINE_CATEGORIES, downloadCSV } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
+import { CategoryBadge } from '@/components/shared/CategoryBadge';
+import { StockStatusBadge } from '@/components/shared/StockStatusBadge';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Medicine } from '@/lib/types';
+import { computeStockStatus, type Medicine, type StockStatus } from '@/lib/types';
 
 const newMedicineSchema = z.object({
   name: z.string().min(2, 'Nome do medicamento é obrigatório'),
@@ -41,7 +42,6 @@ type NewMedicineFormData = z.infer<typeof newMedicineSchema>;
 export default function MedicinesPage() {
   const user = useAuthStore((s) => s.user);
   const isPatient = user?.role === 'PACIENTE';
-  const isStaff = user?.role === 'ADMIN' || user?.role === 'FARMACEUTICO' || user?.role === 'ALUNO';
   const canCreateMedicine = user?.role === 'ADMIN' || user?.role === 'FARMACEUTICO';
 
   const { data: medicines = [], isLoading } = useMedicines();
@@ -51,7 +51,7 @@ export default function MedicinesPage() {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [stockFilter, setStockFilter] = useState<'all' | 'available' | 'out_of_stock'>('all');
+  const [stockFilter, setStockFilter] = useState<string>('all');
 
   // Modals state
   const [isCreateMedicineOpen, setIsCreateMedicineOpen] = useState(false);
@@ -156,15 +156,33 @@ export default function MedicinesPage() {
       const matchesCategory =
         selectedCategory === 'all' || med.category?.toLowerCase() === selectedCategory.toLowerCase();
 
-      const isAvailable = (med.totalQuantity ?? 0) > 0;
+      const computedStatus = computeStockStatus({ totalQuantity: med.totalQuantity ?? 0 });
       const matchesStock =
         stockFilter === 'all' ||
-        (stockFilter === 'available' && isAvailable) ||
-        (stockFilter === 'out_of_stock' && !isAvailable);
+        stockFilter === computedStatus;
 
       return matchesSearch && matchesCategory && matchesStock;
     });
   }, [medicines, searchTerm, selectedCategory, stockFilter]);
+
+  const handleExportCSV = () => {
+    const header = ['Nome', 'Princípio Ativo', 'Dosagem', 'Categoria', 'Estoque Total', 'Status'];
+    const rows = filteredMedicines.map((m) => {
+      const status = computeStockStatus({ totalQuantity: m.totalQuantity ?? 0 });
+      const statusLabel =
+        status === 'ok' ? 'Em dia' : status === 'low' ? 'Baixo' : status === 'critical' ? 'Crítico' : 'Vencido';
+      return [
+        m.name,
+        m.activeIngredient || '—',
+        m.dosage || '—',
+        m.category || 'Geral',
+        `${m.totalQuantity ?? 0} un.`,
+        statusLabel,
+      ];
+    });
+    downloadCSV('catalogo_medicamentos_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
+    toast.success('Catálogo exportado com sucesso!');
+  };
 
   const columns: Column<Medicine>[] = [
     {
@@ -190,17 +208,8 @@ export default function MedicinesPage() {
     },
     {
       header: 'Categoria',
-      width: '140px',
-      cell: (med) => {
-        const catKey = (med.category || 'outro').toLowerCase();
-        const categoryLabel = MEDICINE_CATEGORY_LABELS[catKey] || med.category || 'Geral';
-        const categoryColor = MEDICINE_CATEGORY_COLORS[catKey] || 'bg-slate-100 text-slate-600';
-        return (
-          <span className={`inline-block px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${categoryColor}`}>
-            {categoryLabel}
-          </span>
-        );
-      },
+      width: '150px',
+      cell: (med) => <CategoryBadge category={med.category} />,
     },
     {
       header: 'Princípio Ativo',
@@ -223,31 +232,10 @@ export default function MedicinesPage() {
     },
     {
       header: 'Status',
-      width: '130px',
+      width: '140px',
       cell: (med) => {
-        const isAvailable = (med.totalQuantity ?? 0) > 0;
-        return (
-          <Badge
-            variant="outline"
-            className={
-              isAvailable
-                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold text-[11px]'
-                : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 font-semibold text-[11px]'
-            }
-          >
-            {isAvailable ? (
-              <span className="flex items-center gap-1">
-                <CheckCircle2 className="w-3 h-3" />
-                Disponível
-              </span>
-            ) : (
-              <span className="flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                Em falta
-              </span>
-            )}
-          </Badge>
-        );
+        const status = computeStockStatus({ totalQuantity: med.totalQuantity ?? 0 });
+        return <StockStatusBadge status={status} />;
       },
     },
     {
@@ -284,7 +272,7 @@ export default function MedicinesPage() {
   ];
 
   return (
-    <AppShell activeModuleId={'medicines' as any} pageTitle="Catálogo de Medicamentos">
+    <AppShell activeModuleId="medicines" pageTitle="Catálogo de Medicamentos">
       <div className="space-y-5 max-w-7xl mx-auto page-enter">
         {/* Standard PageHeader */}
         <PageHeader
@@ -292,19 +280,30 @@ export default function MedicinesPage() {
           description="Consulte medicamentos disponíveis para retirada gratuita na Farmácia Escola Universitária."
           icon={Package}
           actions={
-            canCreateMedicine ? (
+            <div className="flex items-center gap-2">
               <Button
-                onClick={() => setIsCreateMedicineOpen(true)}
-                className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+                variant="outline"
+                onClick={handleExportCSV}
+                disabled={filteredMedicines.length === 0}
+                className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
               >
-                <Plus className="w-4 h-4" />
-                <span>Novo Medicamento</span>
+                <Download className="w-4 h-4" />
+                <span>Exportar CSV</span>
               </Button>
-            ) : undefined
+              {canCreateMedicine && (
+                <Button
+                  onClick={() => setIsCreateMedicineOpen(true)}
+                  className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Novo Medicamento</span>
+                </Button>
+              )}
+            </div>
           }
         />
 
-        {/* Compact Filters */}
+        {/* Standardized Filters Toolbar */}
         <div className="bg-white dark:bg-slate-800 p-3 sm:p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
             {/* Search Input */}
@@ -327,16 +326,17 @@ export default function MedicinesPage() {
               )}
             </div>
 
-            {/* Availability Filter */}
+            {/* Taxonomy Stock Status Filter */}
             <div className="sm:col-span-3">
               <select
                 value={stockFilter}
-                onChange={(e) => setStockFilter(e.target.value as any)}
+                onChange={(e) => setStockFilter(e.target.value)}
                 className="w-full h-9 px-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               >
-                <option value="all">Todas as disponibilidades</option>
-                <option value="available">Apenas em estoque</option>
-                <option value="out_of_stock">Apenas em falta</option>
+                <option value="all">Todos os status</option>
+                <option value="ok">Em dia</option>
+                <option value="low">Baixo</option>
+                <option value="critical">Crítico</option>
               </select>
             </div>
 
@@ -379,38 +379,25 @@ export default function MedicinesPage() {
           onRowClick={(med) => setSelectedMedicineForDetails(med)}
         />
 
-        {/* ==================== MEDICINE DETAILS MODAL ==================== */}
+        {/* ==================== MEDICINE DETAILS MODAL (LG) ==================== */}
         <Dialog
           open={selectedMedicineForDetails !== null}
           onOpenChange={(open) => {
             if (!open) setSelectedMedicineForDetails(null);
           }}
         >
-          <DialogContent className="sm:max-w-[620px] rounded-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
             {selectedMedicineForDetails && (() => {
               const med = selectedMedicineForDetails;
               const isAvail = (med.totalQuantity ?? 0) > 0;
-              const catKey = (med.category || 'outro').toLowerCase();
-              const categoryLabel = MEDICINE_CATEGORY_LABELS[catKey] || med.category || 'Geral';
-              const categoryColor = MEDICINE_CATEGORY_COLORS[catKey] || 'bg-slate-100 text-slate-600';
+              const status = computeStockStatus({ totalQuantity: med.totalQuantity ?? 0 });
 
               return (
                 <div className="space-y-5">
                   <DialogHeader>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-semibold ${categoryColor}`}>
-                        {categoryLabel}
-                      </span>
-                      <Badge
-                        variant="outline"
-                        className={
-                          isAvail
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold text-xs'
-                            : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 font-semibold text-xs'
-                        }
-                      >
-                        {isAvail ? `Em estoque (${med.totalQuantity} un.)` : 'Em falta'}
-                      </Badge>
+                      <CategoryBadge category={med.category} />
+                      <StockStatusBadge status={status} />
                     </div>
                     <DialogTitle className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
                       <Pill className="w-6 h-6 text-emerald-600" />
@@ -432,9 +419,9 @@ export default function MedicinesPage() {
                       </span>
                     </div>
                     <div>
-                      <span className="text-slate-400 block font-medium">Disponibilidade</span>
+                      <span className="text-slate-400 block font-medium">Saldo em Estoque</span>
                       <span className="text-slate-800 dark:text-slate-200 font-bold text-sm">
-                        {med.totalQuantity ?? 0} unidades gratuitas
+                        {med.totalQuantity ?? 0} unidades disponíveis
                       </span>
                     </div>
                   </div>
@@ -463,7 +450,7 @@ export default function MedicinesPage() {
                     </div>
                   </div>
 
-                  {/* Lotes em Estoque (se houver) */}
+                  {/* Lotes Registrados */}
                   {(med.batchesCount ?? 0) > 0 && (
                     <div className="space-y-2">
                       <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -510,14 +497,14 @@ export default function MedicinesPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ==================== CREATE APPOINTMENT MODAL ==================== */}
+        {/* ==================== CREATE APPOINTMENT MODAL (MD) ==================== */}
         <Dialog
           open={selectedMedicineForAppointment !== null}
           onOpenChange={(open) => {
             if (!open) setSelectedMedicineForAppointment(null);
           }}
         >
-          <DialogContent className="sm:max-w-[500px] rounded-3xl">
+          <DialogContent className="sm:max-w-lg rounded-3xl">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
                 <Calendar className="w-5 h-5 text-emerald-600" />
@@ -638,9 +625,9 @@ export default function MedicinesPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ==================== CREATE MEDICINE MODAL ==================== */}
+        {/* ==================== CREATE MEDICINE MODAL (MD) ==================== */}
         <Dialog open={isCreateMedicineOpen} onOpenChange={setIsCreateMedicineOpen}>
-          <DialogContent className="sm:max-w-[500px] rounded-3xl">
+          <DialogContent className="sm:max-w-lg rounded-3xl">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
                 <Package className="w-5 h-5 text-emerald-600" />

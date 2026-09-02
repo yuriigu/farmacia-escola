@@ -1,24 +1,18 @@
 'use client';
 
-import { Suspense } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
-import { ProfilePage } from '@/components/pages/ProfilePage';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
-function ProfileContent() {
-  return (
-    <ProtectedRoute allowedRoles={['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO', 'PACIENTE']}>
-      <AppShell activeModuleId="profile" pageTitle="Meu Perfil">
-        <ProfilePage />
-      </AppShell>
-    </ProtectedRoute>
-  );
-}
+export default function ProfileRedirect() {
+  const router = useRouter();
 
-export default function ProfileRoute() {
+  useEffect(() => {
+    router.replace('/configuracoes?tab=perfil');
+  }, [router]);
+
   return (
-    <Suspense fallback={<div className="p-6 text-slate-500">Carregando perfil...</div>}>
-      <ProfileContent />
-    </Suspense>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-slate-500 text-sm">
+      Redirecionando para Configurações & Perfil...
+    </div>
   );
 }

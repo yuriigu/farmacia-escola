@@ -213,8 +213,16 @@ export interface AppointmentDraft {
   items: AppointmentItemDraft[];
 }
 
-export function computeStockStatus(item: { totalQuantity?: number }): StockStatus {
-  if ((item.totalQuantity ?? 0) <= 0) return 'critical';
-  if ((item.totalQuantity ?? 0) <= 10) return 'low';
+export function computeStockStatus(item: { totalQuantity?: number; expirationDate?: string; isExpired?: boolean }): StockStatus {
+  if (item.isExpired) return 'expired';
+  if (item.expirationDate) {
+    const exp = new Date(item.expirationDate);
+    if (!Number.isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
+      return 'expired';
+    }
+  }
+  const qty = item.totalQuantity ?? 0;
+  if (qty <= 0) return 'critical';
+  if (qty <= 10) return 'low';
   return 'ok';
 }

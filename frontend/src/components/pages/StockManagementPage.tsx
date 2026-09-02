@@ -3,16 +3,16 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import {
-  Boxes, Plus, Search, Package, Pencil, Trash2, Eye, X, Calendar, Clock, ArrowRight
+  Boxes, Plus, Search, Pencil, Trash2, Eye, X, Calendar, Download
 } from 'lucide-react';
 import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/pharmacy-store';
-import type { BatchEntryDraft, Batch } from '@/lib/types';
-import { ExpiryBadge } from '@/components/shared/ExpiryBadge';
+import { computeStockStatus, type BatchEntryDraft, type Batch, type StockStatus } from '@/lib/types';
+import { StockStatusBadge } from '@/components/shared/StockStatusBadge';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import { api } from '@/lib/api';
-import { canWriteClient } from '@/lib/constants';
+import { canWriteClient, downloadCSV } from '@/lib/constants';
 import { useAuthStore } from '@/lib/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,16 +38,13 @@ export function StockManagementPage() {
 
   useEffect(() => {
     fetchBatchesData();
-  }, [fetchBatchesData]);
+  }, []);
 
-  const now = new Date();
-  const getBatchStatus = (expDate: string, qty: number) => {
-    const exp = new Date(expDate);
-    if (qty <= 0) return 'empty';
-    if (exp < now) return 'expired';
-    const diff = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-    if (diff <= 30) return 'expiring';
-    return 'ok';
+  const getBatchStatus = (batch: Batch): StockStatus => {
+    return computeStockStatus({
+      expirationDate: batch.expirationDate,
+      totalQuantity: batch.currentQuantity,
+    });
   };
 
   const filteredBatches = useMemo(() => {
@@ -56,7 +53,7 @@ export function StockManagementPage() {
         !batchSearch ||
         b.batchNumber.toLowerCase().includes(batchSearch.toLowerCase()) ||
         (b.medicine?.name && b.medicine.name.toLowerCase().includes(batchSearch.toLowerCase()));
-      const status = getBatchStatus(b.expirationDate, b.currentQuantity);
+      const status = getBatchStatus(b);
       const matchesStatus = batchStatusFilter === 'all' || status === batchStatusFilter;
       return matchesSearch && matchesStatus;
     });
@@ -64,12 +61,12 @@ export function StockManagementPage() {
 
   const batchWithdrawals = useMemo(() => {
     if (!selectedBatch) return [];
-    return withdrawals.filter((w) => w.batch.id === selectedBatch.id);
+    return withdrawals.filter((w) => w.batch?.id === selectedBatch.id);
   }, [selectedBatch, withdrawals]);
 
   const batchDisposals = useMemo(() => {
     if (!selectedBatch) return [];
-    return disposals.filter((d) => d.batch.id === selectedBatch.id);
+    return disposals.filter((d) => d.batch?.id === selectedBatch.id);
   }, [selectedBatch, disposals]);
 
   const batchHistory = useMemo(() => {
@@ -78,8 +75,8 @@ export function StockManagementPage() {
       items.push({
         type: 'withdrawal',
         date: w.createdAt,
-        description: 'Retirada: ' + w.patient.name + ' (' + w.quantity + ' un.)',
-        userName: w.user.name,
+        description: `Retirada: ${w.patient?.name || 'Paciente'} (${w.quantity} un.)`,
+        userName: w.user?.name || 'Sistema',
         quantity: w.quantity,
       });
     });
@@ -87,13 +84,32 @@ export function StockManagementPage() {
       items.push({
         type: 'disposal',
         date: d.createdAt,
-        description: 'Descarte: ' + d.reason + ' (' + d.quantity + ' un.)',
-        userName: d.user.name,
+        description: `Descarte: ${d.reason} (${d.quantity} un.)`,
+        userName: d.user?.name || 'Sistema',
         quantity: d.quantity,
       });
     });
     return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [batchWithdrawals, batchDisposals]);
+
+  const handleExportCSV = () => {
+    const header = ['Número do Lote', 'Medicamento', 'Dosagem', 'Quantidade', 'Data de Validade', 'Status'];
+    const rows = filteredBatches.map((b) => {
+      const status = getBatchStatus(b);
+      const statusLabel =
+        status === 'ok' ? 'Em dia' : status === 'low' ? 'Baixo' : status === 'critical' ? 'Crítico' : 'Vencido';
+      return [
+        b.batchNumber,
+        b.medicine?.name || 'N/A',
+        b.medicine?.dosage || 'N/A',
+        String(b.currentQuantity),
+        b.expirationDate ? new Date(b.expirationDate).toLocaleDateString('pt-BR') : '-',
+        statusLabel,
+      ];
+    });
+    downloadCSV('estoque_lotes_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
+    toast.success('Relatório de lotes exportado com sucesso!');
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -194,7 +210,7 @@ export function StockManagementPage() {
     },
     {
       header: 'Quantidade',
-      width: '140px',
+      width: '130px',
       cell: (batch) => (
         <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200">
           {batch.currentQuantity} un.
@@ -218,8 +234,11 @@ export function StockManagementPage() {
     },
     {
       header: 'Status',
-      width: '130px',
-      cell: (batch) => <ExpiryBadge expirationDate={batch.expirationDate} />,
+      width: '140px',
+      cell: (batch) => {
+        const status = getBatchStatus(batch);
+        return <StockStatusBadge status={status} />;
+      },
     },
     {
       header: 'Ações',
@@ -274,15 +293,26 @@ export function StockManagementPage() {
         description="Cadastre novas remessas de medicamentos, acompanhe validades e audite o saldo em estoque."
         icon={Boxes}
         actions={
-          canWrite ? (
+          <div className="flex items-center gap-2">
             <Button
-              onClick={() => setCreateOpen(true)}
-              className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+              variant="outline"
+              onClick={handleExportCSV}
+              disabled={filteredBatches.length === 0}
+              className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
             >
-              <Plus className="w-4 h-4" />
-              <span>Novo Lote</span>
+              <Download className="w-4 h-4" />
+              <span>Exportar CSV</span>
             </Button>
-          ) : undefined
+            {canWrite && (
+              <Button
+                onClick={() => setCreateOpen(true)}
+                className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Novo Lote</span>
+              </Button>
+            )}
+          </div>
         }
       />
 
@@ -312,9 +342,9 @@ export function StockManagementPage() {
           {[
             { id: 'all', label: 'Todos os Lotes' },
             { id: 'ok', label: 'Em Dia' },
-            { id: 'expiring', label: 'Vencendo em 30d' },
+            { id: 'low', label: 'Baixo' },
+            { id: 'critical', label: 'Crítico' },
             { id: 'expired', label: 'Vencidos' },
-            { id: 'empty', label: 'Esgotados' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -353,9 +383,9 @@ export function StockManagementPage() {
         onRowClick={(b) => setSelectedBatch(b)}
       />
 
-      {/* Create Batch Dialog */}
+      {/* Create Batch Dialog (MD) */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent className="sm:max-w-[500px] rounded-3xl">
+        <DialogContent className="sm:max-w-lg rounded-3xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
               <Boxes className="w-5 h-5 text-emerald-600" />
@@ -443,9 +473,9 @@ export function StockManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Batch Details / History Dialog */}
+      {/* Batch Details / History Dialog (LG) */}
       <Dialog open={Boolean(selectedBatch && !editOpen && !deleteOpen)} onOpenChange={() => setSelectedBatch(null)}>
-        <DialogContent className="rounded-2xl max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="rounded-2xl sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-2">
@@ -500,9 +530,9 @@ export function StockManagementPage() {
                   </p>
                 </div>
                 <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status de Validade</p>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status do Estoque</p>
                   <div className="mt-1">
-                    <ExpiryBadge expirationDate={selectedBatch.expirationDate} />
+                    <StockStatusBadge status={getBatchStatus(selectedBatch)} />
                   </div>
                 </div>
               </div>
@@ -543,9 +573,9 @@ export function StockManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Batch Dialog */}
+      {/* Edit Batch Dialog (MD) */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="rounded-2xl">
+        <DialogContent className="rounded-2xl sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Editar Lote</DialogTitle>
             <DialogDescription>Atualize os dados do lote cadastrado.</DialogDescription>
@@ -599,7 +629,7 @@ export function StockManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Dialog */}
+      {/* Delete Dialog (SM) */}
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

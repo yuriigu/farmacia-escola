@@ -5,8 +5,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Package, Calendar, ArrowUpRight, Trash2, Clock,
-  CalendarDays, CheckCircle2, AlertCircle, Plus, Search,
-  Boxes, ShieldAlert, Sparkles, User, FileText, ChevronRight
+  CalendarDays, CheckCircle2, AlertTriangle, AlertCircle, Plus, Search,
+  Boxes, ShieldAlert, Sparkles, User, FileText, ChevronRight, CheckCircle
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
@@ -15,6 +15,7 @@ import {
 import { useAuthStore } from '@/lib/auth-store';
 import { useMedicines, useAppointments, useBatches } from '@/services/queries';
 import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES, CHART_COLORS } from '@/lib/constants';
+import { computeStockStatus, type StockStatus } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -24,14 +25,33 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
   const isPatient = user?.role === 'PACIENTE';
-  const isStaff = user?.role === 'ADMIN' || user?.role === 'FARMACEUTICO' || user?.role === 'ALUNO';
 
   const { data: medicines = [], isLoading: loadingMeds } = useMedicines();
   const { data: appointments = [], isLoading: loadingApps } = useAppointments();
   const { data: batches = [], isLoading: loadingBatches } = useBatches();
 
-  const totalStockItems = medicines.reduce((sum, m) => sum + (m.totalQuantity ?? 0), 0);
-  const outOfStockCount = medicines.filter((m) => (m.totalQuantity ?? 0) <= 0).length;
+  const totalStockUnits = useMemo(() => {
+    return medicines.reduce((sum, m) => sum + (m.totalQuantity ?? 0), 0);
+  }, [medicines]);
+
+  // Unified Taxonomy Metrics
+  const stockTaxonomyCounts = useMemo(() => {
+    let ok = 0;
+    let low = 0;
+    let critical = 0;
+    let expired = 0;
+
+    medicines.forEach((m) => {
+      const status = computeStockStatus(m);
+      if (status === 'ok') ok++;
+      else if (status === 'low') low++;
+      else if (status === 'critical') critical++;
+      else if (status === 'expired') expired++;
+    });
+
+    return { ok, low, critical, expired };
+  }, [medicines]);
+
   const activeAppointments = appointments.filter((a) => a.status !== 'CANCELLED');
   const pendingAppointments = appointments.filter((a) => a.status === 'PENDING');
 
@@ -49,7 +69,17 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
       .filter((d) => d.value > 0);
   }, [appointments]);
 
-  // Chart data for stock
+  // Stock status pie data
+  const stockStatusPieData = useMemo(() => {
+    return [
+      { name: 'Em dia', value: stockTaxonomyCounts.ok, color: '#10b981' },
+      { name: 'Baixo', value: stockTaxonomyCounts.low, color: '#f59e0b' },
+      { name: 'Crítico', value: stockTaxonomyCounts.critical, color: '#ef4444' },
+      { name: 'Vencido', value: stockTaxonomyCounts.expired, color: '#9333ea' },
+    ].filter((d) => d.value > 0);
+  }, [stockTaxonomyCounts]);
+
+  // Chart data for top medicines
   const stockByMedData = useMemo(() => {
     return medicines
       .slice(0, 6)
@@ -232,7 +262,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
             Olá, {user?.name?.split(' ')[0] || 'Usuário'}!
           </h1>
           <p className="text-emerald-100 text-sm max-w-xl">
-            Visão consolidada do estoque, agendamentos e atendimento universitário.
+            Visão consolidada do estoque, agendamentos e atendimento universitário com taxonomia unificada.
           </p>
         </div>
 
@@ -251,9 +281,9 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
             asChild
             className="bg-white/20 hover:bg-white/30 text-white rounded-xl font-bold text-xs"
           >
-            <Link href="/admin/stock">
+            <Link href="/estoque">
               <Boxes className="w-4 h-4 mr-1.5" />
-              Gerenciar Lotes
+              Estoque de Lotes
             </Link>
           </Button>
 
@@ -269,8 +299,9 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
         </div>
       </div>
 
-      {/* KPI Cards Grid */}
+      {/* Unified Stock Taxonomy KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+        {/* Total Stock */}
         <Link
           href="/medicines"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all group block"
@@ -282,59 +313,68 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
             <div>
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Total em Estoque</p>
               <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
-                {totalStockItems.toLocaleString('pt-BR')} <span className="text-xs font-normal text-slate-400">un.</span>
+                {totalStockUnits.toLocaleString('pt-BR')} <span className="text-xs font-normal text-slate-400">un.</span>
               </p>
+              <p className="text-[11px] text-emerald-600 font-medium mt-0.5">{medicines.length} itens cadastrados</p>
             </div>
           </div>
         </Link>
 
+        {/* Em Dia */}
         <Link
-          href="/appointments"
-          className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-teal-300 transition-all group block"
+          href="/medicines"
+          className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all group block"
         >
           <div className="flex items-center gap-4">
-            <div className="p-3.5 bg-teal-50 dark:bg-teal-950/40 text-teal-600 rounded-2xl group-hover:scale-110 transition-transform">
-              <Calendar className="w-6 h-6" />
+            <div className="p-3.5 bg-emerald-100/70 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 rounded-2xl group-hover:scale-110 transition-transform">
+              <CheckCircle className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Agendamentos</p>
-              <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
-                {appointments.length}
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Estoque Em Dia</p>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                {stockTaxonomyCounts.ok}
               </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">Saldo seguro e no prazo</p>
             </div>
           </div>
         </Link>
 
+        {/* Baixo / Crítico */}
         <Link
-          href="/admin/stock"
+          href="/medicines"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-amber-300 transition-all group block"
         >
           <div className="flex items-center gap-4">
             <div className="p-3.5 bg-amber-50 dark:bg-amber-950/40 text-amber-600 rounded-2xl group-hover:scale-110 transition-transform">
-              <Boxes className="w-6 h-6" />
+              <AlertTriangle className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Lotes Registrados</p>
-              <p className="text-2xl font-black text-slate-800 dark:text-slate-100">
-                {batches.length}
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Estoque Baixo / Crítico</p>
+              <p className="text-2xl font-black text-amber-600 dark:text-amber-400">
+                {stockTaxonomyCounts.low + stockTaxonomyCounts.critical}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {stockTaxonomyCounts.low} baixo • {stockTaxonomyCounts.critical} crítico
               </p>
             </div>
           </div>
         </Link>
 
+        {/* Vencidos */}
         <Link
-          href="/medicines"
-          className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-rose-300 transition-all group block"
+          href="/estoque"
+          className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-purple-300 transition-all group block"
         >
           <div className="flex items-center gap-4">
-            <div className="p-3.5 bg-rose-50 dark:bg-rose-950/40 text-rose-600 rounded-2xl group-hover:scale-110 transition-transform">
+            <div className="p-3.5 bg-purple-50 dark:bg-purple-950/40 text-purple-600 rounded-2xl group-hover:scale-110 transition-transform">
               <AlertCircle className="w-6 h-6" />
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Itens em Falta</p>
-              <p className="text-2xl font-black text-rose-600 dark:text-rose-400">
-                {outOfStockCount}
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider">Itens Vencidos</p>
+              <p className="text-2xl font-black text-purple-600 dark:text-purple-400">
+                {stockTaxonomyCounts.expired}
               </p>
+              <p className="text-[11px] text-purple-500 font-medium mt-0.5">Necessitam descarte</p>
             </div>
           </div>
         </Link>
@@ -379,23 +419,31 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
           </CardContent>
         </Card>
 
-        {/* Stock by Medicine Bar Chart */}
+        {/* Stock Status Distribution Bar Chart */}
         <Card className="rounded-3xl border-slate-200 dark:border-slate-700 shadow-sm">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-bold flex items-center gap-2">
               <Package className="w-4 h-4 text-emerald-600" />
-              Estoque dos Principais Medicamentos
+              Panorama por Status de Estoque
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {stockByMedData.length > 0 ? (
+            {medicines.length > 0 ? (
               <ResponsiveContainer width="100%" height={240}>
-                <BarChart data={stockByMedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                <BarChart
+                  data={[
+                    { name: 'Em dia', quantidade: stockTaxonomyCounts.ok, fill: '#10b981' },
+                    { name: 'Baixo', quantidade: stockTaxonomyCounts.low, fill: '#f59e0b' },
+                    { name: 'Crítico', quantidade: stockTaxonomyCounts.critical, fill: '#ef4444' },
+                    { name: 'Vencido', quantidade: stockTaxonomyCounts.expired, fill: '#9333ea' },
+                  ]}
+                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                >
                   <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" />
                   <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
                   <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
                   <RechartsTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="quantidade" fill="#10b981" radius={[6, 6, 0, 0]} />
+                  <Bar dataKey="quantidade" radius={[6, 6, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             ) : (

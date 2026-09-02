@@ -7,8 +7,8 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 function ConfiguracoesContent() {
   return (
-    <ProtectedRoute allowedRoles={['ADMIN']}>
-      <AppShell activeModuleId="configuracoes" pageTitle="Configurações">
+    <ProtectedRoute allowedRoles={['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO', 'PACIENTE']}>
+      <AppShell activeModuleId="configuracoes" pageTitle="Configurações & Perfil">
         <SettingsPage />
       </AppShell>
     </ProtectedRoute>

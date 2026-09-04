@@ -8,11 +8,36 @@ export function errorMiddleware(
 ): void {
   console.error('Unhandled API Error:', err);
 
-  const statusCode = err.statusCode || (err.status ? Number(err.status) : 500);
-  const message = err.message || 'Erro interno no servidor';
+  let statusCode = 500;
 
-  res.status(statusCode).json({
-    error: message,
-    ...(process.env.NODE_ENV === 'development' ? { stack: err.stack } : {}),
-  });
+  if (err.statusCode) {
+    statusCode = err.statusCode;
+  } else {
+    if (err.status) {
+      statusCode = Number(err.status);
+    } else {
+      statusCode = 500;
+    }
+  }
+
+  let message = 'Erro interno no servidor';
+
+  if (err.message) {
+    message = err.message;
+  } else {
+    message = 'Erro interno no servidor';
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    res.status(statusCode).json({
+      error: message,
+      stack: err.stack,
+    });
+    return;
+  } else {
+    res.status(statusCode).json({
+      error: message,
+    });
+    return;
+  }
 }

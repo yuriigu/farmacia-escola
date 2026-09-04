@@ -14,9 +14,14 @@ export async function authMiddleware(
 ): Promise<void> {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    if (!authHeader) {
       res.status(401).json({ error: 'Token de autenticação não fornecido' });
       return;
+    } else {
+      if (!authHeader.startsWith('Bearer ')) {
+        res.status(401).json({ error: 'Token de autenticação não fornecido' });
+        return;
+      }
     }
 
     const token = authHeader.split(' ')[1];
@@ -27,20 +32,33 @@ export async function authMiddleware(
       select: { id: true, role: true, active: true, permissions: true, email: true, patient: { select: { id: true } } },
     });
 
-    if (!user || !user.active) {
+    if (!user) {
       res.status(401).json({ error: 'Usuário inativo ou inexistente' });
       return;
+    } else {
+      if (!user.active) {
+        res.status(401).json({ error: 'Usuário inativo ou inexistente' });
+        return;
+      }
+    }
+
+    let patientId: number | null = null;
+    if (user.patient) {
+      patientId = user.patient.id;
+    } else {
+      patientId = null;
     }
 
     req.user = {
       userId: user.id,
       role: user.role as Role,
       email: user.email,
-      patientId: user.patient?.id ?? null,
+      patientId: patientId,
       permissions: user.permissions as Record<string, boolean> | null,
     };
 
     next();
+    return;
   } catch {
     res.status(401).json({ error: 'Token inválido ou expirado' });
     return;

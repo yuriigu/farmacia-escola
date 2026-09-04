@@ -14,6 +14,7 @@ export function authorizeRoles(...allowedRoles: string[]) {
     }
 
     next();
+    return;
   };
 }
 
@@ -24,17 +25,27 @@ export function requirePermission(permissionKey: string) {
       return;
     }
 
-    if (req.user.role === 'ADMIN' || req.user.role === 'FARMACEUTICO') {
-      return next();
+    if (req.user.role === 'ADMIN') {
+      next();
+      return;
+    } else {
+      if (req.user.role === 'FARMACEUTICO') {
+        next();
+        return;
+      }
     }
 
     if (req.user.role === 'ALUNO') {
       const perms = req.user.permissions;
-      if (perms && perms[permissionKey] === true) {
-        return next();
+      if (perms) {
+        if (perms[permissionKey] === true) {
+          next();
+          return;
+        }
       }
     }
 
     res.status(403).json({ error: `Sem permissão de acesso ao recurso: ${permissionKey}` });
+    return;
   };
 }

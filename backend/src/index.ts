@@ -7,17 +7,39 @@ import { errorMiddleware } from './middlewares/ErrorMiddleware';
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3001;
 
-const allowedOrigins = (process.env.FRONTEND_URL || 'http://localhost:3000').split(',');
+let PORT = 3001;
+if (process.env.PORT) {
+  PORT = Number(process.env.PORT);
+} else {
+  PORT = 3001;
+}
+
+let frontendUrl = 'http://localhost:3000';
+if (process.env.FRONTEND_URL) {
+  frontendUrl = process.env.FRONTEND_URL;
+} else {
+  frontendUrl = 'http://localhost:3000';
+}
+const allowedOrigins = frontendUrl.split(',');
 
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
-      return callback(null, true);
+    if (!origin) {
+      callback(null, true);
+      return;
     }
-    return callback(new Error('Origem não permitida pelo CORS'));
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+      return;
+    } else {
+      if (process.env.NODE_ENV === 'development') {
+        callback(null, true);
+        return;
+      }
+    }
+    callback(new Error('Origem não permitida pelo CORS'));
+    return;
   },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
@@ -34,6 +56,7 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
     timestamp: new Date().toISOString()
   });
+  return;
 });
 
 app.use(errorMiddleware);

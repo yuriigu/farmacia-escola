@@ -11,7 +11,7 @@
     "db:push": "prisma db push",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "npx ts-node src/seed/seed.ts",
+    "db:seed": "npx ts-node src/seed/Seed.ts",
     "knip": "knip",
     "knip:fix": "knip --fix --fix-type exports",
     "knip:deps": "knip --dependencies",

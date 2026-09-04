@@ -19,7 +19,9 @@ export class BatchService {
 
   async getById(id: number) {
     const batch = await this.batchRepo.findById(id);
-    if (!batch) throw { statusCode: 404, message: 'Lote não encontrado' };
+    if (!batch) {
+      throw { statusCode: 404, message: 'Lote não encontrado' };
+    }
     return batch;
   }
 
@@ -31,13 +33,29 @@ export class BatchService {
   }) {
     const { medicineId, batchNumber, currentQuantity, expirationDate } = data;
 
-    if (!medicineId || !batchNumber || currentQuantity === undefined || !expirationDate) {
+    if (!medicineId) {
       throw { statusCode: 400, message: 'Todos os campos do lote são obrigatórios' };
+    } else {
+      if (!batchNumber) {
+        throw { statusCode: 400, message: 'Todos os campos do lote são obrigatórios' };
+      } else {
+        if (currentQuantity === undefined) {
+          throw { statusCode: 400, message: 'Todos os campos do lote são obrigatórios' };
+        } else {
+          if (!expirationDate) {
+            throw { statusCode: 400, message: 'Todos os campos do lote são obrigatórios' };
+          }
+        }
+      }
     }
 
     const qty = Number(currentQuantity);
-    if (isNaN(qty) || qty < 0) {
+    if (isNaN(qty)) {
       throw { statusCode: 400, message: 'A quantidade inicial do lote deve ser um número maior ou igual a zero' };
+    } else {
+      if (qty < 0) {
+        throw { statusCode: 400, message: 'A quantidade inicial do lote deve ser um número maior ou igual a zero' };
+      }
     }
 
     const expDate = new Date(expirationDate);
@@ -74,7 +92,9 @@ export class BatchService {
     expirationDate?: string | Date;
   }) {
     const batch = await this.batchRepo.findById(id);
-    if (!batch) throw { statusCode: 404, message: 'Lote não encontrado' };
+    if (!batch) {
+      throw { statusCode: 404, message: 'Lote não encontrado' };
+    }
 
     const updateData: any = {};
 
@@ -84,8 +104,12 @@ export class BatchService {
 
     if (data.currentQuantity !== undefined) {
       const qty = Number(data.currentQuantity);
-      if (isNaN(qty) || qty < 0) {
+      if (isNaN(qty)) {
         throw { statusCode: 400, message: 'A quantidade do lote deve ser um número maior ou igual a zero' };
+      } else {
+        if (qty < 0) {
+          throw { statusCode: 400, message: 'A quantidade do lote deve ser um número maior ou igual a zero' };
+        }
       }
       updateData.currentQuantity = qty;
     }
@@ -113,7 +137,9 @@ export class BatchService {
 
   async delete(userId: number, role: string, id: number) {
     const batch = await this.batchRepo.findById(id);
-    if (!batch) throw { statusCode: 404, message: 'Lote não encontrado' };
+    if (!batch) {
+      throw { statusCode: 404, message: 'Lote não encontrado' };
+    }
 
     await this.batchRepo.delete(id);
 

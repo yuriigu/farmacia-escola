@@ -16,7 +16,9 @@ export class MedicineService {
 
   async getById(id: number) {
     const med = await this.medicineRepo.findById(id);
-    if (!med) throw { statusCode: 404, message: 'Medicamento não encontrado' };
+    if (!med) {
+      throw { statusCode: 404, message: 'Medicamento não encontrado' };
+    }
     return med;
   }
 
@@ -27,8 +29,12 @@ export class MedicineService {
     accessibleDesc?: string;
     category?: string;
   }) {
-    if (!data.name || !data.name.trim()) {
+    if (!data.name) {
       throw { statusCode: 400, message: 'Nome do medicamento é obrigatório' };
+    } else {
+      if (!data.name.trim()) {
+        throw { statusCode: 400, message: 'Nome do medicamento é obrigatório' };
+      }
     }
 
     const medicine = await this.medicineRepo.create({
@@ -55,10 +61,14 @@ export class MedicineService {
     category?: string;
   }) {
     const existing = await this.medicineRepo.findById(id);
-    if (!existing) throw { statusCode: 404, message: 'Medicamento não encontrado' };
+    if (!existing) {
+      throw { statusCode: 404, message: 'Medicamento não encontrado' };
+    }
 
-    if (data.name !== undefined && !data.name.trim()) {
-      throw { statusCode: 400, message: 'Nome do medicamento não pode ser vazio' };
+    if (data.name !== undefined) {
+      if (!data.name.trim()) {
+        throw { statusCode: 400, message: 'Nome do medicamento não pode ser vazio' };
+      }
     }
 
     const updateData = { ...data };
@@ -81,7 +91,9 @@ export class MedicineService {
 
   async delete(userId: number, role: string, id: number) {
     const existing = await this.medicineRepo.findById(id);
-    if (!existing) throw { statusCode: 404, message: 'Medicamento não encontrado' };
+    if (!existing) {
+      throw { statusCode: 404, message: 'Medicamento não encontrado' };
+    }
 
     const deleted = await this.medicineRepo.delete(id);
 

@@ -17,7 +17,15 @@ export class WithdrawalService {
   }
 
   private isAuthorizedRole(role: string): boolean {
-    return role === 'FARMACEUTICO' || role === 'ADMIN';
+    if (role === 'FARMACEUTICO') {
+      return true;
+    } else {
+      if (role === 'ADMIN') {
+        return true;
+      } else {
+        return false;
+      }
+    }
   }
 
   private sanitizeCpf(cpf: string): string {
@@ -25,18 +33,24 @@ export class WithdrawalService {
   }
 
   async getAll(userRole: string, patientId?: number | null) {
-    if (userRole === 'PACIENTE' && patientId) {
-      return this.withdrawalRepo.findAll(patientId);
+    if (userRole === 'PACIENTE') {
+      if (patientId) {
+        return this.withdrawalRepo.findAll(patientId);
+      }
     }
     return this.withdrawalRepo.findAll();
   }
 
   async getById(id: number, userRole: string, patientId?: number | null) {
     const withdrawal = await this.withdrawalRepo.findById(id);
-    if (!withdrawal) throw { statusCode: 404, message: 'Dispensação não encontrada' };
+    if (!withdrawal) {
+      throw { statusCode: 404, message: 'Dispensação não encontrada' };
+    }
 
-    if (userRole === 'PACIENTE' && withdrawal.patientId !== patientId) {
-      throw { statusCode: 403, message: 'Acesso não autorizado à dispensação' };
+    if (userRole === 'PACIENTE') {
+      if (withdrawal.patientId !== patientId) {
+        throw { statusCode: 403, message: 'Acesso não autorizado à dispensação' };
+      }
     }
 
     return withdrawal;
@@ -50,21 +64,49 @@ export class WithdrawalService {
     notes?: string;
     appointmentId?: number;
   }) {
-    const cleanName = data.patientName?.trim();
-    const cleanCpf = data.patientCpf ? this.sanitizeCpf(data.patientCpf) : '';
+    let cleanName = '';
+    if (data.patientName) {
+      cleanName = data.patientName.trim();
+    } else {
+      cleanName = '';
+    }
+
+    let cleanCpf = '';
+    if (data.patientCpf) {
+      cleanCpf = this.sanitizeCpf(data.patientCpf);
+    } else {
+      cleanCpf = '';
+    }
+
     const parsedBatchId = Number(data.batchId);
     const parsedQuantity = Number(data.quantity);
 
-    if (!cleanName || !cleanCpf || !parsedBatchId || !parsedQuantity) {
+    if (!cleanName) {
       throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
+    } else {
+      if (!cleanCpf) {
+        throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
+      } else {
+        if (!parsedBatchId) {
+          throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
+        } else {
+          if (!parsedQuantity) {
+            throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
+          }
+        }
+      }
     }
 
     if (cleanCpf.length !== 11) {
       throw { statusCode: 400, message: 'CPF inválido' };
     }
 
-    if (isNaN(parsedQuantity) || parsedQuantity <= 0) {
+    if (isNaN(parsedQuantity)) {
       throw { statusCode: 400, message: 'A quantidade deve ser maior que zero' };
+    } else {
+      if (parsedQuantity <= 0) {
+        throw { statusCode: 400, message: 'A quantidade deve ser maior que zero' };
+      }
     }
 
     const batch = await this.batchRepo.findById(parsedBatchId);
@@ -84,11 +126,25 @@ export class WithdrawalService {
       });
     }
 
+    let cleanNotes = undefined;
+    if (data.notes) {
+      cleanNotes = data.notes.trim();
+    } else {
+      cleanNotes = undefined;
+    }
+
+    let parsedAppointmentId = undefined;
+    if (data.appointmentId) {
+      parsedAppointmentId = Number(data.appointmentId);
+    } else {
+      parsedAppointmentId = undefined;
+    }
+
     const withdrawal = await this.withdrawalRepo.create({
       patientId: patient.id,
       userId,
-      notes: data.notes?.trim(),
-      appointmentId: data.appointmentId ? Number(data.appointmentId) : undefined,
+      notes: cleanNotes,
+      appointmentId: parsedAppointmentId,
       items: [{ batchId: parsedBatchId, quantity: parsedQuantity }],
     });
 
@@ -107,7 +163,9 @@ export class WithdrawalService {
 
   async update(userId: number, role: string, id: number, data: { notes?: string }) {
     const withdrawal = await this.withdrawalRepo.findById(id);
-    if (!withdrawal) throw { statusCode: 404, message: 'Dispensação não encontrada' };
+    if (!withdrawal) {
+      throw { statusCode: 404, message: 'Dispensação não encontrada' };
+    }
 
     const updateData: { notes?: string } = {};
     if (data.notes !== undefined) {
@@ -131,7 +189,9 @@ export class WithdrawalService {
 
   async delete(userId: number, role: string, id: number) {
     const withdrawal = await this.withdrawalRepo.findById(id);
-    if (!withdrawal) throw { statusCode: 404, message: 'Dispensação não encontrada' };
+    if (!withdrawal) {
+      throw { statusCode: 404, message: 'Dispensação não encontrada' };
+    }
 
     await this.withdrawalRepo.delete(id);
 

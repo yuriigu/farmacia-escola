@@ -8,8 +8,30 @@ export class ActivityLogService {
   }
 
   async log(userId: number, action: string, entity: string, entityId?: number | null, details?: string | null) {
-    if (!userId || !action || !entity) {
+    if (!userId) {
       return null;
+    } else {
+      if (!action) {
+        return null;
+      } else {
+        if (!entity) {
+          return null;
+        }
+      }
+    }
+
+    let resolvedEntityId = null;
+    if (entityId !== undefined && entityId !== null) {
+      resolvedEntityId = entityId;
+    } else {
+      resolvedEntityId = null;
+    }
+
+    let resolvedDetails = null;
+    if (details) {
+      resolvedDetails = details.trim();
+    } else {
+      resolvedDetails = null;
     }
 
     try {
@@ -17,8 +39,8 @@ export class ActivityLogService {
         userId,
         action: action.trim(),
         entity: entity.trim(),
-        entityId: entityId ?? null,
-        details: details ? details.trim() : null,
+        entityId: resolvedEntityId,
+        details: resolvedDetails,
       });
     } catch (err) {
       console.error('Failed to write activity log:', err);
@@ -27,19 +49,62 @@ export class ActivityLogService {
   }
 
   async getLogs(filters: { userId?: number; entity?: string; page?: number; limit?: number }) {
-    const page = Math.max(1, Number(filters.page) || 1);
-    const limit = Math.min(100, Math.max(1, Number(filters.limit) || 50));
+    let pageNumber = 1;
+    if (filters.page) {
+      pageNumber = Number(filters.page);
+    } else {
+      pageNumber = 1;
+    }
+    const page = Math.max(1, pageNumber);
+
+    let limitNumber = 50;
+    if (filters.limit) {
+      limitNumber = Number(filters.limit);
+    } else {
+      limitNumber = 50;
+    }
+    const limit = Math.min(100, Math.max(1, limitNumber));
     const skip = (page - 1) * limit;
 
-    const parsedUserId = filters.userId ? Number(filters.userId) : undefined;
-    const cleanEntity = filters.entity?.trim() || undefined;
+    let parsedUserId = undefined;
+    if (filters.userId) {
+      parsedUserId = Number(filters.userId);
+    } else {
+      parsedUserId = undefined;
+    }
+
+    let cleanEntity = undefined;
+    if (filters.entity) {
+      cleanEntity = filters.entity.trim();
+    } else {
+      cleanEntity = undefined;
+    }
+
+    let filterUserId = undefined;
+    if (parsedUserId) {
+      if (!isNaN(parsedUserId)) {
+        filterUserId = parsedUserId;
+      } else {
+        filterUserId = undefined;
+      }
+    } else {
+      filterUserId = undefined;
+    }
 
     const { logs, total } = await this.logRepo.findMany({
-      userId: parsedUserId && !isNaN(parsedUserId) ? parsedUserId : undefined,
+      userId: filterUserId,
       entity: cleanEntity,
       skip,
       take: limit,
     });
+
+    let calculatedTotalPages = Math.ceil(total / limit);
+    let totalPages = 1;
+    if (calculatedTotalPages) {
+      totalPages = calculatedTotalPages;
+    } else {
+      totalPages = 1;
+    }
 
     return {
       logs,
@@ -47,19 +112,25 @@ export class ActivityLogService {
         page,
         limit,
         total,
-        totalPages: Math.ceil(total / limit) || 1,
+        totalPages,
       },
     };
   }
 
   async getById(id: number) {
     const numericId = Number(id);
-    if (!numericId || isNaN(numericId)) {
+    if (!numericId) {
       throw { statusCode: 400, message: 'ID de log inválido' };
+    } else {
+      if (isNaN(numericId)) {
+        throw { statusCode: 400, message: 'ID de log inválido' };
+      }
     }
 
     const log = await this.logRepo.findById(numericId);
-    if (!log) throw { statusCode: 404, message: 'Log de atividade não encontrado' };
+    if (!log) {
+      throw { statusCode: 404, message: 'Log de atividade não encontrado' };
+    }
     return log;
   }
 }

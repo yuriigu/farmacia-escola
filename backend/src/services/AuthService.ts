@@ -20,13 +20,21 @@ export class AuthService {
   }
 
   async login(email: string, password: string) {
-    if (!email || !password) {
+    if (!email) {
       throw { statusCode: 400, message: 'Email e senha são obrigatórios' };
+    } else {
+      if (!password) {
+        throw { statusCode: 400, message: 'Email e senha são obrigatórios' };
+      }
     }
 
     const user = await this.userRepo.findByEmail(email);
-    if (!user || !user.active) {
+    if (!user) {
       throw { statusCode: 401, message: 'Credenciais inválidas ou usuário inativo' };
+    } else {
+      if (!user.active) {
+        throw { statusCode: 401, message: 'Credenciais inválidas ou usuário inativo' };
+      }
     }
 
     const valid = await bcrypt.compare(password, user.password);
@@ -34,11 +42,18 @@ export class AuthService {
       throw { statusCode: 401, message: 'Credenciais inválidas' };
     }
 
+    let userPatientId = null;
+    if (user.patient) {
+      userPatientId = user.patient.id;
+    } else {
+      userPatientId = null;
+    }
+
     const token = generateToken({
       userId: user.id,
       role: user.role as Role,
       email: user.email,
-      patientId: user.patient?.id ?? null,
+      patientId: userPatientId,
     });
 
     const { password: _, ...userWithoutPassword } = user;
@@ -47,7 +62,7 @@ export class AuthService {
       token,
       user: {
         ...userWithoutPassword,
-        patientId: user.patient?.id ?? null,
+        patientId: userPatientId,
       },
     };
   }
@@ -63,8 +78,20 @@ export class AuthService {
   }) {
     const { name, email, password, cpf, phone, birthDate, address } = data;
 
-    if (!name || !email || !password || !cpf) {
+    if (!name) {
       throw { statusCode: 400, message: 'Nome, email, senha e CPF são obrigatórios' };
+    } else {
+      if (!email) {
+        throw { statusCode: 400, message: 'Nome, email, senha e CPF são obrigatórios' };
+      } else {
+        if (!password) {
+          throw { statusCode: 400, message: 'Nome, email, senha e CPF são obrigatórios' };
+        } else {
+          if (!cpf) {
+            throw { statusCode: 400, message: 'Nome, email, senha e CPF são obrigatórios' };
+          }
+        }
+      }
     }
 
     if (!this.isValidCPF(cpf)) {
@@ -95,12 +122,19 @@ export class AuthService {
         include: { patient: true },
       });
 
+      let birthDateObj = null;
+      if (birthDate) {
+        birthDateObj = new Date(birthDate);
+      } else {
+        birthDateObj = null;
+      }
+
       const patient = await tx.patient.create({
         data: {
           name,
           cpf,
           phone,
-          birthDate: birthDate ? new Date(birthDate) : null,
+          birthDate: birthDateObj,
           address,
           userId: newUser.id,
         },
@@ -109,11 +143,18 @@ export class AuthService {
       return { ...newUser, patient };
     });
 
+    let newPatientId = null;
+    if (user.patient) {
+      newPatientId = user.patient.id;
+    } else {
+      newPatientId = null;
+    }
+
     const token = generateToken({
       userId: user.id,
       role: user.role as Role,
       email: user.email,
-      patientId: user.patient?.id ?? null,
+      patientId: newPatientId,
     });
 
     const { password: _, ...userWithoutPassword } = user;
@@ -122,7 +163,7 @@ export class AuthService {
       token,
       user: {
         ...userWithoutPassword,
-        patientId: user.patient?.id ?? null,
+        patientId: newPatientId,
       },
     };
   }
@@ -133,10 +174,17 @@ export class AuthService {
       throw { statusCode: 404, message: 'Usuário não encontrado' };
     }
 
+    let userPatientId = null;
+    if (user.patient) {
+      userPatientId = user.patient.id;
+    } else {
+      userPatientId = null;
+    }
+
     const { password: _, ...userWithoutPassword } = user;
     return {
       ...userWithoutPassword,
-      patientId: user.patient?.id ?? null,
+      patientId: userPatientId,
     };
   }
 
@@ -147,8 +195,12 @@ export class AuthService {
     }
 
     const updateData: any = {};
-    if (data.name) updateData.name = data.name;
-    if (data.phone !== undefined) updateData.phone = data.phone;
+    if (data.name) {
+      updateData.name = data.name;
+    }
+    if (data.phone !== undefined) {
+      updateData.phone = data.phone;
+    }
 
     if (data.newPassword) {
       if (!data.currentPassword) {
@@ -163,11 +215,19 @@ export class AuthService {
 
     const updated = await this.userRepo.update(userId, updateData);
     const { password: _, ...userWithoutPassword } = updated as any;
+
+    let userPatientId = null;
+    if (user.patient) {
+      userPatientId = user.patient.id;
+    } else {
+      userPatientId = null;
+    }
+
     return {
       message: 'Perfil atualizado com sucesso',
       user: {
         ...userWithoutPassword,
-        patientId: user.patient?.id ?? null,
+        patientId: userPatientId,
       },
     };
   }

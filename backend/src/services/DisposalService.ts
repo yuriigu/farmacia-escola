@@ -19,7 +19,9 @@ export class DisposalService {
 
   async getById(id: number) {
     const disposal = await this.disposalRepo.findById(id);
-    if (!disposal) throw { statusCode: 404, message: 'Descarte não encontrado' };
+    if (!disposal) {
+      throw { statusCode: 404, message: 'Descarte não encontrado' };
+    }
     return disposal;
   }
 
@@ -30,8 +32,12 @@ export class DisposalService {
   }) {
     const { batchId, quantity, reason } = data;
 
-    if (!batchId || !quantity) {
+    if (!batchId) {
       throw { statusCode: 400, message: 'Lote e Quantidade são obrigatórios' };
+    } else {
+      if (!quantity) {
+        throw { statusCode: 400, message: 'Lote e Quantidade são obrigatórios' };
+      }
     }
 
     if (quantity <= 0) {
@@ -54,12 +60,19 @@ export class DisposalService {
       reason,
     });
 
+    let reasonText = 'Não informado';
+    if (reason) {
+      reasonText = reason;
+    } else {
+      reasonText = 'Não informado';
+    }
+
     await this.logService.log(
       userId,
       'create',
       'disposals',
       disposal.id,
-      `Registrou descarte de ${quantity} un. do lote ${batch.batchNumber}. Motivo: ${reason || 'Não informado'}`
+      `Registrou descarte de ${quantity} un. do lote ${batch.batchNumber}. Motivo: ${reasonText}`
     );
 
     return disposal;
@@ -67,7 +80,9 @@ export class DisposalService {
 
   async update(userId: number, role: string, id: number, data: { reason?: string }) {
     const disposal = await this.disposalRepo.findById(id);
-    if (!disposal) throw { statusCode: 404, message: 'Descarte não encontrado' };
+    if (!disposal) {
+      throw { statusCode: 404, message: 'Descarte não encontrado' };
+    }
 
     const updated = await this.disposalRepo.update(id, data);
 
@@ -84,7 +99,9 @@ export class DisposalService {
 
   async delete(userId: number, role: string, id: number) {
     const disposal = await this.disposalRepo.findById(id);
-    if (!disposal) throw { statusCode: 404, message: 'Descarte não encontrado' };
+    if (!disposal) {
+      throw { statusCode: 404, message: 'Descarte não encontrado' };
+    }
 
     await this.disposalRepo.delete(id);
 
@@ -101,7 +118,9 @@ export class DisposalService {
 
   async revert(userId: number, role: string, disposalId: number) {
     const disposal = await this.disposalRepo.findById(disposalId);
-    if (!disposal) throw { statusCode: 404, message: 'Descarte não encontrado' };
+    if (!disposal) {
+      throw { statusCode: 404, message: 'Descarte não encontrado' };
+    }
 
     const reverted = await this.disposalRepo.revert(disposalId);
 

@@ -23,25 +23,44 @@ export class AppointmentService {
   async getAll(role: string, userId: number, patientId?: number | null) {
     if (role === 'PACIENTE') {
       const patient = await this.patientRepo.findByUserId(userId);
-      if (!patient) return [];
+      if (!patient) {
+        return [];
+      }
       return this.appointmentRepo.findAll(patient.id);
     }
-    return this.appointmentRepo.findAll(patientId ?? undefined);
+
+    let targetId = undefined;
+    if (patientId !== null && patientId !== undefined) {
+      targetId = patientId;
+    } else {
+      targetId = undefined;
+    }
+    return this.appointmentRepo.findAll(targetId);
   }
 
   async getById(id: number, user: { userId: number; role: string }) {
     const numericId = Number(id);
-    if (!numericId || isNaN(numericId)) {
+    if (!numericId) {
       throw { statusCode: 400, message: 'ID de agendamento inválido' };
+    } else {
+      if (isNaN(numericId)) {
+        throw { statusCode: 400, message: 'ID de agendamento inválido' };
+      }
     }
 
     const appt = await this.appointmentRepo.findById(numericId);
-    if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
+    if (!appt) {
+      throw { statusCode: 404, message: 'Agendamento não encontrado' };
+    }
 
     if (user.role === 'PACIENTE') {
       const patient = await this.patientRepo.findByUserId(user.userId);
-      if (!patient || appt.patientId !== patient.id) {
+      if (!patient) {
         throw { statusCode: 403, message: 'Acesso não autorizado ao agendamento' };
+      } else {
+        if (appt.patientId !== patient.id) {
+          throw { statusCode: 403, message: 'Acesso não autorizado ao agendamento' };
+        }
       }
     }
 
@@ -69,14 +88,30 @@ export class AppointmentService {
       throw { statusCode: 400, message: 'Data de agendamento inválida' };
     }
 
-    if (!items || !Array.isArray(items) || items.length === 0) {
+    if (!items) {
       throw { statusCode: 400, message: 'Ao menos um medicamento deve ser adicionado ao agendamento' };
+    } else {
+      if (!Array.isArray(items)) {
+        throw { statusCode: 400, message: 'Ao menos um medicamento deve ser adicionado ao agendamento' };
+      } else {
+        if (items.length === 0) {
+          throw { statusCode: 400, message: 'Ao menos um medicamento deve ser adicionado ao agendamento' };
+        }
+      }
     }
 
-    const numericSlotId = slotId ? Number(slotId) : undefined;
+    let numericSlotId = undefined;
+    if (slotId) {
+      numericSlotId = Number(slotId);
+    } else {
+      numericSlotId = undefined;
+    }
+
     if (numericSlotId) {
       const slot = await this.slotRepo.findById(numericSlotId);
-      if (!slot) throw { statusCode: 404, message: 'Horário de escala não encontrado' };
+      if (!slot) {
+        throw { statusCode: 404, message: 'Horário de escala não encontrado' };
+      }
       const currentCount = await prisma.appointment.count({ where: { slotId: numericSlotId } });
       if (currentCount >= slot.maxCapacity) {
         throw { statusCode: 400, message: 'Este horário de atendimento já atingiu a capacidade máxima' };
@@ -87,57 +122,108 @@ export class AppointmentService {
       const medId = Number(item.medicineId);
       const qty = Number(item.quantity);
 
-      if (!medId || isNaN(medId) || !qty || isNaN(qty) || qty <= 0) {
+      if (!medId) {
         throw { statusCode: 400, message: 'Todos os medicamentos devem ter ID válido e quantidade positiva' };
+      } else {
+        if (isNaN(medId)) {
+          throw { statusCode: 400, message: 'Todos os medicamentos devem ter ID válido e quantidade positiva' };
+        } else {
+          if (!qty) {
+            throw { statusCode: 400, message: 'Todos os medicamentos devem ter ID válido e quantidade positiva' };
+          } else {
+            if (isNaN(qty)) {
+              throw { statusCode: 400, message: 'Todos os medicamentos devem ter ID válido e quantidade positiva' };
+            } else {
+              if (qty <= 0) {
+                throw { statusCode: 400, message: 'Todos os medicamentos devem ter ID válido e quantidade positiva' };
+              }
+            }
+          }
+        }
       }
+
       const med = await this.medicineRepo.findById(medId);
       if (!med) {
         throw { statusCode: 404, message: `Medicamento #${medId} não encontrado` };
       }
     }
 
-    let targetPatientId = patientId ? Number(patientId) : undefined;
+    let targetPatientId = undefined;
+    if (patientId) {
+      targetPatientId = Number(patientId);
+    } else {
+      targetPatientId = undefined;
+    }
 
     if (user.role === 'PACIENTE') {
       const patient = await this.patientRepo.findByUserId(user.userId);
-      if (!patient) throw { statusCode: 404, message: 'Perfil de paciente não encontrado' };
+      if (!patient) {
+        throw { statusCode: 404, message: 'Perfil de paciente não encontrado' };
+      }
       targetPatientId = patient.id;
-    } else if (user.role === 'MEDICO') {
-      if (patientCpf) {
-        const cleanCpf = patientCpf.replace(/\D/g, '');
-        let patient = await this.patientRepo.findByCpf(cleanCpf);
-        if (!patient && patientName) {
-          patient = await this.patientRepo.create({
-            name: patientName.trim(),
-            cpf: cleanCpf,
-          });
-        } else if (!patient) {
-          throw { statusCode: 400, message: 'Nome do paciente é obrigatório para cadastrar novo prontuário' };
-        }
-        targetPatientId = patient.id;
-      } else if (!targetPatientId) {
-        throw { statusCode: 400, message: 'CPF ou ID do paciente é obrigatório' };
-      }
     } else {
-      if (!targetPatientId) {
-        throw { statusCode: 400, message: 'ID do paciente é obrigatório' };
+      if (user.role === 'MEDICO') {
+        if (patientCpf) {
+          const cleanCpf = patientCpf.replace(/\D/g, '');
+          let patient = await this.patientRepo.findByCpf(cleanCpf);
+          if (!patient) {
+            if (patientName) {
+              patient = await this.patientRepo.create({
+                name: patientName.trim(),
+                cpf: cleanCpf,
+              });
+            } else {
+              throw { statusCode: 400, message: 'Nome do paciente é obrigatório para cadastrar novo prontuário' };
+            }
+          }
+          targetPatientId = patient.id;
+        } else {
+          if (!targetPatientId) {
+            throw { statusCode: 400, message: 'CPF ou ID do paciente é obrigatório' };
+          }
+        }
+      } else {
+        if (!targetPatientId) {
+          throw { statusCode: 400, message: 'ID do paciente é obrigatório' };
+        }
       }
+    }
+
+    let cleanScheduledTime = undefined;
+    if (scheduledTime) {
+      cleanScheduledTime = scheduledTime.trim();
+    } else {
+      cleanScheduledTime = undefined;
+    }
+
+    let cleanNotes = undefined;
+    if (notes) {
+      cleanNotes = notes.trim();
+    } else {
+      cleanNotes = undefined;
     }
 
     const appointment = await this.appointmentRepo.create({
       patientId: targetPatientId,
       scheduledDate: parsedDate,
-      scheduledTime: scheduledTime?.trim(),
+      scheduledTime: cleanScheduledTime,
       slotId: numericSlotId,
-      notes: notes?.trim(),
+      notes: cleanNotes,
       items: items.map(i => ({ medicineId: Number(i.medicineId), quantity: Number(i.quantity) })),
     });
+
+    let appointmentLogId = null;
+    if (appointment) {
+      appointmentLogId = appointment.id;
+    } else {
+      appointmentLogId = null;
+    }
 
     await this.logService.log(
       user.userId,
       'create',
       'appointments',
-      appointment?.id,
+      appointmentLogId,
       `Criou agendamento de dispensação para paciente #${targetPatientId}`
     );
 
@@ -146,30 +232,51 @@ export class AppointmentService {
 
   async updateStatus(userId: number, role: string, id: number, status: string, notes?: string) {
     const numericId = Number(id);
-    if (!numericId || isNaN(numericId)) {
+    if (!numericId) {
       throw { statusCode: 400, message: 'ID de agendamento inválido' };
+    } else {
+      if (isNaN(numericId)) {
+        throw { statusCode: 400, message: 'ID de agendamento inválido' };
+      }
     }
 
-    if (!status || !status.trim()) {
+    if (!status) {
       throw { statusCode: 400, message: 'Status é obrigatório' };
+    } else {
+      if (!status.trim()) {
+        throw { statusCode: 400, message: 'Status é obrigatório' };
+      }
     }
 
     const appt = await this.appointmentRepo.findById(numericId);
-    if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
+    if (!appt) {
+      throw { statusCode: 404, message: 'Agendamento não encontrado' };
+    }
 
     const normalizedStatus = status.trim().toUpperCase();
 
     if (role === 'PACIENTE') {
       const patient = await this.patientRepo.findByUserId(userId);
-      if (!patient || appt.patientId !== patient.id) {
+      if (!patient) {
         throw { statusCode: 403, message: 'Acesso não autorizado: você só pode alterar seus próprios agendamentos' };
+      } else {
+        if (appt.patientId !== patient.id) {
+          throw { statusCode: 403, message: 'Acesso não autorizado: você só pode alterar seus próprios agendamentos' };
+        }
       }
       if (normalizedStatus !== 'CANCELLED') {
         throw { statusCode: 403, message: 'Pacientes só têm permissão para cancelar seus próprios agendamentos' };
       }
     }
 
-    const updated = await this.appointmentRepo.updateStatus(numericId, normalizedStatus, notes?.trim());
+    let cleanNotes = undefined;
+    if (notes) {
+      cleanNotes = notes.trim();
+    } else {
+      cleanNotes = undefined;
+    }
+
+    const updated = await this.appointmentRepo.updateStatus(numericId, normalizedStatus, cleanNotes);
 
     await this.logService.log(
       userId,
@@ -190,20 +297,32 @@ export class AppointmentService {
     status?: string;
   }) {
     const numericId = Number(id);
-    if (!numericId || isNaN(numericId)) {
+    if (!numericId) {
       throw { statusCode: 400, message: 'ID de agendamento inválido' };
+    } else {
+      if (isNaN(numericId)) {
+        throw { statusCode: 400, message: 'ID de agendamento inválido' };
+      }
     }
 
     const appt = await this.appointmentRepo.findById(numericId);
-    if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
+    if (!appt) {
+      throw { statusCode: 404, message: 'Agendamento não encontrado' };
+    }
 
     if (role === 'PACIENTE') {
       const patient = await this.patientRepo.findByUserId(userId);
-      if (!patient || appt.patientId !== patient.id) {
+      if (!patient) {
         throw { statusCode: 403, message: 'Acesso não autorizado: você só pode alterar seus próprios agendamentos' };
+      } else {
+        if (appt.patientId !== patient.id) {
+          throw { statusCode: 403, message: 'Acesso não autorizado: você só pode alterar seus próprios agendamentos' };
+        }
       }
-      if (data.status && data.status.trim().toUpperCase() !== 'CANCELLED') {
-        throw { statusCode: 403, message: 'Pacientes só têm permissão para cancelar seus próprios agendamentos' };
+      if (data.status) {
+        if (data.status.trim().toUpperCase() !== 'CANCELLED') {
+          throw { statusCode: 403, message: 'Pacientes só têm permissão para cancelar seus próprios agendamentos' };
+        }
       }
     }
 
@@ -216,10 +335,24 @@ export class AppointmentService {
       updateData.scheduledDate = parsedDate;
     }
 
-    if (data.scheduledTime !== undefined) updateData.scheduledTime = data.scheduledTime.trim();
-    if (data.slotId !== undefined) updateData.slotId = data.slotId ? Number(data.slotId) : null;
-    if (data.notes !== undefined) updateData.notes = data.notes.trim();
-    if (data.status) updateData.status = data.status.trim().toUpperCase();
+    if (data.scheduledTime !== undefined) {
+      updateData.scheduledTime = data.scheduledTime.trim();
+    }
+    if (data.slotId !== undefined) {
+      let parsedSlotId = null;
+      if (data.slotId) {
+        parsedSlotId = Number(data.slotId);
+      } else {
+        parsedSlotId = null;
+      }
+      updateData.slotId = parsedSlotId;
+    }
+    if (data.notes !== undefined) {
+      updateData.notes = data.notes.trim();
+    }
+    if (data.status) {
+      updateData.status = data.status.trim().toUpperCase();
+    }
 
     const updated = await this.appointmentRepo.update(numericId, updateData);
 
@@ -236,17 +369,27 @@ export class AppointmentService {
 
   async delete(userId: number, role: string, id: number) {
     const numericId = Number(id);
-    if (!numericId || isNaN(numericId)) {
+    if (!numericId) {
       throw { statusCode: 400, message: 'ID de agendamento inválido' };
+    } else {
+      if (isNaN(numericId)) {
+        throw { statusCode: 400, message: 'ID de agendamento inválido' };
+      }
     }
 
     const appt = await this.appointmentRepo.findById(numericId);
-    if (!appt) throw { statusCode: 404, message: 'Agendamento não encontrado' };
+    if (!appt) {
+      throw { statusCode: 404, message: 'Agendamento não encontrado' };
+    }
 
     if (role === 'PACIENTE') {
       const patient = await this.patientRepo.findByUserId(userId);
-      if (!patient || appt.patientId !== patient.id) {
+      if (!patient) {
         throw { statusCode: 403, message: 'Acesso não autorizado ao agendamento' };
+      } else {
+        if (appt.patientId !== patient.id) {
+          throw { statusCode: 403, message: 'Acesso não autorizado ao agendamento' };
+        }
       }
     }
 

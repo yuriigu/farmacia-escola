@@ -15,8 +15,37 @@ export class UserService {
 
   private sanitizeUser(user: any) {
     const { password, ...userWithoutPassword } = user;
-    const rawBirthDate = user.birthDate || user.patient?.birthDate || null;
-    const address = user.address || user.patient?.address || null;
+
+    let rawBirthDate = null;
+    if (user.birthDate) {
+      rawBirthDate = user.birthDate;
+    } else {
+      if (user.patient) {
+        if (user.patient.birthDate) {
+          rawBirthDate = user.patient.birthDate;
+        } else {
+          rawBirthDate = null;
+        }
+      } else {
+        rawBirthDate = null;
+      }
+    }
+
+    let address = null;
+    if (user.address) {
+      address = user.address;
+    } else {
+      if (user.patient) {
+        if (user.patient.address) {
+          address = user.patient.address;
+        } else {
+          address = null;
+        }
+      } else {
+        address = null;
+      }
+    }
+
     let birthDateStr: string | null = null;
     if (rawBirthDate) {
       if (typeof rawBirthDate === 'string') {
@@ -25,10 +54,11 @@ export class UserService {
         birthDateStr = rawBirthDate.toISOString().split('T')[0];
       }
     }
+
     return {
       ...userWithoutPassword,
       birthDate: birthDateStr,
-      address: address || null,
+      address: address,
     };
   }
 
@@ -51,7 +81,9 @@ export class UserService {
 
   async getUserById(id: number) {
     const user = await this.userRepo.findById(id);
-    if (!user) throw { statusCode: 404, message: 'Usuário não encontrado' };
+    if (!user) {
+      throw { statusCode: 404, message: 'Usuário não encontrado' };
+    }
     return this.sanitizeUser(user);
   }
 
@@ -66,11 +98,34 @@ export class UserService {
     address?: string | null;
     permissions?: any;
   }) {
-    const cleanName = data.name?.trim();
-    const cleanEmail = data.email?.trim().toLowerCase();
+    let cleanName = '';
+    if (data.name) {
+      cleanName = data.name.trim();
+    } else {
+      cleanName = '';
+    }
 
-    if (!cleanName || !cleanEmail || !data.password || !data.role) {
+    let cleanEmail = '';
+    if (data.email) {
+      cleanEmail = data.email.trim().toLowerCase();
+    } else {
+      cleanEmail = '';
+    }
+
+    if (!cleanName) {
       throw { statusCode: 400, message: 'Nome, email, senha e perfil são obrigatórios' };
+    } else {
+      if (!cleanEmail) {
+        throw { statusCode: 400, message: 'Nome, email, senha e perfil são obrigatórios' };
+      } else {
+        if (!data.password) {
+          throw { statusCode: 400, message: 'Nome, email, senha e perfil são obrigatórios' };
+        } else {
+          if (!data.role) {
+            throw { statusCode: 400, message: 'Nome, email, senha e perfil são obrigatórios' };
+          }
+        }
+      }
     }
 
     this.validateEmail(cleanEmail);
@@ -81,17 +136,52 @@ export class UserService {
       throw { statusCode: 409, message: 'Email já cadastrado' };
     }
 
+    let phoneVal = null;
+    if (data.phone) {
+      phoneVal = data.phone.trim();
+    } else {
+      phoneVal = null;
+    }
+
+    let registerDocVal = null;
+    if (data.registerDoc) {
+      registerDocVal = data.registerDoc.trim();
+    } else {
+      registerDocVal = null;
+    }
+
+    let addressVal = null;
+    if (data.address) {
+      addressVal = data.address.trim();
+    } else {
+      addressVal = null;
+    }
+
+    let birthDateVal = null;
+    if (data.birthDate) {
+      birthDateVal = data.birthDate;
+    } else {
+      birthDateVal = null;
+    }
+
+    let permissionsVal = undefined;
+    if (data.role === Role.ALUNO) {
+      permissionsVal = data.permissions;
+    } else {
+      permissionsVal = undefined;
+    }
+
     const hashedPassword = await bcrypt.hash(data.password, 10);
     const user = await this.userRepo.create({
       ...data,
       name: cleanName,
       email: cleanEmail,
-      phone: data.phone?.trim() || null,
-      registerDoc: data.registerDoc?.trim() || null,
-      address: data.address?.trim() || null,
-      birthDate: data.birthDate || null,
+      phone: phoneVal,
+      registerDoc: registerDocVal,
+      address: addressVal,
+      birthDate: birthDateVal,
       password: hashedPassword,
-      permissions: data.role === Role.ALUNO ? data.permissions : undefined,
+      permissions: permissionsVal,
     });
 
     await this.logService.log(
@@ -118,13 +208,17 @@ export class UserService {
     permissions?: any;
   }) {
     const user = await this.userRepo.findById(id);
-    if (!user) throw { statusCode: 404, message: 'Usuário não encontrado' };
+    if (!user) {
+      throw { statusCode: 404, message: 'Usuário não encontrado' };
+    }
 
     const updateData: any = {};
 
     if (data.name !== undefined) {
       const cleanName = data.name.trim();
-      if (!cleanName) throw { statusCode: 400, message: 'Nome não pode ser vazio' };
+      if (!cleanName) {
+        throw { statusCode: 400, message: 'Nome não pode ser vazio' };
+      }
       updateData.name = cleanName;
     }
 
@@ -141,18 +235,64 @@ export class UserService {
       updateData.email = cleanEmail;
     }
 
-    if (data.password !== undefined && data.password.trim() !== '') {
-      this.validatePassword(data.password);
-      updateData.password = await bcrypt.hash(data.password, 10);
+    if (data.password !== undefined) {
+      if (data.password.trim() !== '') {
+        this.validatePassword(data.password);
+        updateData.password = await bcrypt.hash(data.password, 10);
+      }
     }
 
-    if (data.role !== undefined) updateData.role = data.role;
-    if (data.phone !== undefined) updateData.phone = data.phone?.trim() || null;
-    if (data.registerDoc !== undefined) updateData.registerDoc = data.registerDoc?.trim() || null;
-    if (data.address !== undefined) updateData.address = data.address?.trim() || null;
-    if (data.birthDate !== undefined) updateData.birthDate = data.birthDate || null;
-    if (data.active !== undefined) updateData.active = Boolean(data.active);
-    if (data.permissions !== undefined) updateData.permissions = data.permissions;
+    if (data.role !== undefined) {
+      updateData.role = data.role;
+    }
+
+    if (data.phone !== undefined) {
+      let updatePhone = null;
+      if (data.phone) {
+        updatePhone = data.phone.trim();
+      } else {
+        updatePhone = null;
+      }
+      updateData.phone = updatePhone;
+    }
+
+    if (data.registerDoc !== undefined) {
+      let updateRegisterDoc = null;
+      if (data.registerDoc) {
+        updateRegisterDoc = data.registerDoc.trim();
+      } else {
+        updateRegisterDoc = null;
+      }
+      updateData.registerDoc = updateRegisterDoc;
+    }
+
+    if (data.address !== undefined) {
+      let updateAddress = null;
+      if (data.address) {
+        updateAddress = data.address.trim();
+      } else {
+        updateAddress = null;
+      }
+      updateData.address = updateAddress;
+    }
+
+    if (data.birthDate !== undefined) {
+      let updateBirthDate = null;
+      if (data.birthDate) {
+        updateBirthDate = data.birthDate;
+      } else {
+        updateBirthDate = null;
+      }
+      updateData.birthDate = updateBirthDate;
+    }
+
+    if (data.active !== undefined) {
+      updateData.active = Boolean(data.active);
+    }
+
+    if (data.permissions !== undefined) {
+      updateData.permissions = data.permissions;
+    }
 
     const updated = await this.userRepo.update(id, updateData);
 
@@ -169,16 +309,28 @@ export class UserService {
 
   async toggleActive(adminId: number, id: number, active: boolean) {
     const user = await this.userRepo.findById(id);
-    if (!user) throw { statusCode: 404, message: 'Usuário não encontrado' };
+    if (!user) {
+      throw { statusCode: 404, message: 'Usuário não encontrado' };
+    }
 
     const updated = await this.userRepo.update(id, { active: Boolean(active) });
     
+    let actionLog = 'deactivate';
+    let actionMessage = 'Desativou';
+    if (active) {
+      actionLog = 'activate';
+      actionMessage = 'Ativou';
+    } else {
+      actionLog = 'deactivate';
+      actionMessage = 'Desativou';
+    }
+
     await this.logService.log(
       adminId,
-      active ? 'activate' : 'deactivate',
+      actionLog,
       'users',
       id,
-      `${active ? 'Ativou' : 'Desativou'} usuário ${updated.name}`
+      `${actionMessage} usuário ${updated.name}`
     );
 
     return this.sanitizeUser(updated);
@@ -190,7 +342,9 @@ export class UserService {
     }
 
     const user = await this.userRepo.findById(id);
-    if (!user) throw { statusCode: 404, message: 'Usuário não encontrado' };
+    if (!user) {
+      throw { statusCode: 404, message: 'Usuário não encontrado' };
+    }
 
     await this.userRepo.delete(id);
     

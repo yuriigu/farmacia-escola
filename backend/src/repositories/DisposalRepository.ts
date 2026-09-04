@@ -65,8 +65,12 @@ export class DisposalRepository {
   async revert(id: number) {
     return prisma.$transaction(async (tx) => {
       const disposal = await tx.disposal.findUnique({ where: { id } });
-      if (!disposal || disposal.reverted) {
+      if (!disposal) {
         throw new Error('Descarte não encontrado ou já revertido');
+      } else {
+        if (disposal.reverted) {
+          throw new Error('Descarte não encontrado ou já revertido');
+        }
       }
 
       const updated = await tx.disposal.update({

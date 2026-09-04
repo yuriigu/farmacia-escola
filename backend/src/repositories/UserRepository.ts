@@ -67,15 +67,49 @@ export class UserRepository {
       });
 
       let patient = null;
-      if (data.birthDate || data.address || data.role === Role.PACIENTE) {
-        const cpfValue = data.registerDoc ? data.registerDoc.replace(/\D/g, '') : '';
-        const validCpf = cpfValue.length === 11 ? cpfValue : `CPF${user.id}${Date.now().toString().slice(-6)}`;
+      let shouldCreatePatient = false;
+      if (data.birthDate) {
+        shouldCreatePatient = true;
+      } else {
+        if (data.address) {
+          shouldCreatePatient = true;
+        } else {
+          if (data.role === Role.PACIENTE) {
+            shouldCreatePatient = true;
+          } else {
+            shouldCreatePatient = false;
+          }
+        }
+      }
+
+      if (shouldCreatePatient) {
+        let cpfValue = '';
+        if (data.registerDoc) {
+          cpfValue = data.registerDoc.replace(/\D/g, '');
+        } else {
+          cpfValue = '';
+        }
+
+        let validCpf = '';
+        if (cpfValue.length === 11) {
+          validCpf = cpfValue;
+        } else {
+          validCpf = `CPF${user.id}${Date.now().toString().slice(-6)}`;
+        }
+
+        let patientBirthDate = null;
+        if (data.birthDate) {
+          patientBirthDate = new Date(data.birthDate);
+        } else {
+          patientBirthDate = null;
+        }
+
         patient = await tx.patient.create({
           data: {
             name: data.name,
             cpf: validCpf,
             phone: data.phone,
-            birthDate: data.birthDate ? new Date(data.birthDate) : null,
+            birthDate: patientBirthDate,
             address: data.address,
             userId: user.id,
           },
@@ -139,44 +173,105 @@ export class UserRepository {
 
       let patient = user.patient;
 
-      if (
-        data.birthDate !== undefined ||
-        data.address !== undefined ||
-        data.name !== undefined ||
-        data.phone !== undefined ||
-        data.registerDoc !== undefined
-      ) {
+      let hasPatientData = false;
+      if (data.birthDate !== undefined) {
+        hasPatientData = true;
+      } else {
+        if (data.address !== undefined) {
+          hasPatientData = true;
+        } else {
+          if (data.name !== undefined) {
+            hasPatientData = true;
+          } else {
+            if (data.phone !== undefined) {
+              hasPatientData = true;
+            } else {
+              if (data.registerDoc !== undefined) {
+                hasPatientData = true;
+              } else {
+                hasPatientData = false;
+              }
+            }
+          }
+        }
+      }
+
+      if (hasPatientData) {
         if (patient) {
           const patientUpdateData: any = {};
           if (data.name !== undefined) patientUpdateData.name = data.name;
           if (data.phone !== undefined) patientUpdateData.phone = data.phone;
           if (data.address !== undefined) patientUpdateData.address = data.address;
           if (data.birthDate !== undefined) {
-            patientUpdateData.birthDate = data.birthDate ? new Date(data.birthDate) : null;
+            let updateBirthDate = null;
+            if (data.birthDate) {
+              updateBirthDate = new Date(data.birthDate);
+            } else {
+              updateBirthDate = null;
+            }
+            patientUpdateData.birthDate = updateBirthDate;
           }
-          if (data.registerDoc !== undefined && data.registerDoc) {
-            const cleanCpf = data.registerDoc.replace(/\D/g, '');
-            if (cleanCpf.length === 11) {
-              patientUpdateData.cpf = cleanCpf;
+          if (data.registerDoc !== undefined) {
+            if (data.registerDoc) {
+              const cleanCpf = data.registerDoc.replace(/\D/g, '');
+              if (cleanCpf.length === 11) {
+                patientUpdateData.cpf = cleanCpf;
+              }
             }
           }
           patient = await tx.patient.update({
             where: { id: patient.id },
             data: patientUpdateData,
           });
-        } else if (data.birthDate || data.address || data.role === Role.PACIENTE) {
-          const cpfValue = data.registerDoc ? data.registerDoc.replace(/\D/g, '') : '';
-          const validCpf = cpfValue.length === 11 ? cpfValue : `CPF${user.id}${Date.now().toString().slice(-6)}`;
-          patient = await tx.patient.create({
-            data: {
-              name: user.name,
-              cpf: validCpf,
-              phone: user.phone,
-              birthDate: data.birthDate ? new Date(data.birthDate) : null,
-              address: data.address,
-              userId: user.id,
-            },
-          });
+        } else {
+          let shouldCreatePatientOnUpdate = false;
+          if (data.birthDate) {
+            shouldCreatePatientOnUpdate = true;
+          } else {
+            if (data.address) {
+              shouldCreatePatientOnUpdate = true;
+            } else {
+              if (data.role === Role.PACIENTE) {
+                shouldCreatePatientOnUpdate = true;
+              } else {
+                shouldCreatePatientOnUpdate = false;
+              }
+            }
+          }
+
+          if (shouldCreatePatientOnUpdate) {
+            let cpfValue = '';
+            if (data.registerDoc) {
+              cpfValue = data.registerDoc.replace(/\D/g, '');
+            } else {
+              cpfValue = '';
+            }
+
+            let validCpf = '';
+            if (cpfValue.length === 11) {
+              validCpf = cpfValue;
+            } else {
+              validCpf = `CPF${user.id}${Date.now().toString().slice(-6)}`;
+            }
+
+            let updateBirthDate = null;
+            if (data.birthDate) {
+              updateBirthDate = new Date(data.birthDate);
+            } else {
+              updateBirthDate = null;
+            }
+
+            patient = await tx.patient.create({
+              data: {
+                name: user.name,
+                cpf: validCpf,
+                phone: user.phone,
+                birthDate: updateBirthDate,
+                address: data.address,
+                userId: user.id,
+              },
+            });
+          }
         }
       }
 

@@ -2,7 +2,12 @@ import { prisma } from '../utils/Prisma';
 
 export class WithdrawalRepository {
   async findAll(patientId?: number) {
-    const where = patientId ? { patientId } : {};
+    let where = {};
+    if (patientId) {
+      where = { patientId };
+    } else {
+      where = {};
+    }
     return prisma.withdrawal.findMany({
       where,
       include: {

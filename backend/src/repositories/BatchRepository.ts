@@ -2,7 +2,12 @@ import { prisma } from '../utils/Prisma';
 
 export class BatchRepository {
   async findAll(medicineId?: number) {
-    const where = medicineId ? { medicineId } : {};
+    let where = {};
+    if (medicineId) {
+      where = { medicineId };
+    } else {
+      where = {};
+    }
     return prisma.stockBatch.findMany({
       where,
       include: { medicine: true },

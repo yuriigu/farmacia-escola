@@ -2,7 +2,12 @@ import { prisma } from '../utils/Prisma';
 
 export class AppointmentRepository {
   async findAll(patientId?: number) {
-    const where = patientId ? { patientId } : {};
+    let where = {};
+    if (patientId) {
+      where = { patientId };
+    } else {
+      where = {};
+    }
 
     return prisma.appointment.findMany({
       where,
@@ -120,12 +125,15 @@ export class AppointmentRepository {
   }
 
   async updateStatus(id: number, status: string, notes?: string) {
+    const updateData: any = {
+      status: status as any,
+    };
+    if (notes !== undefined) {
+      updateData.notes = notes;
+    }
     return prisma.appointment.update({
       where: { id },
-      data: {
-        status: status as any,
-        ...(notes !== undefined ? { notes } : {}),
-      },
+      data: updateData,
       include: {
         patient: true,
         slot: true,

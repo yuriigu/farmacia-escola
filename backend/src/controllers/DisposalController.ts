@@ -13,8 +13,15 @@ export class DisposalController {
     try {
       const disposals = await this.disposalService.getAll();
       res.json(disposals);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar descartes' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar descartes' });
+        return;
+      }
     }
   };
 
@@ -23,8 +30,15 @@ export class DisposalController {
       const id = Number(req.params.id);
       const disposal = await this.disposalService.getById(id);
       res.json(disposal);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar descarte' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar descarte' });
+        return;
+      }
     }
   };
 
@@ -33,8 +47,15 @@ export class DisposalController {
       const { userId, role } = req.user!;
       const disposal = await this.disposalService.create(userId, role, req.body);
       res.status(201).json(disposal);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao registrar descarte' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao registrar descarte' });
+        return;
+      }
     }
   };
 
@@ -44,8 +65,15 @@ export class DisposalController {
       const id = Number(req.params.id);
       const updated = await this.disposalService.update(userId, role, id, req.body);
       res.json(updated);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar descarte' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao atualizar descarte' });
+        return;
+      }
     }
   };
 
@@ -55,8 +83,15 @@ export class DisposalController {
       const id = Number(req.params.id);
       const result = await this.disposalService.delete(userId, role, id);
       res.json(result);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao excluir descarte' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao excluir descarte' });
+        return;
+      }
     }
   };
 
@@ -66,8 +101,15 @@ export class DisposalController {
       const id = Number(req.params.id);
       const reverted = await this.disposalService.revert(userId, role, id);
       res.json(reverted);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao reverter descarte' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao reverter descarte' });
+        return;
+      }
     }
   };
 }

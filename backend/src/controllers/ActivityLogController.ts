@@ -11,10 +11,33 @@ export class ActivityLogController {
 
   getAll = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const userId = req.query.userId ? Number(req.query.userId) : undefined;
-      const entity = req.query.entity as string | undefined;
-      const page = req.query.page ? Number(req.query.page) : 1;
-      const limit = req.query.limit ? Number(req.query.limit) : 50;
+      let userId = undefined;
+      if (req.query.userId) {
+        userId = Number(req.query.userId);
+      } else {
+        userId = undefined;
+      }
+
+      let entity = undefined;
+      if (req.query.entity) {
+        entity = req.query.entity as string;
+      } else {
+        entity = undefined;
+      }
+
+      let page = 1;
+      if (req.query.page) {
+        page = Number(req.query.page);
+      } else {
+        page = 1;
+      }
+
+      let limit = 50;
+      if (req.query.limit) {
+        limit = Number(req.query.limit);
+      } else {
+        limit = 50;
+      }
 
       const result = await this.logService.getLogs({
         userId,
@@ -24,8 +47,15 @@ export class ActivityLogController {
       });
 
       res.json(result);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar logs de auditoria' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar logs de auditoria' });
+        return;
+      }
     }
   };
 
@@ -34,8 +64,15 @@ export class ActivityLogController {
       const id = Number(req.params.id);
       const log = await this.logService.getById(id);
       res.json(log);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar log de atividade' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar log de atividade' });
+        return;
+      }
     }
   };
 }

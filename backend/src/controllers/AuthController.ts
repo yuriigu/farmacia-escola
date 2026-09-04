@@ -14,8 +14,15 @@ export class AuthController {
       const { email, password } = req.body;
       const result = await this.authService.login(email, password);
       res.json(result);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao efetuar login' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao efetuar login' });
+        return;
+      }
     }
   };
 
@@ -23,8 +30,15 @@ export class AuthController {
     try {
       const result = await this.authService.registerPatient(req.body);
       res.status(201).json(result);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao registrar paciente' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao registrar paciente' });
+        return;
+      }
     }
   };
 
@@ -36,8 +50,15 @@ export class AuthController {
       }
       const profile = await this.authService.getProfile(req.user.userId);
       res.json(profile);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar dados do usuário' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar dados do usuário' });
+        return;
+      }
     }
   };
 
@@ -49,8 +70,15 @@ export class AuthController {
       }
       const result = await this.authService.updateProfile(req.user.userId, req.body);
       res.json(result);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar perfil' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao atualizar perfil' });
+        return;
+      }
     }
   };
 }

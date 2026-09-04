@@ -13,8 +13,15 @@ export class UserController {
     try {
       const users = await this.userService.getAllUsers();
       res.json(users);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar usuários' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar usuários' });
+        return;
+      }
     }
   };
 
@@ -23,8 +30,15 @@ export class UserController {
       const id = Number(req.params.id);
       const user = await this.userService.getUserById(id);
       res.json(user);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar usuário' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar usuário' });
+        return;
+      }
     }
   };
 
@@ -33,8 +47,15 @@ export class UserController {
       const adminId = req.user!.userId;
       const user = await this.userService.createUser(adminId, req.body);
       res.status(201).json(user);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao cadastrar usuário' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao cadastrar usuário' });
+        return;
+      }
     }
   };
 
@@ -44,8 +65,15 @@ export class UserController {
       const id = Number(req.params.id);
       const updated = await this.userService.updateUser(adminId, id, req.body);
       res.json(updated);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar usuário' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao atualizar usuário' });
+        return;
+      }
     }
   };
 
@@ -55,8 +83,15 @@ export class UserController {
       const id = Number(req.params.id);
       const result = await this.userService.deleteUser(adminId, id);
       res.json(result);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao excluir usuário' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao excluir usuário' });
+        return;
+      }
     }
   };
 
@@ -67,8 +102,15 @@ export class UserController {
       const { active } = req.body;
       const updated = await this.userService.toggleActive(adminId, id, active);
       res.json(updated);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao alterar status do usuário' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao alterar status do usuário' });
+        return;
+      }
     }
   };
 }

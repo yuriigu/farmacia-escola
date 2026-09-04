@@ -11,11 +11,23 @@ export class BatchController {
 
   getAll = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const medicineId = req.query.medicineId ? Number(req.query.medicineId) : undefined;
+      let medicineId = undefined;
+      if (req.query.medicineId) {
+        medicineId = Number(req.query.medicineId);
+      } else {
+        medicineId = undefined;
+      }
       const batches = await this.batchService.getAll(medicineId);
       res.json(batches);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar lotes' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar lotes' });
+        return;
+      }
     }
   };
 
@@ -24,8 +36,15 @@ export class BatchController {
       const id = Number(req.params.id);
       const batch = await this.batchService.getById(id);
       res.json(batch);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar lote' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar lote' });
+        return;
+      }
     }
   };
 
@@ -34,8 +53,15 @@ export class BatchController {
       const { userId, role } = req.user!;
       const batch = await this.batchService.create(userId, role, req.body);
       res.status(201).json(batch);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao cadastrar lote' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao cadastrar lote' });
+        return;
+      }
     }
   };
 
@@ -45,8 +71,15 @@ export class BatchController {
       const id = Number(req.params.id);
       const updated = await this.batchService.update(userId, role, id, req.body);
       res.json(updated);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar lote' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao atualizar lote' });
+        return;
+      }
     }
   };
 
@@ -56,8 +89,15 @@ export class BatchController {
       const id = Number(req.params.id);
       const result = await this.batchService.delete(userId, role, id);
       res.json(result);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao excluir lote' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao excluir lote' });
+        return;
+      }
     }
   };
 }

@@ -14,8 +14,15 @@ export class WithdrawalController {
       const { role, patientId } = req.user!;
       const withdrawals = await this.withdrawalService.getAll(role, patientId);
       res.json(withdrawals);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar dispensações' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar dispensações' });
+        return;
+      }
     }
   };
 
@@ -25,8 +32,15 @@ export class WithdrawalController {
       const id = Number(req.params.id);
       const withdrawal = await this.withdrawalService.getById(id, role, patientId);
       res.json(withdrawal);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar dispensação' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar dispensação' });
+        return;
+      }
     }
   };
 
@@ -35,8 +49,15 @@ export class WithdrawalController {
       const { userId, role } = req.user!;
       const withdrawal = await this.withdrawalService.create(userId, role, req.body);
       res.status(201).json(withdrawal);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao registrar dispensação' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao registrar dispensação' });
+        return;
+      }
     }
   };
 
@@ -46,8 +67,15 @@ export class WithdrawalController {
       const id = Number(req.params.id);
       const updated = await this.withdrawalService.update(userId, role, id, req.body);
       res.json(updated);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar dispensação' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao atualizar dispensação' });
+        return;
+      }
     }
   };
 
@@ -57,8 +85,15 @@ export class WithdrawalController {
       const id = Number(req.params.id);
       const result = await this.withdrawalService.delete(userId, role, id);
       res.json(result);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao estornar dispensação' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao estornar dispensação' });
+        return;
+      }
     }
   };
 }

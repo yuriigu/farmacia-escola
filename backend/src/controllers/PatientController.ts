@@ -12,11 +12,23 @@ export class PatientController {
   getAll = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const { role, userId } = req.user!;
-      const search = req.query.search as string | undefined;
+      let search = undefined;
+      if (req.query.search) {
+        search = req.query.search as string;
+      } else {
+        search = undefined;
+      }
       const patients = await this.patientService.getAll(role, userId, search);
       res.json(patients);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar pacientes' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar pacientes' });
+        return;
+      }
     }
   };
 
@@ -26,8 +38,15 @@ export class PatientController {
       const id = Number(req.params.id);
       const patient = await this.patientService.getById(id, role, userId);
       res.json(patient);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar dados do paciente' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar dados do paciente' });
+        return;
+      }
     }
   };
 
@@ -36,8 +55,15 @@ export class PatientController {
       const { userId, role } = req.user!;
       const patient = await this.patientService.create(userId, role, req.body);
       res.status(201).json(patient);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao cadastrar paciente' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao cadastrar paciente' });
+        return;
+      }
     }
   };
 
@@ -47,8 +73,15 @@ export class PatientController {
       const id = Number(req.params.id);
       const updated = await this.patientService.update(userId, role, id, req.body);
       res.json(updated);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar paciente' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao atualizar paciente' });
+        return;
+      }
     }
   };
 
@@ -58,8 +91,15 @@ export class PatientController {
       const id = Number(req.params.id);
       const result = await this.patientService.delete(userId, role, id);
       res.json(result);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao excluir paciente' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao excluir paciente' });
+        return;
+      }
     }
   };
 }

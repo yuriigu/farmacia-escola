@@ -11,12 +11,31 @@ export class ScheduleSlotController {
 
   getAll = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const startDate = req.query.startDate as string | undefined;
-      const endDate = req.query.endDate as string | undefined;
+      let startDate = undefined;
+      if (req.query.startDate) {
+        startDate = req.query.startDate as string;
+      } else {
+        startDate = undefined;
+      }
+
+      let endDate = undefined;
+      if (req.query.endDate) {
+        endDate = req.query.endDate as string;
+      } else {
+        endDate = undefined;
+      }
+
       const slots = await this.slotService.getAll(startDate, endDate);
       res.json(slots);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar escalas' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar escalas' });
+        return;
+      }
     }
   };
 
@@ -25,8 +44,15 @@ export class ScheduleSlotController {
       const id = Number(req.params.id);
       const slot = await this.slotService.getById(id);
       res.json(slot);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar escala' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar escala' });
+        return;
+      }
     }
   };
 
@@ -35,8 +61,15 @@ export class ScheduleSlotController {
       const { userId, role } = req.user!;
       const slot = await this.slotService.create(userId, role, req.body);
       res.status(201).json(slot);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao criar escala' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao criar escala' });
+        return;
+      }
     }
   };
 
@@ -46,8 +79,15 @@ export class ScheduleSlotController {
       const id = Number(req.params.id);
       const updated = await this.slotService.update(userId, role, id, req.body);
       res.json(updated);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar escala' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao atualizar escala' });
+        return;
+      }
     }
   };
 
@@ -57,8 +97,15 @@ export class ScheduleSlotController {
       const id = Number(req.params.id);
       const result = await this.slotService.delete(userId, role, id);
       res.json(result);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao remover escala' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao remover escala' });
+        return;
+      }
     }
   };
 }

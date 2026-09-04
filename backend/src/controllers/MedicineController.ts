@@ -13,8 +13,15 @@ export class MedicineController {
     try {
       const medicines = await this.medicineService.getAll();
       res.json(medicines);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar medicamentos' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar medicamentos' });
+        return;
+      }
     }
   };
 
@@ -23,8 +30,15 @@ export class MedicineController {
       const id = Number(req.params.id);
       const medicine = await this.medicineService.getById(id);
       res.json(medicine);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao buscar medicamento' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao buscar medicamento' });
+        return;
+      }
     }
   };
 
@@ -33,8 +47,15 @@ export class MedicineController {
       const { userId, role } = req.user!;
       const medicine = await this.medicineService.create(userId, role, req.body);
       res.status(201).json(medicine);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao cadastrar medicamento' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao cadastrar medicamento' });
+        return;
+      }
     }
   };
 
@@ -44,8 +65,15 @@ export class MedicineController {
       const id = Number(req.params.id);
       const updated = await this.medicineService.update(userId, role, id, req.body);
       res.json(updated);
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao atualizar medicamento' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao atualizar medicamento' });
+        return;
+      }
     }
   };
 
@@ -55,8 +83,15 @@ export class MedicineController {
       const id = Number(req.params.id);
       await this.medicineService.delete(userId, role, id);
       res.json({ message: 'Medicamento excluído com sucesso' });
+      return;
     } catch (err: any) {
-      res.status(err.statusCode || 500).json({ error: err.message || 'Erro ao excluir medicamento' });
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao excluir medicamento' });
+        return;
+      }
     }
   };
 }

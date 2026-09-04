@@ -146,13 +146,20 @@ async function main() {
 
   for (const date of [tomorrow, dayAfter, day3]) {
     for (const ts of TIME_SLOTS) {
+      let assignedId = farm2.id;
+      if (ts < '12:00') {
+        assignedId = farm1.id;
+      } else {
+        assignedId = farm2.id;
+      }
+
       await prisma.scheduleSlot.create({
         data: {
           date,
           timeSlot: ts,
           maxCapacity: 4,
           active: true,
-          assignedToId: ts < '12:00' ? farm1.id : farm2.id,
+          assignedToId: assignedId,
         },
       });
     }

@@ -2,8 +2,8 @@
 
 import { useEffect } from 'react';
 import { create } from 'zustand';
-import { api } from './api';
-import type { Medicine, Withdrawal, Disposal, Appointment, Batch, Patient, ScheduleSlot } from './types';
+import { api } from './Api';
+import type { Medicine, Withdrawal, Disposal, Appointment, Batch, Patient, ScheduleSlot } from './Types';
 
 interface PharmacyState {
   medicines: Medicine[];

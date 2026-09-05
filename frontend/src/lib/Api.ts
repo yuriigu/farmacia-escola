@@ -1,6 +1,6 @@
 'use client';
 
-import { api as serviceApi } from '@/services/api';
+import { api as serviceApi } from '@/services/Api';
 
 export const api = {
   // Auth

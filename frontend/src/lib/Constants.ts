@@ -42,17 +42,59 @@ export function checkPermission(
   permissions: Record<string, boolean> | undefined | null,
   key: PermissionKey
 ): boolean {
-  if (role === 'ADMIN') return true;
-  if (role === 'FARMACEUTICO') return key !== 'users';
+  if (role === 'ADMIN') {
+    return true;
+  }
+  if (role === 'FARMACEUTICO') {
+    if (key !== 'users') {
+      return true;
+    } else {
+      return false;
+    }
+  }
   if (role === 'MEDICO') {
     const medicoAllowed: PermissionKey[] = ['inventory', 'appointments', 'appointmentsOverview', 'batches', 'withdrawals'];
-    return medicoAllowed.includes(key);
+    const isAllowed = medicoAllowed.includes(key);
+    return isAllowed;
   }
   if (role === 'PACIENTE') {
-    return key === 'inventory' || key === 'appointments' || key === 'appointmentsOverview';
+    let isPacienteAllowed = false;
+    if (key === 'inventory') {
+      isPacienteAllowed = true;
+    } else if (key === 'appointments') {
+      isPacienteAllowed = true;
+    } else if (key === 'appointmentsOverview') {
+      isPacienteAllowed = true;
+    } else {
+      isPacienteAllowed = false;
+    }
+    return isPacienteAllowed;
   }
-  const perms = permissions ?? DEFAULT_ALUNO_PERMISSIONS;
-  return perms[key] ?? false;
+
+  // ALUNO
+  let perms = DEFAULT_ALUNO_PERMISSIONS;
+  if (permissions !== null) {
+    if (permissions !== undefined) {
+      perms = permissions;
+    } else {
+      perms = DEFAULT_ALUNO_PERMISSIONS;
+    }
+  } else {
+    perms = DEFAULT_ALUNO_PERMISSIONS;
+  }
+
+  let hasPerm = false;
+  if (perms[key] !== null) {
+    if (perms[key] !== undefined) {
+      hasPerm = perms[key];
+    } else {
+      hasPerm = false;
+    }
+  } else {
+    hasPerm = false;
+  }
+
+  return hasPerm;
 }
 
 // ==================== CLIENT-SIDE WRITE CHECK ====================
@@ -88,15 +130,70 @@ export function canWriteClient(
   permissions: Record<string, boolean> | undefined | null,
   entity: string
 ): boolean {
-  if (!role) return false;
-  const permKey = ENTITY_PERMISSION_MAP[entity] ?? (entity as PermissionKey);
-  if (role === 'ADMIN') return true;
-  if (role === 'FARMACEUTICO') return entity !== 'users';
-  if (role === 'MEDICO') return entity === 'appointments';
-  if (role === 'PACIENTE') return entity === 'appointments';
+  if (!role) {
+    return false;
+  }
+
+  let permKey: PermissionKey;
+  if (ENTITY_PERMISSION_MAP[entity] !== null) {
+    if (ENTITY_PERMISSION_MAP[entity] !== undefined) {
+      permKey = ENTITY_PERMISSION_MAP[entity];
+    } else {
+      permKey = entity as PermissionKey;
+    }
+  } else {
+    permKey = entity as PermissionKey;
+  }
+
+  if (role === 'ADMIN') {
+    return true;
+  }
+  if (role === 'FARMACEUTICO') {
+    if (entity !== 'users') {
+      return true;
+    } else {
+      return false;
+    }
+  }
+  if (role === 'MEDICO') {
+    if (entity === 'appointments') {
+      return true;
+    } else {
+      return false;
+    }
+  }
+  if (role === 'PACIENTE') {
+    if (entity === 'appointments') {
+      return true;
+    } else {
+      return false;
+    }
+  }
+
   // ALUNO
-  const perms = permissions ?? DEFAULT_ALUNO_PERMISSIONS;
-  return perms[permKey] ?? false;
+  let perms = DEFAULT_ALUNO_PERMISSIONS;
+  if (permissions !== null) {
+    if (permissions !== undefined) {
+      perms = permissions;
+    } else {
+      perms = DEFAULT_ALUNO_PERMISSIONS;
+    }
+  } else {
+    perms = DEFAULT_ALUNO_PERMISSIONS;
+  }
+
+  let hasPerm = false;
+  if (perms[permKey] !== null) {
+    if (perms[permKey] !== undefined) {
+      hasPerm = perms[permKey];
+    } else {
+      hasPerm = false;
+    }
+  } else {
+    hasPerm = false;
+  }
+
+  return hasPerm;
 }
 
 // ==================== ROLE BADGES & PALETTE ====================
@@ -257,9 +354,21 @@ export const MODULES: ModuleConfig[] = [
 /** Get visible modules for a given role */
 export function getVisibleModules(role: string, permissions?: Record<string, boolean> | null): ModuleConfig[] {
   return MODULES.filter((mod) => {
-    if (!hasRouteAccess(role, mod.id)) return false;
-    if (mod.forbiddenRoles?.includes(role)) return false;
-    if (mod.permission && !checkPermission(role, permissions, mod.permission as PermissionKey)) return false;
+    const hasAccess = hasRouteAccess(role, mod.id);
+    if (!hasAccess) {
+      return false;
+    }
+    if (mod.forbiddenRoles) {
+      if (mod.forbiddenRoles.includes(role)) {
+        return false;
+      }
+    }
+    if (mod.permission) {
+      const allowed = checkPermission(role, permissions, mod.permission as PermissionKey);
+      if (!allowed) {
+        return false;
+      }
+    }
     return true;
   });
 }

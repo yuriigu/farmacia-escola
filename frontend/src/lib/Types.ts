@@ -213,16 +213,38 @@ export interface AppointmentDraft {
   items: AppointmentItemDraft[];
 }
 
+// FUNCAO PARA CALCULAR O STATUS DO ESTOQUE
 export function computeStockStatus(item: { totalQuantity?: number; expirationDate?: string; isExpired?: boolean }): StockStatus {
-  if (item.isExpired) return 'expired';
+  if (item.isExpired) {
+    return 'expired';
+  }
   if (item.expirationDate) {
     const exp = new Date(item.expirationDate);
-    if (!Number.isNaN(exp.getTime()) && exp.getTime() < Date.now()) {
-      return 'expired';
+    const time = exp.getTime();
+    const isNan = Number.isNaN(time);
+    if (!isNan) {
+      if (time < Date.now()) {
+        return 'expired';
+      }
     }
   }
-  const qty = item.totalQuantity ?? 0;
-  if (qty <= 0) return 'critical';
-  if (qty <= 10) return 'low';
+
+  let qty = 0;
+  if (item.totalQuantity !== null) {
+    if (item.totalQuantity !== undefined) {
+      qty = item.totalQuantity;
+    } else {
+      qty = 0;
+    }
+  } else {
+    qty = 0;
+  }
+
+  if (qty <= 0) {
+    return 'critical';
+  }
+  if (qty <= 10) {
+    return 'low';
+  }
   return 'ok';
 }

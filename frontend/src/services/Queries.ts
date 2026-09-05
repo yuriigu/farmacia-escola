@@ -1,5 +1,9 @@
+// IMPORTS DO REACT E BIBLIOTECAS
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { api } from './api';
+import { toast } from 'sonner';
+
+// IMPORTS LOCAIS
+import { api } from './Api';
 import type {
   Medicine,
   Batch,
@@ -10,9 +14,8 @@ import type {
   Disposal,
   User,
 } from '@/lib/types';
-import { toast } from 'sonner';
 
-// Query Keys
+// CHAVES DAS CONSULTAS DO REACT QUERY
 export const QUERY_KEYS = {
   medicines: ['medicines'] as const,
   medicine: (id: number) => ['medicines', id] as const,
@@ -30,21 +33,46 @@ export const QUERY_KEYS = {
 
 // ==================== MEDICINES ====================
 
+// HOOK PARA LISTAR MEDICAMENTOS
 export function useMedicines() {
   return useQuery({
     queryKey: QUERY_KEYS.medicines,
-    queryFn: () => api.medicines.getAll(),
+    queryFn: () => {
+      return api.medicines.getAll();
+    },
   });
 }
 
+// HOOK PARA BUSCAR MEDICAMENTO POR ID
 export function useMedicine(id: number | null | undefined) {
+  let medicineId = 0;
+  if (id) {
+    medicineId = id;
+  } else {
+    medicineId = 0;
+  }
+
+  let isEnabled = false;
+  if (id) {
+    if (id > 0) {
+      isEnabled = true;
+    } else {
+      isEnabled = false;
+    }
+  } else {
+    isEnabled = false;
+  }
+
   return useQuery({
-    queryKey: QUERY_KEYS.medicine(id || 0),
-    queryFn: () => api.medicines.getById(id!),
-    enabled: Boolean(id && id > 0),
+    queryKey: QUERY_KEYS.medicine(medicineId),
+    queryFn: () => {
+      return api.medicines.getById(id!);
+    },
+    enabled: isEnabled,
   });
 }
 
+// HOOK PARA CRIAR MEDICAMENTO
 export function useCreateMedicine() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -54,20 +82,30 @@ export function useCreateMedicine() {
       toast.success('Medicamento cadastrado com sucesso!');
     },
     onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao cadastrar medicamento.');
+      let errorMessage = 'Erro ao cadastrar medicamento.';
+      if (err.message) {
+        errorMessage = err.message;
+      } else {
+        errorMessage = 'Erro ao cadastrar medicamento.';
+      }
+      toast.error(errorMessage);
     },
   });
 }
 
 // ==================== BATCHES (ESTOQUE) ====================
 
+// HOOK PARA LISTAR LOTES
 export function useBatches(medicineId?: number) {
   return useQuery({
     queryKey: QUERY_KEYS.batches(medicineId),
-    queryFn: () => api.batches.getAll(medicineId),
+    queryFn: () => {
+      return api.batches.getAll(medicineId);
+    },
   });
 }
 
+// HOOK PARA CRIAR LOTE
 export function useCreateBatch() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -78,11 +116,18 @@ export function useCreateBatch() {
       toast.success('Lote cadastrado com sucesso!');
     },
     onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao cadastrar lote.');
+      let errorMessage = 'Erro ao cadastrar lote.';
+      if (err.message) {
+        errorMessage = err.message;
+      } else {
+        errorMessage = 'Erro ao cadastrar lote.';
+      }
+      toast.error(errorMessage);
     },
   });
 }
 
+// HOOK PARA REMOVER LOTE
 export function useDeleteBatch() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -93,28 +138,59 @@ export function useDeleteBatch() {
       toast.success('Lote removido com sucesso!');
     },
     onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao remover lote.');
+      let errorMessage = 'Erro ao remover lote.';
+      if (err.message) {
+        errorMessage = err.message;
+      } else {
+        errorMessage = 'Erro ao remover lote.';
+      }
+      toast.error(errorMessage);
     },
   });
 }
 
 // ==================== APPOINTMENTS ====================
 
+// HOOK PARA LISTAR AGENDAMENTOS
 export function useAppointments() {
   return useQuery({
     queryKey: QUERY_KEYS.appointments,
-    queryFn: () => api.appointments.getAll(),
+    queryFn: () => {
+      return api.appointments.getAll();
+    },
   });
 }
 
+// HOOK PARA BUSCAR AGENDAMENTO POR ID
 export function useAppointment(id: number | null | undefined) {
+  let appointmentId = 0;
+  if (id) {
+    appointmentId = id;
+  } else {
+    appointmentId = 0;
+  }
+
+  let isEnabled = false;
+  if (id) {
+    if (id > 0) {
+      isEnabled = true;
+    } else {
+      isEnabled = false;
+    }
+  } else {
+    isEnabled = false;
+  }
+
   return useQuery({
-    queryKey: QUERY_KEYS.appointment(id || 0),
-    queryFn: () => api.appointments.getById(id!),
-    enabled: Boolean(id && id > 0),
+    queryKey: QUERY_KEYS.appointment(appointmentId),
+    queryFn: () => {
+      return api.appointments.getById(id!);
+    },
+    enabled: isEnabled,
   });
 }
 
+// HOOK PARA CRIAR AGENDAMENTO
 export function useCreateAppointment() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -124,11 +200,18 @@ export function useCreateAppointment() {
       toast.success('Agendamento realizado com sucesso!');
     },
     onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao realizar agendamento.');
+      let errorMessage = 'Erro ao realizar agendamento.';
+      if (err.message) {
+        errorMessage = err.message;
+      } else {
+        errorMessage = 'Erro ao realizar agendamento.';
+      }
+      toast.error(errorMessage);
     },
   });
 }
 
+// HOOK PARA ATUALIZAR STATUS DE AGENDAMENTO
 export function useUpdateAppointmentStatus() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -140,17 +223,26 @@ export function useUpdateAppointmentStatus() {
       id: number;
       status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
       notes?: string;
-    }) => api.appointments.updateStatus(id, status, notes),
+    }) => {
+      return api.appointments.updateStatus(id, status, notes);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
       toast.success('Status do agendamento atualizado!');
     },
     onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao atualizar agendamento.');
+      let errorMessage = 'Erro ao atualizar agendamento.';
+      if (err.message) {
+        errorMessage = err.message;
+      } else {
+        errorMessage = 'Erro ao atualizar agendamento.';
+      }
+      toast.error(errorMessage);
     },
   });
 }
 
+// HOOK PARA CANCELAR AGENDAMENTO
 export function useCancelAppointment() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -160,24 +252,54 @@ export function useCancelAppointment() {
       toast.success('Agendamento cancelado com sucesso.');
     },
     onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao cancelar agendamento.');
+      let errorMessage = 'Erro ao cancelar agendamento.';
+      if (err.message) {
+        errorMessage = err.message;
+      } else {
+        errorMessage = 'Erro ao cancelar agendamento.';
+      }
+      toast.error(errorMessage);
     },
   });
 }
 
 // ==================== PATIENTS ====================
 
+// HOOK PARA LISTAR PACIENTES
 export function usePatients(search?: string) {
   return useQuery({
     queryKey: QUERY_KEYS.patients(search),
-    queryFn: () => api.patients.getAll(search),
+    queryFn: () => {
+      return api.patients.getAll(search);
+    },
   });
 }
 
+// HOOK PARA BUSCAR PACIENTE POR ID
 export function usePatient(id: number | null | undefined) {
+  let patientId = 0;
+  if (id) {
+    patientId = id;
+  } else {
+    patientId = 0;
+  }
+
+  let isEnabled = false;
+  if (id) {
+    if (id > 0) {
+      isEnabled = true;
+    } else {
+      isEnabled = false;
+    }
+  } else {
+    isEnabled = false;
+  }
+
   return useQuery({
-    queryKey: ['patients', id || 0],
-    queryFn: () => api.patients.getById(id!),
-    enabled: Boolean(id && id > 0),
+    queryKey: ['patients', patientId],
+    queryFn: () => {
+      return api.patients.getById(id!);
+    },
+    enabled: isEnabled,
   });
 }

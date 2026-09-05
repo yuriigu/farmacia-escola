@@ -1,4 +1,4 @@
-import { api } from './api';
+import { api } from './Api';
 import { Medicine, Batch, Withdrawal, Disposal } from '@/types';
 
 export const estoqueService = {

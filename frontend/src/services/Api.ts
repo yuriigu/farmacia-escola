@@ -1,5 +1,5 @@
 // IMPORTS LOCAIS
-import apiClient from '@/lib/axios';
+import apiClient from '@/lib/Axios';
 import type {
   AuthUser,
   Medicine,
@@ -10,7 +10,7 @@ import type {
   Disposal,
   Appointment,
   ScheduleSlot,
-} from '@/lib/types';
+} from '@/lib/Types';
 
 // INTERFACE PARA LOGS DE ATIVIDADE
 export interface ActivityLogEntry {

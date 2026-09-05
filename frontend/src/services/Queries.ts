@@ -13,7 +13,7 @@ import type {
   Withdrawal,
   Disposal,
   User,
-} from '@/lib/types';
+} from '@/lib/Types';
 
 // CHAVES DAS CONSULTAS DO REACT QUERY
 export const QUERY_KEYS = {

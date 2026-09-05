@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Pill, Eye, EyeOff, UserPlus, Shield } from 'lucide-react';
-import { useAuthStore } from '@/lib/auth-store';
-import { api } from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useAuthStore } from '@/lib/AuthStore';
+import { api } from '@/lib/Api';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
 
 export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', cpf: '', phone: '', birthDate: '', address: '' });
@@ -39,33 +39,71 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
 
     const digitsOnly = (v: string) => v.replace(/\D/g, '');
     const cpfDigits = digitsOnly(form.cpf);
-    if (cpfDigits.length !== 11 || /^(.)\1{10}$/.test(cpfDigits)) {
+    let isCpfInvalid = false;
+    if (cpfDigits.length !== 11) {
+      isCpfInvalid = true;
+    } else if (/^(.)\1{10}$/.test(cpfDigits)) {
+      isCpfInvalid = true;
+    }
+
+    if (isCpfInvalid) {
       setError('CPF inválido. Insira um CPF válido com 11 dígitos.');
       setLoading(false);
       return;
     }
+
     const phoneDigits = digitsOnly(form.phone);
-    if (phoneDigits && (phoneDigits.length < 10 || phoneDigits.length > 11)) {
-      setError('Telefone inválido. Insira um telefone com DDD (10 ou 11 dígitos).');
-      setLoading(false);
-      return;
+    if (phoneDigits) {
+      let isPhoneInvalid = false;
+      if (phoneDigits.length < 10) {
+        isPhoneInvalid = true;
+      } else if (phoneDigits.length > 11) {
+        isPhoneInvalid = true;
+      }
+
+      if (isPhoneInvalid) {
+        setError('Telefone inválido. Insira um telefone com DDD (10 ou 11 dígitos).');
+        setLoading(false);
+        return;
+      }
     }
 
     try {
+      let phoneVal: string | undefined = undefined;
+      if (form.phone) {
+        phoneVal = form.phone;
+      }
+
+      let birthDateVal: string | undefined = undefined;
+      if (form.birthDate) {
+        birthDateVal = form.birthDate;
+      }
+
+      let addressVal: string | undefined = undefined;
+      if (form.address) {
+        addressVal = form.address;
+      }
+
       const result = await api.register({
         name: form.name,
         email: form.email,
         password: form.password,
         cpf: form.cpf,
-        phone: form.phone || undefined,
-        birthDate: form.birthDate || undefined,
-        address: form.address || undefined,
+        phone: phoneVal,
+        birthDate: birthDateVal,
+        address: addressVal,
       });
       setAuth(result.token, result.user);
       toast.success('Cadastro realizado com sucesso!');
     } catch (err: unknown) {
       const error = err as { error?: string };
-      setError(error.error || 'Erro ao realizar cadastro.');
+      let errorMsg = 'Erro ao realizar cadastro.';
+      if (error) {
+        if (error.error) {
+          errorMsg = error.error;
+        }
+      }
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -97,12 +135,17 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <div className="p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 rounded-xl text-sm flex items-center gap-2">
-              <Shield className="w-4 h-4 shrink-0" />
-              {error}
-            </div>
-          )}
+          {(() => {
+            if (error) {
+              return (
+                <div className="p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 rounded-xl text-sm flex items-center gap-2">
+                  <Shield className="w-4 h-4 shrink-0" />
+                  {error}
+                </div>
+              );
+            }
+            return null;
+          })()}
 
           <div className="space-y-1.5">
             <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nome completo</Label>
@@ -123,13 +166,34 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
           <div className="space-y-1.5">
             <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Senha</Label>
             <div className="relative">
-              <Input type={showPassword ? 'text' : 'password'} value={form.password} onChange={handleChange('password')} placeholder="Mínimo 6 caracteres" minLength={6} required className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 h-11 pr-12 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
+              {(() => {
+                let passType = 'password';
+                if (showPassword) {
+                  passType = 'text';
+                }
+                return (
+                  <Input
+                    type={passType}
+                    value={form.password}
+                    onChange={handleChange('password')}
+                    placeholder="Mínimo 6 caracteres"
+                    minLength={6}
+                    required
+                    className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 h-11 pr-12 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"
+                  />
+                );
+              })()}
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors p-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {(() => {
+                  if (showPassword) {
+                    return <EyeOff className="w-4 h-4" />;
+                  }
+                  return <Eye className="w-4 h-4" />;
+                })()}
               </button>
             </div>
           </div>
@@ -151,12 +215,17 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
           </div>
 
           <Button type="submit" disabled={loading} className="w-full h-12 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm active:scale-[0.98] transition-all shadow-lg shadow-emerald-600/20 hover:shadow-xl hover:shadow-emerald-600/30">
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Cadastrando...
-              </span>
-            ) : 'Criar Conta'}
+            {(() => {
+              if (loading) {
+                return (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Cadastrando...
+                  </span>
+                );
+              }
+              return 'Criar Conta';
+            })()}
           </Button>
         </form>
 

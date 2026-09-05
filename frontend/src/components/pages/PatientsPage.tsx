@@ -1,22 +1,23 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { toast } from 'sonner';
 import {
   Users, Search, Plus, Pencil, Trash2, Download, Clock, ArrowUpRight, Calendar, Eye, X
 } from 'lucide-react';
-import { usePharmacyStore } from '@/lib/pharmacy-store';
-import type { Patient } from '@/lib/types';
-import { downloadCSV, getAvatarColor } from '@/lib/constants';
+import { usePharmacyStore } from '@/lib/PharmacyStore';
+import type { Patient } from '@/lib/Types';
+import { downloadCSV, getAvatarColor } from '@/lib/Constants';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
-import { api } from '@/lib/api';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { api } from '@/lib/Api';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { Badge } from '@/components/ui/Badge';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
 
 export function PatientsPage() {
   const { patients, withdrawals, appointments } = usePharmacyStore();
@@ -32,7 +33,21 @@ export function PatientsPage() {
 
   const handleExportCSV = () => {
     const header = ['Nome', 'CPF', 'Telefone', 'Nascimento', 'Endereco'];
-    const rows = patients.map((p) => [p.name, p.cpf, p.phone || '', p.birthDate || '', p.address || '']);
+    const rows = patients.map((p) => {
+      let phoneStr = '';
+      if (p.phone) {
+        phoneStr = p.phone;
+      }
+      let birthStr = '';
+      if (p.birthDate) {
+        birthStr = p.birthDate;
+      }
+      let addressStr = '';
+      if (p.address) {
+        addressStr = p.address;
+      }
+      return [p.name, p.cpf, phoneStr, birthStr, addressStr];
+    });
     downloadCSV('pacientes_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
     toast.success('Relatório exportado com sucesso!');
   };
@@ -40,7 +55,11 @@ export function PatientsPage() {
   const load = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await api.getPatients(appliedSearch || undefined);
+      let searchArg: string | undefined = undefined;
+      if (appliedSearch.length > 0) {
+        searchArg = appliedSearch;
+      }
+      const data = await api.getPatients(searchArg);
       usePharmacyStore.setState({ patients: data });
     } catch {
       toast.error('Erro ao carregar pacientes.');
@@ -52,7 +71,9 @@ export function PatientsPage() {
   useEffect(() => {
     let mounted = true;
     (async () => {
-      if (mounted) await load();
+      if (mounted) {
+        await load();
+      }
     })();
     return () => {
       mounted = false;
@@ -75,12 +96,20 @@ export function PatientsPage() {
       load();
     } catch (err: unknown) {
       const error = err as { error?: string };
-      toast.error(error.error || 'Erro ao salvar paciente.');
+      let errorMsg = 'Erro ao salvar paciente.';
+      if (error) {
+        if (error.error) {
+          errorMsg = error.error;
+        }
+      }
+      toast.error(errorMsg);
     }
   };
 
   const confirmDelete = async () => {
-    if (!deleteTarget) return;
+    if (!deleteTarget) {
+      return;
+    }
     setDeleting(true);
     try {
       await api.deletePatient(deleteTarget.id);
@@ -89,7 +118,13 @@ export function PatientsPage() {
       load();
     } catch (err: unknown) {
       const error = err as { error?: string };
-      toast.error(error.error || 'Erro ao excluir.');
+      let errorMsg = 'Erro ao excluir.';
+      if (error) {
+        if (error.error) {
+          errorMsg = error.error;
+        }
+      }
+      toast.error(errorMsg);
     } finally {
       setDeleting(false);
     }
@@ -97,69 +132,131 @@ export function PatientsPage() {
 
   const openEdit = (p: Patient) => {
     setEditing(p);
+    let phoneVal = '';
+    if (p.phone) {
+      phoneVal = p.phone;
+    }
+    let birthVal = '';
+    if (p.birthDate) {
+      birthVal = p.birthDate.slice(0, 10);
+    }
+    let addressVal = '';
+    if (p.address) {
+      addressVal = p.address;
+    }
     setForm({
       name: p.name,
       cpf: p.cpf,
-      phone: p.phone || '',
-      birthDate: p.birthDate ? p.birthDate.slice(0, 10) : '',
-      address: p.address || '',
+      phone: phoneVal,
+      birthDate: birthVal,
+      address: addressVal,
     });
     setModalOpen(true);
   };
 
   const patientTimeline = useMemo(() => {
-    if (!selectedPatient) return [];
+    if (!selectedPatient) {
+      return [];
+    }
     const items: { type: 'withdrawal' | 'appointment'; date: string; description: string; detail: string }[] = [];
 
     withdrawals
-      .filter((w) => w.patient.name === selectedPatient.name)
+      .filter((w) => {
+        if (w.patient.name === selectedPatient.name) {
+          return true;
+        }
+        return false;
+      })
       .forEach((w) => {
+        let dosageText = 'Dose não informada';
+        if (w.batch.medicine.dosage) {
+          dosageText = w.batch.medicine.dosage;
+        }
         items.push({
           type: 'withdrawal',
           date: w.createdAt,
           description: 'Retirada de medicamento',
-          detail: `${w.batch.medicine.name} (${w.batch.medicine.dosage || 'Dose não informada'}) — ${w.quantity} un.`,
+          detail: `${w.batch.medicine.name} (${dosageText}) — ${w.quantity} un.`,
         });
       });
 
     appointments
-      .filter((a) => a.patient?.name === selectedPatient.name)
+      .filter((a) => {
+        if (a.patient) {
+          if (a.patient.name === selectedPatient.name) {
+            return true;
+          }
+        }
+        return false;
+      })
       .forEach((a) => {
         const d = new Date(a.scheduledDate);
+        let medName = 'N/A';
+        if (a.items) {
+          if (a.items.length > 0) {
+            if (a.items[0]) {
+              if (a.items[0].medicine) {
+                if (a.items[0].medicine.name) {
+                  medName = a.items[0].medicine.name;
+                }
+              }
+            }
+          }
+        }
+
+        let appDate = a.scheduledDate;
+        if (a.createdAt) {
+          appDate = a.createdAt;
+        }
+
+        let appTime = '';
+        if (a.scheduledTime) {
+          appTime = a.scheduledTime;
+        }
+
         items.push({
           type: 'appointment',
-          date: a.createdAt || a.scheduledDate,
-          description: `Atendimento: ${a.items?.[0]?.medicine?.name || 'N/A'}`,
-          detail: `${d.toLocaleDateString('pt-BR')} ${a.scheduledTime || ''} — Status: ${a.status}`,
+          date: appDate,
+          description: `Atendimento: ${medName}`,
+          detail: `${d.toLocaleDateString('pt-BR')} ${appTime} — Status: ${a.status}`,
         });
       });
 
-    return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10);
+    return items.sort((a, b) => {
+      return new Date(b.date).getTime() - new Date(a.date).getTime();
+    }).slice(0, 10);
   }, [selectedPatient, withdrawals, appointments]);
 
   const columns: Column<Patient>[] = [
     {
       header: 'Paciente',
       width: '260px',
-      cell: (p) => (
-        <div className="flex items-center gap-2.5">
-          <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ${getAvatarColor(
-              p.name
-            )}`}
-          >
-            {p.name[0]?.toUpperCase()}
+      cell: (p) => {
+        let firstLetter = '';
+        if (p.name.length > 0) {
+          firstLetter = p.name.charAt(0).toUpperCase();
+        }
+        let addressEl: ReactNode = null;
+        if (p.address) {
+          addressEl = <p className="text-[11px] text-slate-400 truncate max-w-[200px] mt-0.5">{p.address}</p>;
+        }
+
+        return (
+          <div className="flex items-center gap-2.5">
+            <div
+              className={'w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 ' + getAvatarColor(p.name)}
+            >
+              {firstLetter}
+            </div>
+            <div>
+              <p className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm line-clamp-1">
+                {p.name}
+              </p>
+              {addressEl}
+            </div>
           </div>
-          <div>
-            <p className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm line-clamp-1">
-              {p.name}
-            </p>
-            {p.address && (
-              <p className="text-[11px] text-slate-400 truncate max-w-[200px] mt-0.5">{p.address}</p>
-            )}
-          </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       header: 'CPF',
@@ -171,18 +268,30 @@ export function PatientsPage() {
     {
       header: 'Telefone',
       width: '140px',
-      cell: (p) => (
-        <span className="text-xs text-slate-600 dark:text-slate-300">{p.phone || '—'}</span>
-      ),
+      cell: (p) => {
+        let phoneText = '—';
+        if (p.phone) {
+          phoneText = p.phone;
+        }
+        return (
+          <span className="text-xs text-slate-600 dark:text-slate-300">{phoneText}</span>
+        );
+      },
     },
     {
       header: 'Data de Nascimento',
       width: '140px',
       cell: (p) => {
-        const d = p.birthDate ? new Date(p.birthDate) : null;
+        let dateText = '—';
+        if (p.birthDate) {
+          const d = new Date(p.birthDate);
+          if (!Number.isNaN(d.getTime())) {
+            dateText = d.toLocaleDateString('pt-BR');
+          }
+        }
         return (
           <span className="text-xs text-slate-600 dark:text-slate-300">
-            {d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('pt-BR') : '—'}
+            {dateText}
           </span>
         );
       },
@@ -192,8 +301,22 @@ export function PatientsPage() {
       width: '130px',
       align: 'center',
       cell: (p) => {
-        const pWithdrawals = withdrawals.filter((w) => w.patient.name === p.name).length;
-        const pAppointments = appointments.filter((a) => a.patient?.name === p.name).length;
+        const pWithdrawals = withdrawals.filter((w) => {
+          if (w.patient.name === p.name) {
+            return true;
+          }
+          return false;
+        }).length;
+
+        const pAppointments = appointments.filter((a) => {
+          if (a.patient) {
+            if (a.patient.name === p.name) {
+              return true;
+            }
+          }
+          return false;
+        }).length;
+
         return (
           <div className="flex items-center justify-center gap-1.5">
             <Badge
@@ -254,6 +377,15 @@ export function PatientsPage() {
     },
   ];
 
+  let modalTitle = 'Novo Paciente';
+  let modalDesc = 'Preencha os dados do paciente para novo cadastro.';
+  let modalBtn = 'Cadastrar Paciente';
+  if (editing) {
+    modalTitle = 'Editar Paciente';
+    modalDesc = 'Atualize os dados cadastrais do paciente.';
+    modalBtn = 'Salvar Alterações';
+  }
+
   return (
     <div className="space-y-5 page-enter">
       {/* Standardized PageHeader */}
@@ -304,18 +436,23 @@ export function PatientsPage() {
             placeholder="Buscar paciente por nome ou CPF..."
             className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
           />
-          {searchInput && (
-            <button
-              type="button"
-              onClick={() => {
-                setSearchInput('');
-                setAppliedSearch('');
-              }}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+          {(() => {
+            if (searchInput.length > 0) {
+              return (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSearchInput('');
+                    setAppliedSearch('');
+                  }}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              );
+            }
+            return null;
+          })()}
         </div>
         <Button type="submit" size="sm" className="h-9 px-4 rounded-xl text-xs bg-slate-800 hover:bg-slate-900 text-white dark:bg-slate-700 dark:hover:bg-slate-600">
           Buscar
@@ -352,10 +489,10 @@ export function PatientsPage() {
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
               <Users className="w-5 h-5 text-emerald-600" />
-              {editing ? 'Editar Paciente' : 'Novo Paciente'}
+              {modalTitle}
             </DialogTitle>
             <DialogDescription>
-              {editing ? 'Atualize os dados cadastrais do paciente.' : 'Preencha os dados do paciente para novo cadastro.'}
+              {modalDesc}
             </DialogDescription>
           </DialogHeader>
 
@@ -429,7 +566,7 @@ export function PatientsPage() {
                 Cancelar
               </Button>
               <Button type="submit" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
-                {editing ? 'Salvar Alterações' : 'Cadastrar Paciente'}
+                {modalBtn}
               </Button>
             </DialogFooter>
           </form>
@@ -441,80 +578,135 @@ export function PatientsPage() {
         <DialogContent className="rounded-2xl max-w-xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <div
-                className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ${getAvatarColor(
-                  selectedPatient?.name || 'P'
-                )}`}
-              >
-                {selectedPatient?.name[0]?.toUpperCase()}
-              </div>
-              {selectedPatient?.name}
+              {(() => {
+                let patientInitial = 'P';
+                let patientName = '';
+                if (selectedPatient) {
+                  patientName = selectedPatient.name;
+                  if (selectedPatient.name.length > 0) {
+                    patientInitial = selectedPatient.name.charAt(0).toUpperCase();
+                  }
+                }
+                return (
+                  <>
+                    <div
+                      className={'w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold shrink-0 ' + getAvatarColor(patientInitial)}
+                    >
+                      {patientInitial}
+                    </div>
+                    {patientName}
+                  </>
+                );
+              })()}
             </DialogTitle>
             <DialogDescription>Prontuário e histórico de atendimentos na Farmácia Escola</DialogDescription>
           </DialogHeader>
 
-          {selectedPatient && (
-            <div className="space-y-4 pt-1">
-              <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 text-xs">
-                <div>
-                  <span className="text-slate-400">CPF:</span>
-                  <p className="font-mono font-semibold text-slate-800 dark:text-slate-200 mt-0.5">{selectedPatient.cpf}</p>
-                </div>
-                <div>
-                  <span className="text-slate-400">Telefone:</span>
-                  <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">{selectedPatient.phone || '—'}</p>
-                </div>
-                <div>
-                  <span className="text-slate-400">Nascimento:</span>
-                  <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
-                    {selectedPatient.birthDate ? new Date(selectedPatient.birthDate).toLocaleDateString('pt-BR') : '—'}
-                  </p>
-                </div>
-                <div>
-                  <span className="text-slate-400">Endereço:</span>
-                  <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5 truncate">{selectedPatient.address || '—'}</p>
-                </div>
-              </div>
+          {(() => {
+            if (selectedPatient) {
+              let selPhone = '—';
+              if (selectedPatient.phone) {
+                selPhone = selectedPatient.phone;
+              }
 
-              <div>
-                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                  Histórico de Atendimentos ({patientTimeline.length})
-                </h4>
-                {patientTimeline.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic py-2">Nenhum atendimento ou retirada registrado para este paciente.</p>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {patientTimeline.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="p-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <p className="font-semibold text-slate-800 dark:text-slate-200">{item.description}</p>
-                          <p className="text-[11px] text-slate-500 mt-0.5">{item.detail}</p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={item.type === 'withdrawal' ? 'text-emerald-600 border-emerald-200 text-[10px]' : 'text-teal-600 border-teal-200 text-[10px]'}
-                        >
-                          {item.type === 'withdrawal' ? 'Retirada' : 'Agendamento'}
-                        </Badge>
-                      </div>
-                    ))}
+              let selBirth = '—';
+              if (selectedPatient.birthDate) {
+                selBirth = new Date(selectedPatient.birthDate).toLocaleDateString('pt-BR');
+              }
+
+              let selAddress = '—';
+              if (selectedPatient.address) {
+                selAddress = selectedPatient.address;
+              }
+
+              return (
+                <div className="space-y-4 pt-1">
+                  <div className="grid grid-cols-2 gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700 text-xs">
+                    <div>
+                      <span className="text-slate-400">CPF:</span>
+                      <p className="font-mono font-semibold text-slate-800 dark:text-slate-200 mt-0.5">{selectedPatient.cpf}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Telefone:</span>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">{selPhone}</p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Nascimento:</span>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5">
+                        {selBirth}
+                      </p>
+                    </div>
+                    <div>
+                      <span className="text-slate-400">Endereço:</span>
+                      <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5 truncate">{selAddress}</p>
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-          )}
+
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                      Histórico de Atendimentos ({patientTimeline.length})
+                    </h4>
+                    {(() => {
+                      if (patientTimeline.length === 0) {
+                        return <p className="text-xs text-slate-400 italic py-2">Nenhum atendimento ou retirada registrado para este paciente.</p>;
+                      } else {
+                        return (
+                          <div className="space-y-2 max-h-48 overflow-y-auto">
+                            {patientTimeline.map((item, idx) => {
+                              let badgeTypeClass = 'text-teal-600 border-teal-200 text-[10px]';
+                              let badgeTypeLabel = 'Agendamento';
+                              if (item.type === 'withdrawal') {
+                                badgeTypeClass = 'text-emerald-600 border-emerald-200 text-[10px]';
+                                badgeTypeLabel = 'Retirada';
+                              }
+
+                              return (
+                                <div
+                                  key={idx}
+                                  className="p-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between text-xs"
+                                >
+                                  <div>
+                                    <p className="font-semibold text-slate-800 dark:text-slate-200">{item.description}</p>
+                                    <p className="text-[11px] text-slate-500 mt-0.5">{item.detail}</p>
+                                  </div>
+                                  <Badge
+                                    variant="outline"
+                                    className={badgeTypeClass}
+                                  >
+                                    {badgeTypeLabel}
+                                  </Badge>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      }
+                    })()}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </DialogContent>
       </Dialog>
 
       {/* Delete Patient Confirmation Dialog */}
       <ConfirmDialog
         open={Boolean(deleteTarget)}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+          }
+        }}
         title="Excluir Paciente"
-        description={`Tem certeza que deseja excluir o cadastro de "${deleteTarget?.name}"? Esta ação removerá os dados permanentemente.`}
+        description={(() => {
+          let targetName = '';
+          if (deleteTarget) {
+            targetName = deleteTarget.name;
+          }
+          return `Tem certeza que deseja excluir o cadastro de "${targetName}"? Esta ação removerá os dados permanentemente.`;
+        })()}
         onConfirm={confirmDelete}
         confirmLabel="Excluir"
         variant="danger"

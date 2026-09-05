@@ -12,26 +12,37 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
-import { useAuthStore } from '@/lib/auth-store';
-import { useMedicines, useAppointments, useBatches } from '@/services/queries';
-import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES, CHART_COLORS } from '@/lib/constants';
-import { computeStockStatus, type StockStatus } from '@/lib/types';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useAuthStore } from '@/lib/AuthStore';
+import { useMedicines, useAppointments, useBatches } from '@/services/Queries';
+import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES, CHART_COLORS } from '@/lib/Constants';
+import { computeStockStatus, type StockStatus } from '@/lib/Types';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { ChartTooltipContent } from '@/components/shared/ChartTooltipContent';
 
 export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?: string) => void }) {
   const router = useRouter();
   const user = useAuthStore((s) => s.user);
-  const isPatient = user?.role === 'PACIENTE';
+  let isPatient = false;
+  if (user) {
+    if (user.role === 'PACIENTE') {
+      isPatient = true;
+    }
+  }
 
   const { data: medicines = [], isLoading: loadingMeds } = useMedicines();
   const { data: appointments = [], isLoading: loadingApps } = useAppointments();
   const { data: batches = [], isLoading: loadingBatches } = useBatches();
 
   const totalStockUnits = useMemo(() => {
-    return medicines.reduce((sum, m) => sum + (m.totalQuantity ?? 0), 0);
+    return medicines.reduce((sum, m) => {
+      let qty = 0;
+      if (m.totalQuantity !== undefined && m.totalQuantity !== null) {
+        qty = m.totalQuantity;
+      }
+      return sum + qty;
+    }, 0);
   }, [medicines]);
 
   // Unified Taxonomy Metrics
@@ -59,13 +70,23 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
   const appointmentPieData = useMemo(() => {
     const counts: Record<string, number> = {};
     appointments.forEach((a) => {
-      counts[a.status] = (counts[a.status] || 0) + 1;
+      let current = 0;
+      if (counts[a.status]) {
+        current = counts[a.status];
+      }
+      counts[a.status] = current + 1;
     });
     return Object.entries(APPOINTMENT_STATUS_LABELS)
-      .map(([key, label]) => ({
-        name: label,
-        value: counts[key] || 0,
-      }))
+      .map(([key, label]) => {
+        let val = 0;
+        if (counts[key]) {
+          val = counts[key];
+        }
+        return {
+          name: label,
+          value: val,
+        };
+      })
       .filter((d) => d.value > 0);
   }, [appointments]);
 
@@ -83,15 +104,33 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
   const stockByMedData = useMemo(() => {
     return medicines
       .slice(0, 6)
-      .map((m) => ({
-        name: m.name.length > 12 ? m.name.slice(0, 12) + '…' : m.name,
-        quantidade: m.totalQuantity ?? 0,
-      }));
+      .map((m) => {
+        let nameStr = m.name;
+        if (m.name.length > 12) {
+          nameStr = m.name.slice(0, 12) + '…';
+        }
+        let qty = 0;
+        if (m.totalQuantity !== undefined && m.totalQuantity !== null) {
+          qty = m.totalQuantity;
+        }
+        return {
+          name: nameStr,
+          quantidade: qty,
+        };
+      });
   }, [medicines]);
 
   // Upcoming appointments
   const upcomingAppointments = appointments
-    .filter((a) => a.status === 'PENDING' || a.status === 'CONFIRMED')
+    .filter((a) => {
+      if (a.status === 'PENDING') {
+        return true;
+      }
+      if (a.status === 'CONFIRMED') {
+        return true;
+      }
+      return false;
+    })
     .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())
     .slice(0, 4);
 
@@ -106,7 +145,17 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
               Portal do Paciente
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Olá, {user?.name?.split(' ')[0] || 'Paciente'}!
+              Olá, {(() => {
+                if (user) {
+                  if (user.name) {
+                    const parts = user.name.split(' ');
+                    if (parts.length > 0) {
+                      return parts[0];
+                    }
+                  }
+                }
+                return 'Paciente';
+              })()}!
             </h1>
             <p className="text-emerald-100 text-sm max-w-xl">
               Consulte medicamentos gratuitos disponíveis e agende sua retirada com facilidade.
@@ -196,52 +245,94 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
             </Button>
           </CardHeader>
           <CardContent>
-            {upcomingAppointments.length === 0 ? (
-              <div className="text-center py-10 space-y-3">
-                <CalendarDays className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
-                <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
-                  Você não tem nenhum agendamento pendente.
-                </p>
-                <Button asChild size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-                  <Link href="/appointments?new=1">
-                    <Plus className="w-4 h-4 mr-1" />
-                    Agendar Retirada
-                  </Link>
-                </Button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {upcomingAppointments.map((app) => {
-                  const d = new Date(app.scheduledDate);
-                  return (
-                    <div
-                      key={app.id}
-                      className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 flex flex-col items-center justify-center font-bold text-xs">
-                          <span>{d.toLocaleDateString('pt-BR', { day: 'numeric' })}</span>
-                          <span className="text-[9px] uppercase">{d.toLocaleDateString('pt-BR', { month: 'short' })}</span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                            {app.items?.[0]?.medicine?.name || 'Consulta Farmacêutica'}
-                            {app.items && app.items.length > 1 && ` (+${app.items.length - 1} itens)`}
-                          </p>
-                          <p className="text-xs text-slate-400">
-                            Horário: {app.scheduledTime || '09:00'} • {d.toLocaleDateString('pt-BR')}
-                          </p>
-                        </div>
-                      </div>
+            {(() => {
+              if (upcomingAppointments.length === 0) {
+                return (
+                  <div className="text-center py-10 space-y-3">
+                    <CalendarDays className="w-10 h-10 mx-auto text-slate-300 dark:text-slate-600" />
+                    <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
+                      Você não tem nenhum agendamento pendente.
+                    </p>
+                    <Button asChild size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+                      <Link href="/appointments?new=1">
+                        <Plus className="w-4 h-4 mr-1" />
+                        Agendar Retirada
+                      </Link>
+                    </Button>
+                  </div>
+                );
+              } else {
+                return (
+                  <div className="space-y-3">
+                    {upcomingAppointments.map((app) => {
+                      const d = new Date(app.scheduledDate);
+                      return (
+                        <div
+                          key={app.id}
+                          className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 flex flex-col items-center justify-center font-bold text-xs">
+                              <span>{d.toLocaleDateString('pt-BR', { day: 'numeric' })}</span>
+                              <span className="text-[9px] uppercase">{d.toLocaleDateString('pt-BR', { month: 'short' })}</span>
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                                {(() => {
+                                  if (app.items) {
+                                    if (app.items.length > 0) {
+                                      if (app.items[0].medicine) {
+                                        if (app.items[0].medicine.name) {
+                                          return app.items[0].medicine.name;
+                                        }
+                                      }
+                                    }
+                                  }
+                                  return 'Consulta Farmacêutica';
+                                })()}
+                                {(() => {
+                                  if (app.items) {
+                                    if (app.items.length > 1) {
+                                      return ` (+${app.items.length - 1} itens)`;
+                                    }
+                                  }
+                                  return null;
+                                })()}
+                              </p>
+                              <p className="text-xs text-slate-400">
+                                Horário: {(() => {
+                                  if (app.scheduledTime) {
+                                    return app.scheduledTime;
+                                  }
+                                  return '09:00';
+                                })()} • {d.toLocaleDateString('pt-BR')}
+                              </p>
+                            </div>
+                          </div>
 
-                      <Badge variant="outline" className={APPOINTMENT_STATUS_STYLES[app.status] || ''}>
-                        {APPOINTMENT_STATUS_LABELS[app.status] || app.status}
-                      </Badge>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                          <Badge
+                            variant="outline"
+                            className={(() => {
+                              if (APPOINTMENT_STATUS_STYLES[app.status]) {
+                                return APPOINTMENT_STATUS_STYLES[app.status];
+                              }
+                              return '';
+                            })()}
+                          >
+                            {(() => {
+                              if (APPOINTMENT_STATUS_LABELS[app.status]) {
+                                return APPOINTMENT_STATUS_LABELS[app.status];
+                              }
+                              return app.status;
+                            })()}
+                          </Badge>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              }
+            })()}
           </CardContent>
         </Card>
       </div>
@@ -259,7 +350,17 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
             Painel Geral Farmacêutico
           </div>
           <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Olá, {user?.name?.split(' ')[0] || 'Usuário'}!
+            Olá, {(() => {
+              if (user) {
+                if (user.name) {
+                  const parts = user.name.split(' ');
+                  if (parts.length > 0) {
+                    return parts[0];
+                  }
+                }
+              }
+              return 'Usuário';
+            })()}!
           </h1>
           <p className="text-emerald-100 text-sm max-w-xl">
             Visão consolidada do estoque, agendamentos e atendimento universitário com taxonomia unificada.
@@ -391,31 +492,37 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {appointmentPieData.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <PieChart>
-                  <Pie
-                    data={appointmentPieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={50}
-                    outerRadius={80}
-                    paddingAngle={4}
-                    dataKey="value"
-                    nameKey="name"
-                  >
-                    {appointmentPieData.map((_, i) => (
-                      <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip content={<ChartTooltipContent />} />
-                </PieChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="py-12 text-center text-slate-400 text-sm">
-                Nenhum agendamento registrado ainda.
-              </div>
-            )}
+            {(() => {
+              if (appointmentPieData.length > 0) {
+                return (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <PieChart>
+                      <Pie
+                        data={appointmentPieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={80}
+                        paddingAngle={4}
+                        dataKey="value"
+                        nameKey="name"
+                      >
+                        {appointmentPieData.map((_, i) => (
+                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                        ))}
+                      </Pie>
+                      <RechartsTooltip content={<ChartTooltipContent />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                );
+              } else {
+                return (
+                  <div className="py-12 text-center text-slate-400 text-sm">
+                    Nenhum agendamento registrado ainda.
+                  </div>
+                );
+              }
+            })()}
           </CardContent>
         </Card>
 
@@ -428,29 +535,35 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {medicines.length > 0 ? (
-              <ResponsiveContainer width="100%" height={240}>
-                <BarChart
-                  data={[
-                    { name: 'Em dia', quantidade: stockTaxonomyCounts.ok, fill: '#10b981' },
-                    { name: 'Baixo', quantidade: stockTaxonomyCounts.low, fill: '#f59e0b' },
-                    { name: 'Crítico', quantidade: stockTaxonomyCounts.critical, fill: '#ef4444' },
-                    { name: 'Vencido', quantidade: stockTaxonomyCounts.expired, fill: '#9333ea' },
-                  ]}
-                  margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <RechartsTooltip content={<ChartTooltipContent />} />
-                  <Bar dataKey="quantidade" radius={[6, 6, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="py-12 text-center text-slate-400 text-sm">
-                Nenhum medicamento com estoque cadastrado.
-              </div>
-            )}
+            {(() => {
+              if (medicines.length > 0) {
+                return (
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart
+                      data={[
+                        { name: 'Em dia', quantidade: stockTaxonomyCounts.ok, fill: '#10b981' },
+                        { name: 'Baixo', quantidade: stockTaxonomyCounts.low, fill: '#f59e0b' },
+                        { name: 'Crítico', quantidade: stockTaxonomyCounts.critical, fill: '#ef4444' },
+                        { name: 'Vencido', quantidade: stockTaxonomyCounts.expired, fill: '#9333ea' },
+                      ]}
+                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" />
+                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
+                      <RechartsTooltip content={<ChartTooltipContent />} />
+                      <Bar dataKey="quantidade" radius={[6, 6, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                );
+              } else {
+                return (
+                  <div className="py-12 text-center text-slate-400 text-sm">
+                    Nenhum medicamento com estoque cadastrado.
+                  </div>
+                );
+              }
+            })()}
           </CardContent>
         </Card>
       </div>
@@ -470,41 +583,83 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
           </Button>
         </CardHeader>
         <CardContent>
-          {upcomingAppointments.length === 0 ? (
-            <div className="py-8 text-center text-slate-400 text-sm">
-              Nenhum agendamento pendente nos próximos dias.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-              {upcomingAppointments.map((app) => {
-                const d = new Date(app.scheduledDate);
-                return (
-                  <div
-                    key={app.id}
-                    className="p-3.5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 font-bold text-xs flex flex-col items-center justify-center">
-                        <span>{d.toLocaleDateString('pt-BR', { day: 'numeric' })}</span>
-                        <span className="text-[8px] uppercase">{d.toLocaleDateString('pt-BR', { month: 'short' })}</span>
+          {(() => {
+            if (upcomingAppointments.length === 0) {
+              return (
+                <div className="py-8 text-center text-slate-400 text-sm">
+                  Nenhum agendamento pendente nos próximos dias.
+                </div>
+              );
+            } else {
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {upcomingAppointments.map((app) => {
+                    const d = new Date(app.scheduledDate);
+                    return (
+                      <div
+                        key={app.id}
+                        className="p-3.5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 font-bold text-xs flex flex-col items-center justify-center">
+                            <span>{d.toLocaleDateString('pt-BR', { day: 'numeric' })}</span>
+                            <span className="text-[8px] uppercase">{d.toLocaleDateString('pt-BR', { month: 'short' })}</span>
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                              {(() => {
+                                if (app.patient) {
+                                  if (app.patient.name) {
+                                    return app.patient.name;
+                                  }
+                                }
+                                return 'Paciente';
+                              })()}
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                              {(() => {
+                                let medName = 'Retirada';
+                                if (app.items) {
+                                  if (app.items.length > 0) {
+                                    if (app.items[0].medicine) {
+                                      if (app.items[0].medicine.name) {
+                                        medName = app.items[0].medicine.name;
+                                      }
+                                    }
+                                  }
+                                }
+                                let timeStr = '';
+                                if (app.scheduledTime) {
+                                  timeStr = ` às ${app.scheduledTime}`;
+                                }
+                                return `${medName}${timeStr}`;
+                              })()}
+                            </p>
+                          </div>
+                        </div>
+                        <Badge
+                          variant="outline"
+                          className={(() => {
+                            if (APPOINTMENT_STATUS_STYLES[app.status]) {
+                              return APPOINTMENT_STATUS_STYLES[app.status];
+                            }
+                            return '';
+                          })()}
+                        >
+                          {(() => {
+                            if (APPOINTMENT_STATUS_LABELS[app.status]) {
+                              return APPOINTMENT_STATUS_LABELS[app.status];
+                            }
+                            return app.status;
+                          })()}
+                        </Badge>
                       </div>
-                      <div>
-                        <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                          {app.patient?.name || 'Paciente'}
-                        </p>
-                        <p className="text-[11px] text-slate-400">
-                          {app.items?.[0]?.medicine?.name || 'Retirada'} {app.scheduledTime ? `às ${app.scheduledTime}` : ''}
-                        </p>
-                      </div>
-                    </div>
-                    <Badge variant="outline" className={APPOINTMENT_STATUS_STYLES[app.status] || ''}>
-                      {APPOINTMENT_STATUS_LABELS[app.status] || app.status}
-                    </Badge>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+                    );
+                  })}
+                </div>
+              );
+            }
+          })()}
         </CardContent>
       </Card>
     </div>

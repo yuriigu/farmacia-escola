@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import type { ReactNode } from 'react';
 import { toast } from 'sonner';
 import {
   ShieldCheck,
@@ -19,8 +20,8 @@ import {
   AlertCircle,
 } from 'lucide-react';
 
-import type { User } from '@/lib/types';
-import { getAvatarColor, downloadCSV } from '@/lib/constants';
+import type { User } from '@/lib/Types';
+import { getAvatarColor, downloadCSV } from '@/lib/Constants';
 import {
   useUsers,
   useCreateUser,
@@ -30,11 +31,11 @@ import {
 import { RoleBadge } from '@/components/shared/RoleBadge';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Textarea } from '@/components/ui/Textarea';
+import { Label } from '@/components/ui/Label';
+import { Badge } from '@/components/ui/Badge';
 import {
   Dialog,
   DialogContent,
@@ -42,15 +43,15 @@ import {
   DialogTitle,
   DialogDescription,
   DialogFooter,
-} from '@/components/ui/dialog';
+} from '@/components/ui/Dialog';
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
+} from '@/components/ui/Select';
+import { Switch } from '@/components/ui/Switch';
 
 const ROLES = ['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO', 'PACIENTE'] as const;
 
@@ -128,25 +129,72 @@ export function AdminPage() {
 
   const handleOpenEdit = (u: User) => {
     setEditingUser(u);
-    const userBirthDate = u.birthDate
-      ? u.birthDate.split('T')[0]
-      : u.patient?.birthDate
-      ? String(u.patient.birthDate).split('T')[0]
-      : '';
-    const userAddress = u.address || u.patient?.address || '';
-    const userDoc = u.registerDoc || u.patient?.cpf || '';
-    const userPhone = u.phone || u.patient?.phone || '';
+    let userBirthDate = '';
+    if (u.birthDate) {
+      userBirthDate = u.birthDate.split('T')[0];
+    } else if (u.patient) {
+      if (u.patient.birthDate) {
+        userBirthDate = String(u.patient.birthDate).split('T')[0];
+      }
+    }
+
+    let userAddress = '';
+    if (u.address) {
+      userAddress = u.address;
+    } else if (u.patient) {
+      if (u.patient.address) {
+        userAddress = u.patient.address;
+      }
+    }
+
+    let userDoc = '';
+    if (u.registerDoc) {
+      userDoc = u.registerDoc;
+    } else if (u.patient) {
+      if (u.patient.cpf) {
+        userDoc = u.patient.cpf;
+      }
+    }
+
+    let userPhone = '';
+    if (u.phone) {
+      userPhone = u.phone;
+    } else if (u.patient) {
+      if (u.patient.phone) {
+        userPhone = u.patient.phone;
+      }
+    }
+
+    let userName = '';
+    if (u.name) {
+      userName = u.name;
+    }
+
+    let userEmail = '';
+    if (u.email) {
+      userEmail = u.email;
+    }
+
+    let userRole = 'FARMACEUTICO';
+    if (u.role) {
+      userRole = u.role;
+    }
+
+    let userActive = true;
+    if (u.active !== undefined && u.active !== null) {
+      userActive = u.active;
+    }
 
     setForm({
-      name: u.name || '',
-      email: u.email || '',
+      name: userName,
+      email: userEmail,
       password: '',
-      role: u.role || 'FARMACEUTICO',
+      role: userRole,
       registerDoc: userDoc,
       phone: userPhone,
       birthDate: userBirthDate,
       address: userAddress,
-      active: u.active ?? true,
+      active: userActive,
     });
     setChangePassword(false);
     setModalOpen(true);
@@ -154,14 +202,46 @@ export function AdminPage() {
 
   const handleExportCSV = () => {
     const header = ['Nome', 'E-mail', 'Perfil', 'Documento', 'Telefone', 'Status'];
-    const rows = filteredUsers.map((u) => [
-      u.name,
-      u.email,
-      ROLE_LABEL[u.role] || u.role,
-      u.registerDoc || u.patient?.cpf || 'N/A',
-      u.phone || u.patient?.phone || 'N/A',
-      u.active ? 'Ativo' : 'Inativo',
-    ]);
+    const rows = filteredUsers.map((u) => {
+      let roleLabel = u.role;
+      if (ROLE_LABEL[u.role]) {
+        roleLabel = ROLE_LABEL[u.role];
+      }
+
+      let docText = 'N/A';
+      if (u.registerDoc) {
+        docText = u.registerDoc;
+      } else if (u.patient) {
+        if (u.patient.cpf) {
+          docText = u.patient.cpf;
+        }
+      }
+
+      let phoneText = 'N/A';
+      if (u.phone) {
+        phoneText = u.phone;
+      } else if (u.patient) {
+        if (u.patient.phone) {
+          phoneText = u.patient.phone;
+        }
+      }
+
+      let activeText = 'Inativo';
+      if (u.active) {
+        activeText = 'Ativo';
+      } else {
+        activeText = 'Inativo';
+      }
+
+      return [
+        u.name,
+        u.email,
+        roleLabel,
+        docText,
+        phoneText,
+        activeText,
+      ];
+    });
     downloadCSV('usuarios_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
     toast.success('Relatório de usuários exportado com sucesso!');
   };
@@ -176,29 +256,60 @@ export function AdminPage() {
       toast.error('Informe o e-mail.');
       return;
     }
-    if (!editingUser && (!form.password || form.password.length < 6)) {
-      toast.error('A senha deve conter no mínimo 6 caracteres.');
-      return;
+    if (!editingUser) {
+      if (!form.password) {
+        toast.error('A senha deve conter no mínimo 6 caracteres.');
+        return;
+      }
+      if (form.password.length < 6) {
+        toast.error('A senha deve conter no mínimo 6 caracteres.');
+        return;
+      }
     }
-    if (editingUser && changePassword && form.password && form.password.length < 6) {
-      toast.error('A nova senha deve conter no mínimo 6 caracteres.');
-      return;
+    if (editingUser) {
+      if (changePassword) {
+        if (form.password) {
+          if (form.password.length < 6) {
+            toast.error('A nova senha deve conter no mínimo 6 caracteres.');
+            return;
+          }
+        }
+      }
     }
 
     try {
       if (editingUser) {
+        let regDocVal: string | null = null;
+        if (form.registerDoc.trim().length > 0) {
+          regDocVal = form.registerDoc.trim();
+        }
+        let phoneVal: string | null = null;
+        if (form.phone.trim().length > 0) {
+          phoneVal = form.phone.trim();
+        }
+        let birthVal: string | null = null;
+        if (form.birthDate.length > 0) {
+          birthVal = form.birthDate;
+        }
+        let addrVal: string | null = null;
+        if (form.address.trim().length > 0) {
+          addrVal = form.address.trim();
+        }
+
         const payload: Record<string, unknown> = {
           name: form.name.trim(),
           email: form.email.trim().toLowerCase(),
           role: form.role,
-          registerDoc: form.registerDoc.trim() || null,
-          phone: form.phone.trim() || null,
-          birthDate: form.birthDate || null,
-          address: form.address.trim() || null,
+          registerDoc: regDocVal,
+          phone: phoneVal,
+          birthDate: birthVal,
+          address: addrVal,
           active: form.active,
         };
-        if (changePassword && form.password.trim()) {
-          payload.password = form.password;
+        if (changePassword) {
+          if (form.password.trim().length > 0) {
+            payload.password = form.password;
+          }
         }
 
         await updateUserMutation.mutateAsync({
@@ -206,15 +317,32 @@ export function AdminPage() {
           data: payload,
         });
       } else {
+        let regDocVal: string | undefined = undefined;
+        if (form.registerDoc.trim().length > 0) {
+          regDocVal = form.registerDoc.trim();
+        }
+        let phoneVal: string | undefined = undefined;
+        if (form.phone.trim().length > 0) {
+          phoneVal = form.phone.trim();
+        }
+        let birthVal: string | undefined = undefined;
+        if (form.birthDate.length > 0) {
+          birthVal = form.birthDate;
+        }
+        let addrVal: string | undefined = undefined;
+        if (form.address.trim().length > 0) {
+          addrVal = form.address.trim();
+        }
+
         await createUserMutation.mutateAsync({
           name: form.name.trim(),
           email: form.email.trim().toLowerCase(),
           password: form.password,
           role: form.role,
-          registerDoc: form.registerDoc.trim() || undefined,
-          phone: form.phone.trim() || undefined,
-          birthDate: form.birthDate || undefined,
-          address: form.address.trim() || undefined,
+          registerDoc: regDocVal,
+          phone: phoneVal,
+          birthDate: birthVal,
+          address: addrVal,
           active: form.active,
         });
       }
@@ -250,28 +378,70 @@ export function AdminPage() {
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
-      const matchSearch =
-        search.trim() === '' ||
-        u.name.toLowerCase().includes(search.toLowerCase()) ||
-        u.email.toLowerCase().includes(search.toLowerCase()) ||
-        (u.registerDoc && u.registerDoc.toLowerCase().includes(search.toLowerCase())) ||
-        (u.phone && u.phone.includes(search)) ||
-        (u.address && u.address.toLowerCase().includes(search.toLowerCase()));
+      let matchSearch = false;
+      if (search.trim() === '') {
+        matchSearch = true;
+      } else {
+        const term = search.toLowerCase();
+        if (u.name.toLowerCase().includes(term)) {
+          matchSearch = true;
+        } else if (u.email.toLowerCase().includes(term)) {
+          matchSearch = true;
+        } else if (u.registerDoc && u.registerDoc.toLowerCase().includes(term)) {
+          matchSearch = true;
+        } else if (u.phone && u.phone.includes(search)) {
+          matchSearch = true;
+        } else if (u.address && u.address.toLowerCase().includes(term)) {
+          matchSearch = true;
+        }
+      }
 
-      const matchRole = selectedRoleFilter === 'ALL' || u.role === selectedRoleFilter;
+      let matchRole = false;
+      if (selectedRoleFilter === 'ALL') {
+        matchRole = true;
+      } else if (u.role === selectedRoleFilter) {
+        matchRole = true;
+      }
 
-      return matchSearch && matchRole;
+      if (matchSearch) {
+        if (matchRole) {
+          return true;
+        }
+      }
+      return false;
     });
   }, [users, search, selectedRoleFilter]);
 
-  const activeCount = useMemo(() => users.filter((u) => u.active).length, [users]);
+  const activeCount = useMemo(() => {
+    return users.filter((u) => {
+      if (u.active) {
+        return true;
+      }
+      return false;
+    }).length;
+  }, [users]);
 
   const columns: Column<User>[] = [
     {
       header: 'Usuário',
       width: '260px',
       cell: (u) => {
-        const doc = u.registerDoc || u.patient?.cpf;
+        let doc = '';
+        if (u.registerDoc) {
+          doc = u.registerDoc;
+        } else if (u.patient) {
+          if (u.patient.cpf) {
+            doc = u.patient.cpf;
+          }
+        }
+
+        let firstLetter = '';
+        if (u.name) {
+          if (u.name.length > 0) {
+            firstLetter = u.name.charAt(0).toUpperCase();
+          }
+        }
+
         return (
           <div className="flex items-center gap-3">
             <div
@@ -279,18 +449,24 @@ export function AdminPage() {
                 u.name
               )}`}
             >
-              {u.name[0]?.toUpperCase()}
+              {firstLetter}
             </div>
             <div className="min-w-0">
               <p className="font-bold text-slate-800 dark:text-slate-100 text-sm truncate">{u.name}</p>
-              {doc ? (
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1 mt-0.5">
-                  <FileText className="w-3 h-3 shrink-0 text-slate-400" />
-                  <span>{doc}</span>
-                </p>
-              ) : (
-                <p className="text-[11px] text-slate-400 italic">Sem documento</p>
-              )}
+              {(() => {
+                if (doc.length > 0) {
+                  return (
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 font-mono flex items-center gap-1 mt-0.5">
+                      <FileText className="w-3 h-3 shrink-0 text-slate-400" />
+                      <span>{doc}</span>
+                    </p>
+                  );
+                } else {
+                  return (
+                    <p className="text-[11px] text-slate-400 italic">Sem documento</p>
+                  );
+                }
+              })()}
             </div>
           </div>
         );
@@ -300,19 +476,32 @@ export function AdminPage() {
       header: 'Contato',
       width: '240px',
       cell: (u) => {
-        const phone = u.phone || u.patient?.phone;
+        let phone = '';
+        if (u.phone) {
+          phone = u.phone;
+        } else if (u.patient) {
+          if (u.patient.phone) {
+            phone = u.patient.phone;
+          }
+        }
+
         return (
           <div className="space-y-1">
             <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-200">
               <Mail className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <span className="truncate">{u.email}</span>
             </div>
-            {phone && (
-              <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
-                <Phone className="w-3 h-3 text-slate-400 shrink-0" />
-                <span>{phone}</span>
-              </div>
-            )}
+            {(() => {
+              if (phone.length > 0) {
+                return (
+                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                    <Phone className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span>{phone}</span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
           </div>
         );
       },
@@ -325,26 +514,55 @@ export function AdminPage() {
     {
       header: 'Dados Adicionais',
       cell: (u) => {
-        const birthDate = u.birthDate || u.patient?.birthDate;
-        const address = u.address || u.patient?.address;
-        const formattedDate = birthDate ? new Date(birthDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' }) : null;
+        let birthDate = '';
+        if (u.birthDate) {
+          birthDate = u.birthDate;
+        } else if (u.patient) {
+          if (u.patient.birthDate) {
+            birthDate = u.patient.birthDate;
+          }
+        }
+
+        let address = '';
+        if (u.address) {
+          address = u.address;
+        } else if (u.patient) {
+          if (u.patient.address) {
+            address = u.patient.address;
+          }
+        }
+
+        let formattedDate: string | null = null;
+        if (birthDate.length > 0) {
+          formattedDate = new Date(birthDate).toLocaleDateString('pt-BR', { timeZone: 'UTC' });
+        }
 
         return (
           <div className="text-xs space-y-1 max-w-xs">
-            {formattedDate && (
-              <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                <span>Nascimento: {formattedDate}</span>
-              </div>
-            )}
-            {address ? (
-              <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-[11px]" title={address}>
-                <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
-                <span className="truncate">{address}</span>
-              </div>
-            ) : (
-              !formattedDate && <span className="text-slate-400 text-[11px] italic">Sem endereço/nascimento</span>
-            )}
+            {(() => {
+              if (formattedDate) {
+                return (
+                  <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+                    <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span>Nascimento: {formattedDate}</span>
+                  </div>
+                );
+              }
+              return null;
+            })()}
+            {(() => {
+              if (address.length > 0) {
+                return (
+                  <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 text-[11px]" title={address}>
+                    <MapPin className="w-3 h-3 text-slate-400 shrink-0" />
+                    <span className="truncate">{address}</span>
+                  </div>
+                );
+              } else if (!formattedDate) {
+                return <span className="text-slate-400 text-[11px] italic">Sem endereço/nascimento</span>;
+              }
+              return null;
+            })()}
           </div>
         );
       },
@@ -352,73 +570,88 @@ export function AdminPage() {
     {
       header: 'Status',
       width: '110px',
-      cell: (u) => (
-        <Badge
-          variant="outline"
-          className={`text-[11px] font-semibold px-2 py-0.5 ${
-            u.active
-              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400'
-              : 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400'
-          }`}
-        >
-          {u.active ? (
+      cell: (u) => {
+        let badgeClass = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400';
+        if (u.active) {
+          badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400';
+        }
+
+        let statusContent: ReactNode = null;
+        if (u.active) {
+          statusContent = (
             <span className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
               Ativo
             </span>
-          ) : (
+          );
+        } else {
+          statusContent = (
             <span className="flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-rose-500" />
               Inativo
             </span>
-          )}
-        </Badge>
-      ),
+          );
+        }
+
+        return (
+          <Badge
+            variant="outline"
+            className={`text-[11px] font-semibold px-2 py-0.5 ${badgeClass}`}
+          >
+            {statusContent}
+          </Badge>
+        );
+      },
     },
     {
       header: 'Ações',
       width: '130px',
       align: 'right',
-      cell: (u) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => handleOpenEdit(u)}
-            className="h-8 w-8 p-0 rounded-lg text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-slate-300 dark:hover:bg-emerald-950/40"
-            title="Editar dados completos do usuário"
-          >
-            <Pencil className="w-4 h-4" />
-          </Button>
+      cell: (u) => {
+        let toggleClass = 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30';
+        let toggleTitle = 'Ativar usuário';
+        if (u.active) {
+          toggleClass = 'text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30';
+          toggleTitle = 'Desativar usuário';
+        }
 
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => handleToggleActive(u)}
-            className={`h-8 w-8 p-0 rounded-lg ${
-              u.active
-                ? 'text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30'
-                : 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
-            }`}
-            title={u.active ? 'Desativar usuário' : 'Ativar usuário'}
-          >
-            <Power className="w-4 h-4" />
-          </Button>
+        return (
+          <div className="flex items-center justify-end gap-1">
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => handleOpenEdit(u)}
+              className="h-8 w-8 p-0 rounded-lg text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-slate-300 dark:hover:bg-emerald-950/40"
+              title="Editar dados completos do usuário"
+            >
+              <Pencil className="w-4 h-4" />
+            </Button>
 
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={() => {
-              setUserToDelete(u);
-              setDeleteConfirmOpen(true);
-            }}
-            className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-            title="Excluir usuário"
-          >
-            <Trash2 className="w-4 h-4" />
-          </Button>
-        </div>
-      ),
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => handleToggleActive(u)}
+              className={`h-8 w-8 p-0 rounded-lg ${toggleClass}`}
+              title={toggleTitle}
+            >
+              <Power className="w-4 h-4" />
+            </Button>
+
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setUserToDelete(u);
+                setDeleteConfirmOpen(true);
+              }}
+              className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+              title="Excluir usuário"
+            >
+              <Trash2 className="w-4 h-4" />
+            </Button>
+          </div>
+        );
+      },
     },
   ];
 
@@ -466,13 +699,29 @@ export function AdminPage() {
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
           <p className="text-xs font-semibold text-purple-600 dark:text-purple-400 uppercase tracking-wider">Administradores</p>
           <p className="text-2xl font-bold text-purple-700 dark:text-purple-400 mt-1">
-            {users.filter((u) => u.role === 'ADMIN').length}
+            {users.filter((u) => {
+              if (u.role === 'ADMIN') {
+                return true;
+              }
+              return false;
+            }).length}
           </p>
         </div>
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
           <p className="text-xs font-semibold text-teal-600 dark:text-teal-400 uppercase tracking-wider">Farmacêuticos & Equipe</p>
           <p className="text-2xl font-bold text-teal-700 dark:text-teal-400 mt-1">
-            {users.filter((u) => u.role === 'FARMACEUTICO' || u.role === 'MEDICO' || u.role === 'ALUNO').length}
+            {users.filter((u) => {
+              if (u.role === 'FARMACEUTICO') {
+                return true;
+              }
+              if (u.role === 'MEDICO') {
+                return true;
+              }
+              if (u.role === 'ALUNO') {
+                return true;
+              }
+              return false;
+            }).length}
           </p>
         </div>
       </div>
@@ -514,7 +763,15 @@ export function AdminPage() {
         isLoading={isLoading}
         emptyIcon={ShieldCheck}
         emptyTitle="Nenhum usuário encontrado"
-        emptyDescription={search || selectedRoleFilter !== 'ALL' ? 'Tente ajustar os filtros de busca.' : 'Cadastre um novo usuário para iniciar.'}
+        emptyDescription={(() => {
+          if (search.length > 0) {
+            return 'Tente ajustar os filtros de busca.';
+          }
+          if (selectedRoleFilter !== 'ALL') {
+            return 'Tente ajustar os filtros de busca.';
+          }
+          return 'Cadastre um novo usuário para iniciar.';
+        })()}
         emptyAction={
           <Button
             onClick={handleOpenCreate}
@@ -536,12 +793,20 @@ export function AdminPage() {
               </div>
               <div>
                 <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                  {editingUser ? 'Editar Usuário' : 'Novo Cadastro de Usuário'}
+                  {(() => {
+                    if (editingUser) {
+                      return 'Editar Usuário';
+                    }
+                    return 'Novo Cadastro de Usuário';
+                  })()}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
-                  {editingUser
-                    ? 'Atualize os dados pessoais, permissões e credenciais de acesso.'
-                    : 'Preencha os campos abaixo para criar um novo usuário no sistema.'}
+                  {(() => {
+                    if (editingUser) {
+                      return 'Atualize os dados pessoais, permissões e credenciais de acesso.';
+                    }
+                    return 'Preencha os campos abaixo para criar um novo usuário no sistema.';
+                  })()}
                 </DialogDescription>
               </div>
             </div>
@@ -660,41 +925,81 @@ export function AdminPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
                   <KeyRound className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                  <span>{editingUser ? 'Redefinição de Senha' : 'Senha de Acesso *'}</span>
+                  <span>{(() => {
+                    if (editingUser) {
+                      return 'Redefinição de Senha';
+                    }
+                    return 'Senha de Acesso *';
+                  })()}</span>
                 </div>
-                {editingUser && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setChangePassword(!changePassword);
-                      if (changePassword) setForm({ ...form, password: '' });
-                    }}
-                    className="text-xs h-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                  >
-                    {changePassword ? 'Cancelar Alteração' : 'Alterar Senha'}
-                  </Button>
-                )}
+                {(() => {
+                  if (editingUser) {
+                    return (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setChangePassword(!changePassword);
+                          if (changePassword) setForm({ ...form, password: '' });
+                        }}
+                        className="text-xs h-7 text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                      >
+                        {(() => {
+                          if (changePassword) {
+                            return 'Cancelar Alteração';
+                          }
+                          return 'Alterar Senha';
+                        })()}
+                      </Button>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
 
-              {(!editingUser || changePassword) && (
-                <div className="space-y-1.5 pt-1">
-                  <Input
-                    type="password"
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                    placeholder={editingUser ? 'Digite a nova senha (mínimo 6 caracteres)' : 'Senha (mínimo 6 caracteres)'}
-                    required={!editingUser || changePassword}
-                    className="rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-800 h-10"
-                  />
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    {editingUser
-                      ? 'Preencha este campo apenas se desejar redefinir a senha do usuário.'
-                      : 'A senha será usada para autenticação no portal.'}
-                  </p>
-                </div>
-              )}
+              {(() => {
+                let showPasswordInput = false;
+                if (!editingUser) {
+                  showPasswordInput = true;
+                } else if (changePassword) {
+                  showPasswordInput = true;
+                }
+
+                if (!showPasswordInput) {
+                  return null;
+                }
+
+                let passPlaceholder = 'Senha (mínimo 6 caracteres)';
+                let passHelper = 'A senha será usada para autenticação no portal.';
+                if (editingUser) {
+                  passPlaceholder = 'Digite a nova senha (mínimo 6 caracteres)';
+                  passHelper = 'Preencha este campo apenas se desejar redefinir a senha do usuário.';
+                }
+
+                let isPassRequired = false;
+                if (!editingUser) {
+                  isPassRequired = true;
+                } else if (changePassword) {
+                  isPassRequired = true;
+                }
+
+                return (
+                  <div className="space-y-1.5 pt-1">
+                    <Input
+                      type="password"
+                      value={form.password}
+                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      placeholder={passPlaceholder}
+                      required={isPassRequired}
+                      className="rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-800 h-10"
+                    />
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {passHelper}
+                    </p>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Status Switch */}
@@ -702,7 +1007,12 @@ export function AdminPage() {
               <div className="space-y-0.5">
                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Status da Conta</p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {form.active ? 'Usuário ativo e autorizado a acessar o sistema.' : 'Usuário bloqueado/inativo.'}
+                  {(() => {
+                    if (form.active) {
+                      return 'Usuário ativo e autorizado a acessar o sistema.';
+                    }
+                    return 'Usuário bloqueado/inativo.';
+                  })()}
                 </p>
               </div>
               <Switch
@@ -720,17 +1030,31 @@ export function AdminPage() {
               >
                 Cancelar
               </Button>
-              <Button
-                type="submit"
-                disabled={createUserMutation.isPending || updateUserMutation.isPending}
-                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
-              >
-                {createUserMutation.isPending || updateUserMutation.isPending
-                  ? 'Salvando...'
-                  : editingUser
-                  ? 'Salvar Alterações'
-                  : 'Criar Usuário'}
-              </Button>
+              {(() => {
+                let isSaving = false;
+                if (createUserMutation.isPending) {
+                  isSaving = true;
+                } else if (updateUserMutation.isPending) {
+                  isSaving = true;
+                }
+
+                let btnLabel = 'Criar Usuário';
+                if (isSaving) {
+                  btnLabel = 'Salvando...';
+                } else if (editingUser) {
+                  btnLabel = 'Salvar Alterações';
+                }
+
+                return (
+                  <Button
+                    type="submit"
+                    disabled={isSaving}
+                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                  >
+                    {btnLabel}
+                  </Button>
+                );
+              })()}
             </DialogFooter>
           </form>
         </DialogContent>
@@ -747,7 +1071,12 @@ export function AdminPage() {
               Excluir Usuário?
             </DialogTitle>
             <DialogDescription className="text-xs text-slate-500 dark:text-slate-400">
-              Tem certeza que deseja remover o usuário <strong>{userToDelete?.name}</strong>? Esta ação não poderá ser desfeita.
+              Tem certeza que deseja remover o usuário <strong>{(() => {
+                if (userToDelete) {
+                  return userToDelete.name;
+                }
+                return '';
+              })()}</strong>? Esta ação não poderá ser desfeita.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 pt-3">
@@ -758,14 +1087,22 @@ export function AdminPage() {
             >
               Cancelar
             </Button>
-            <Button
-              variant="destructive"
-              onClick={handleDeleteUser}
-              disabled={deleteUserMutation.isPending}
-              className="rounded-xl bg-rose-600 hover:bg-rose-700 font-semibold"
-            >
-              {deleteUserMutation.isPending ? 'Excluindo...' : 'Sim, Excluir'}
-            </Button>
+            {(() => {
+              let deleteBtnLabel = 'Sim, Excluir';
+              if (deleteUserMutation.isPending) {
+                deleteBtnLabel = 'Excluindo...';
+              }
+              return (
+                <Button
+                  variant="destructive"
+                  onClick={handleDeleteUser}
+                  disabled={deleteUserMutation.isPending}
+                  className="rounded-xl bg-rose-600 hover:bg-rose-700 font-semibold"
+                >
+                  {deleteBtnLabel}
+                </Button>
+              );
+            })()}
           </DialogFooter>
         </DialogContent>
       </Dialog>

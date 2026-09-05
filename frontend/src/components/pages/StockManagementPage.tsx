@@ -5,26 +5,28 @@ import { toast } from 'sonner';
 import {
   Boxes, Plus, Search, Pencil, Trash2, Eye, X, Calendar, Download
 } from 'lucide-react';
-import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/pharmacy-store';
-import { computeStockStatus, type BatchEntryDraft, type Batch, type StockStatus } from '@/lib/types';
+import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/PharmacyStore';
+import { computeStockStatus, type BatchEntryDraft, type Batch, type StockStatus } from '@/lib/Types';
 import { StockStatusBadge } from '@/components/shared/StockStatusBadge';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
-import { api } from '@/lib/api';
-import { canWriteClient, downloadCSV } from '@/lib/constants';
-import { useAuthStore } from '@/lib/auth-store';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { api } from '@/lib/Api';
+import { canWriteClient, downloadCSV } from '@/lib/Constants';
+import { useAuthStore } from '@/lib/AuthStore';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { Badge } from '@/components/ui/Badge';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
 
 export function StockManagementPage() {
   const { medicines, batches, withdrawals, disposals, loading } = usePharmacyStore();
   const { user } = useAuthStore();
-  const canWrite = canWriteClient(user?.role, user?.permissions, 'batches');
+  const userRole = user?.role;
+  const userPerms = user?.permissions;
+  const canWrite = canWriteClient(userRole, userPerms, 'batches');
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<BatchEntryDraft>({ medicineId: 0, batchNumber: '', currentQuantity: 0, expirationDate: '' });
   const [batchSearch, setBatchSearch] = useState('');
@@ -49,43 +51,96 @@ export function StockManagementPage() {
 
   const filteredBatches = useMemo(() => {
     return batches.filter((b) => {
-      const matchesSearch =
-        !batchSearch ||
-        b.batchNumber.toLowerCase().includes(batchSearch.toLowerCase()) ||
-        (b.medicine?.name && b.medicine.name.toLowerCase().includes(batchSearch.toLowerCase()));
+      let matchesSearch = false;
+      if (!batchSearch) {
+        matchesSearch = true;
+      } else {
+        const searchLower = batchSearch.toLowerCase();
+        if (b.batchNumber.toLowerCase().includes(searchLower)) {
+          matchesSearch = true;
+        } else if (b.medicine) {
+          if (b.medicine.name) {
+            if (b.medicine.name.toLowerCase().includes(searchLower)) {
+              matchesSearch = true;
+            }
+          }
+        }
+      }
       const status = getBatchStatus(b);
-      const matchesStatus = batchStatusFilter === 'all' || status === batchStatusFilter;
-      return matchesSearch && matchesStatus;
+      let matchesStatus = false;
+      if (batchStatusFilter === 'all') {
+        matchesStatus = true;
+      } else if (status === batchStatusFilter) {
+        matchesStatus = true;
+      }
+      if (matchesSearch) {
+        if (matchesStatus) {
+          return true;
+        }
+      }
+      return false;
     });
   }, [batches, batchSearch, batchStatusFilter]);
 
   const batchWithdrawals = useMemo(() => {
     if (!selectedBatch) return [];
-    return withdrawals.filter((w) => w.batch?.id === selectedBatch.id);
+    return withdrawals.filter((w) => {
+      if (w.batch) {
+        if (w.batch.id === selectedBatch.id) {
+          return true;
+        }
+      }
+      return false;
+    });
   }, [selectedBatch, withdrawals]);
 
   const batchDisposals = useMemo(() => {
     if (!selectedBatch) return [];
-    return disposals.filter((d) => d.batch?.id === selectedBatch.id);
+    return disposals.filter((d) => {
+      if (d.batch) {
+        if (d.batch.id === selectedBatch.id) {
+          return true;
+        }
+      }
+      return false;
+    });
   }, [selectedBatch, disposals]);
 
   const batchHistory = useMemo(() => {
     const items: { type: 'withdrawal' | 'disposal'; date: string; description: string; userName: string; quantity: number }[] = [];
     batchWithdrawals.forEach((w) => {
+      let patName = 'Paciente';
+      if (w.patient) {
+        if (w.patient.name) {
+          patName = w.patient.name;
+        }
+      }
+      let userName = 'Sistema';
+      if (w.user) {
+        if (w.user.name) {
+          userName = w.user.name;
+        }
+      }
       items.push({
         type: 'withdrawal',
         date: w.createdAt,
-        description: `Retirada: ${w.patient?.name || 'Paciente'} (${w.quantity} un.)`,
-        userName: w.user?.name || 'Sistema',
+        description: `Retirada: ${patName} (${w.quantity} un.)`,
+        userName: userName,
         quantity: w.quantity,
       });
     });
     batchDisposals.forEach((d) => {
+      let userName = 'Sistema';
+      if (d.user) {
+        if (d.user.name) {
+          userName = d.user.name;
+        }
+      }
       items.push({
         type: 'disposal',
         date: d.createdAt,
         description: `Descarte: ${d.reason} (${d.quantity} un.)`,
-        userName: d.user?.name || 'Sistema',
+        userName: userName,
         quantity: d.quantity,
       });
     });
@@ -96,14 +151,36 @@ export function StockManagementPage() {
     const header = ['Número do Lote', 'Medicamento', 'Dosagem', 'Quantidade', 'Data de Validade', 'Status'];
     const rows = filteredBatches.map((b) => {
       const status = getBatchStatus(b);
-      const statusLabel =
-        status === 'ok' ? 'Em dia' : status === 'low' ? 'Baixo' : status === 'critical' ? 'Crítico' : 'Vencido';
+      let statusLabel = 'Vencido';
+      if (status === 'ok') {
+        statusLabel = 'Em dia';
+      } else if (status === 'low') {
+        statusLabel = 'Baixo';
+      } else if (status === 'critical') {
+        statusLabel = 'Crítico';
+      }
+      let medName = 'N/A';
+      if (b.medicine) {
+        if (b.medicine.name) {
+          medName = b.medicine.name;
+        }
+      }
+      let medDosage = 'N/A';
+      if (b.medicine) {
+        if (b.medicine.dosage) {
+          medDosage = b.medicine.dosage;
+        }
+      }
+      let expStr = '-';
+      if (b.expirationDate) {
+        expStr = new Date(b.expirationDate).toLocaleDateString('pt-BR');
+      }
       return [
         b.batchNumber,
-        b.medicine?.name || 'N/A',
-        b.medicine?.dosage || 'N/A',
+        medName,
+        medDosage,
         String(b.currentQuantity),
-        b.expirationDate ? new Date(b.expirationDate).toLocaleDateString('pt-BR') : '-',
+        expStr,
         statusLabel,
       ];
     });
@@ -113,7 +190,19 @@ export function StockManagementPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.medicineId || !form.batchNumber || !form.currentQuantity || !form.expirationDate) {
+    if (!form.medicineId) {
+      toast.error('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    if (!form.batchNumber) {
+      toast.error('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    if (!form.currentQuantity) {
+      toast.error('Preencha todos os campos obrigatórios.');
+      return;
+    }
+    if (!form.expirationDate) {
       toast.error('Preencha todos os campos obrigatórios.');
       return;
     }
@@ -126,7 +215,13 @@ export function StockManagementPage() {
       fetchBatchesData();
     } catch (err: unknown) {
       const error = err as { error?: string };
-      toast.error(error.error || 'Erro ao registrar lote.');
+      let errorMsg = 'Erro ao registrar lote.';
+      if (error) {
+        if (error.error) {
+          errorMsg = error.error;
+        }
+      }
+      toast.error(errorMsg);
     }
   };
 
@@ -153,7 +248,13 @@ export function StockManagementPage() {
       fetchBatchesData();
     } catch (err: unknown) {
       const error = err as { error?: string };
-      toast.error(error.error || 'Erro ao atualizar lote.');
+      let errorMsg = 'Erro ao atualizar lote.';
+      if (error) {
+        if (error.error) {
+          errorMsg = error.error;
+        }
+      }
+      toast.error(errorMsg);
     } finally {
       setEditLoading(false);
     }
@@ -171,7 +272,13 @@ export function StockManagementPage() {
       fetchBatchesData();
     } catch (err: unknown) {
       const error = err as { error?: string };
-      toast.error(error.error || 'Não é possível excluir: o lote possui movimentações associadas.');
+      let errorMsg = 'Não é possível excluir: o lote possui movimentações associadas.';
+      if (error) {
+        if (error.error) {
+          errorMsg = error.error;
+        }
+      }
+      toast.error(errorMsg);
     } finally {
       setDeleteLoading(false);
     }
@@ -200,11 +307,25 @@ export function StockManagementPage() {
       cell: (batch) => (
         <div>
           <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
-            {batch.medicine?.name || 'Medicamento não identificado'}
+            {(() => {
+              if (batch.medicine) {
+                if (batch.medicine.name) {
+                  return batch.medicine.name;
+                }
+              }
+              return 'Medicamento não identificado';
+            })()}
           </p>
-          {batch.medicine?.dosage && (
-            <p className="text-[11px] text-slate-400 mt-0.5">{batch.medicine.dosage}</p>
-          )}
+          {(() => {
+            if (batch.medicine) {
+              if (batch.medicine.dosage) {
+                return (
+                  <p className="text-[11px] text-slate-400 mt-0.5">{batch.medicine.dosage}</p>
+                );
+              }
+            }
+            return null;
+          })()}
         </div>
       ),
     },
@@ -226,7 +347,12 @@ export function StockManagementPage() {
           <div className="flex items-center gap-1.5">
             <Calendar className="w-3.5 h-3.5 text-slate-400 shrink-0" />
             <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
-              {Number.isNaN(exp.getTime()) ? '—' : exp.toLocaleDateString('pt-BR')}
+              {(() => {
+                if (Number.isNaN(exp.getTime())) {
+                  return '—';
+                }
+                return exp.toLocaleDateString('pt-BR');
+              })()}
             </span>
           </div>
         );
@@ -255,31 +381,36 @@ export function StockManagementPage() {
           >
             <Eye className="w-4 h-4" />
           </Button>
-          {canWrite && (
-            <>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => openEditDialog(batch)}
-                className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                title="Editar lote"
-              >
-                <Pencil className="w-3.5 h-3.5" />
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setSelectedBatch(batch);
-                  setDeleteOpen(true);
-                }}
-                className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-                title="Excluir lote"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-              </Button>
-            </>
-          )}
+          {(() => {
+            if (canWrite) {
+              return (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => openEditDialog(batch)}
+                    className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
+                    title="Editar lote"
+                  >
+                    <Pencil className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setSelectedBatch(batch);
+                      setDeleteOpen(true);
+                    }}
+                    className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                    title="Excluir lote"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </Button>
+                </>
+              );
+            }
+            return null;
+          })()}
         </div>
       ),
     },
@@ -303,15 +434,20 @@ export function StockManagementPage() {
               <Download className="w-4 h-4" />
               <span>Exportar CSV</span>
             </Button>
-            {canWrite && (
-              <Button
-                onClick={() => setCreateOpen(true)}
-                className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Novo Lote</span>
-              </Button>
-            )}
+            {(() => {
+              if (canWrite) {
+                return (
+                  <Button
+                    onClick={() => setCreateOpen(true)}
+                    className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Novo Lote</span>
+                  </Button>
+                );
+              }
+              return null;
+            })()}
           </div>
         }
       />
@@ -327,14 +463,19 @@ export function StockManagementPage() {
             onChange={(e) => setBatchSearch(e.target.value)}
             className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
           />
-          {batchSearch && (
-            <button
-              onClick={() => setBatchSearch('')}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          )}
+          {(() => {
+            if (batchSearch) {
+              return (
+                <button
+                  onClick={() => setBatchSearch('')}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              );
+            }
+            return null;
+          })()}
         </div>
 
         {/* Status Filter Chips */}
@@ -345,19 +486,23 @@ export function StockManagementPage() {
             { id: 'low', label: 'Baixo' },
             { id: 'critical', label: 'Crítico' },
             { id: 'expired', label: 'Vencidos' },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setBatchStatusFilter(tab.id)}
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                batchStatusFilter === tab.id
-                  ? 'bg-emerald-600 text-white shadow-sm'
-                  : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+          ].map((tab) => {
+            let btnClass = 'px-2.5 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ';
+            if (batchStatusFilter === tab.id) {
+              btnClass = btnClass + 'bg-emerald-600 text-white shadow-sm';
+            } else {
+              btnClass = btnClass + 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600';
+            }
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setBatchStatusFilter(tab.id)}
+                className={btnClass}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -369,17 +514,20 @@ export function StockManagementPage() {
         emptyIcon={Boxes}
         emptyTitle="Nenhum lote encontrado"
         emptyDescription="Tente ajustar a busca ou cadastre uma nova remessa de lote."
-        emptyAction={
-          canWrite ? (
-            <Button
-              onClick={() => setCreateOpen(true)}
-              className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Novo Lote
-            </Button>
-          ) : undefined
-        }
+        emptyAction={(() => {
+          if (canWrite) {
+            return (
+              <Button
+                onClick={() => setCreateOpen(true)}
+                className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Novo Lote
+              </Button>
+            );
+          }
+          return undefined;
+        })()}
         onRowClick={(b) => setSelectedBatch(b)}
       />
 
@@ -402,7 +550,12 @@ export function StockManagementPage() {
                 Medicamento *
               </Label>
               <Select
-                value={form.medicineId ? String(form.medicineId) : ''}
+                value={(() => {
+                  if (form.medicineId) {
+                    return String(form.medicineId);
+                  }
+                  return '';
+                })()}
                 onValueChange={(v) => setForm({ ...form, medicineId: Number(v) })}
               >
                 <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50">
@@ -411,7 +564,12 @@ export function StockManagementPage() {
                 <SelectContent>
                   {medicines.map((m) => (
                     <SelectItem key={m.id} value={String(m.id)}>
-                      {m.name} {m.dosage ? `(${m.dosage})` : ''}
+                      {m.name} {(() => {
+                        if (m.dosage) {
+                          return `(${m.dosage})`;
+                        }
+                        return '';
+                      })()}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -440,7 +598,12 @@ export function StockManagementPage() {
                   type="number"
                   min={1}
                   required
-                  value={form.currentQuantity || ''}
+                  value={(() => {
+                    if (form.currentQuantity) {
+                      return form.currentQuantity;
+                    }
+                    return '';
+                  })()}
                   onChange={(e) => setForm({ ...form, currentQuantity: Number(e.target.value) })}
                   placeholder="Ex: 100"
                   className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
@@ -474,7 +637,19 @@ export function StockManagementPage() {
       </Dialog>
 
       {/* Batch Details / History Dialog (LG) */}
-      <Dialog open={Boolean(selectedBatch && !editOpen && !deleteOpen)} onOpenChange={() => setSelectedBatch(null)}>
+      <Dialog
+        open={(() => {
+          if (selectedBatch) {
+            if (!editOpen) {
+              if (!deleteOpen) {
+                return true;
+              }
+            }
+          }
+          return false;
+        })()}
+        onOpenChange={() => setSelectedBatch(null)}
+      >
         <DialogContent className="rounded-2xl sm:max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <div className="flex items-center justify-between">
@@ -482,94 +657,137 @@ export function StockManagementPage() {
                 <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600">
                   <Boxes className="w-5 h-5" />
                 </div>
-                Lote {selectedBatch?.batchNumber}
+                Lote {(() => {
+                  if (selectedBatch) {
+                    return selectedBatch.batchNumber;
+                  }
+                  return '';
+                })()}
               </DialogTitle>
-              {canWrite && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => selectedBatch && openEditDialog(selectedBatch)}
-                    className="rounded-xl gap-1.5 text-xs"
-                  >
-                    <Pencil className="w-3.5 h-3.5" /> Editar
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setDeleteOpen(true)}
-                    className="rounded-xl gap-1.5 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/30"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" /> Excluir
-                  </Button>
-                </div>
-              )}
+              {(() => {
+                if (canWrite) {
+                  return (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (selectedBatch) {
+                            openEditDialog(selectedBatch);
+                          }
+                        }}
+                        className="rounded-xl gap-1.5 text-xs"
+                      >
+                        <Pencil className="w-3.5 h-3.5" /> Editar
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setDeleteOpen(true)}
+                        className="rounded-xl gap-1.5 text-xs text-rose-600 border-rose-200 hover:bg-rose-50 dark:border-rose-800 dark:hover:bg-rose-900/30"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" /> Excluir
+                      </Button>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
             </div>
             <DialogDescription>Informações do lote e histórico de movimentações</DialogDescription>
           </DialogHeader>
 
-          {selectedBatch && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Medicamento</p>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">
-                    {selectedBatch.medicine?.name} {selectedBatch.medicine?.dosage}
-                  </p>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quantidade Atual</p>
-                  <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-1">
-                    {selectedBatch.currentQuantity} unidades
-                  </p>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Data de Validade</p>
-                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">
-                    {new Date(selectedBatch.expirationDate).toLocaleDateString('pt-BR')}
-                  </p>
-                </div>
-                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status do Estoque</p>
-                  <div className="mt-1">
-                    <StockStatusBadge status={getBatchStatus(selectedBatch)} />
-                  </div>
-                </div>
-              </div>
-
-              {/* History */}
-              <div>
-                <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
-                  Histórico de Movimentações ({batchHistory.length})
-                </h4>
-                {batchHistory.length === 0 ? (
-                  <p className="text-xs text-slate-400 italic py-2">Nenhuma movimentação registrada para este lote.</p>
-                ) : (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {batchHistory.map((item, idx) => (
-                      <div
-                        key={idx}
-                        className="p-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between text-xs"
-                      >
-                        <div>
-                          <p className="font-medium text-slate-800 dark:text-slate-200">{item.description}</p>
-                          <p className="text-[10px] text-slate-400 mt-0.5">
-                            Operador: {item.userName} • {new Date(item.date).toLocaleString('pt-BR')}
-                          </p>
-                        </div>
-                        <Badge
-                          variant="outline"
-                          className={item.type === 'withdrawal' ? 'text-teal-600 border-teal-200' : 'text-amber-600 border-amber-200'}
-                        >
-                          {item.type === 'withdrawal' ? 'Retirada' : 'Descarte'}
-                        </Badge>
+          {(() => {
+            if (selectedBatch) {
+              return (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Medicamento</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">
+                        {(() => {
+                          let medText = '';
+                          if (selectedBatch.medicine) {
+                            if (selectedBatch.medicine.name) {
+                              medText = medText + selectedBatch.medicine.name;
+                            }
+                            if (selectedBatch.medicine.dosage) {
+                              medText = medText + ' ' + selectedBatch.medicine.dosage;
+                            }
+                          }
+                          return medText;
+                        })()}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Quantidade Atual</p>
+                      <p className="text-sm font-bold text-emerald-700 dark:text-emerald-400 mt-1">
+                        {selectedBatch.currentQuantity} unidades
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Data de Validade</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">
+                        {new Date(selectedBatch.expirationDate).toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Status do Estoque</p>
+                      <div className="mt-1">
+                        <StockStatusBadge status={getBatchStatus(selectedBatch)} />
                       </div>
-                    ))}
+                    </div>
                   </div>
-                )}
-              </div>
-            </div>
-          )}
+
+                  {/* History */}
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
+                      Histórico de Movimentações ({batchHistory.length})
+                    </h4>
+                    {(() => {
+                      if (batchHistory.length === 0) {
+                        return (
+                          <p className="text-xs text-slate-400 italic py-2">Nenhuma movimentação registrada para este lote.</p>
+                        );
+                      }
+                      return (
+                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                          {batchHistory.map((item, idx) => {
+                            let badgeClass = 'text-amber-600 border-amber-200';
+                            let badgeLabel = 'Descarte';
+                            if (item.type === 'withdrawal') {
+                              badgeClass = 'text-teal-600 border-teal-200';
+                              badgeLabel = 'Retirada';
+                            }
+                            return (
+                              <div
+                                key={idx}
+                                className="p-2.5 rounded-xl border border-slate-100 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800/50 flex items-center justify-between text-xs"
+                              >
+                                <div>
+                                  <p className="font-medium text-slate-800 dark:text-slate-200">{item.description}</p>
+                                  <p className="text-[10px] text-slate-400 mt-0.5">
+                                    Operador: {item.userName} • {new Date(item.date).toLocaleString('pt-BR')}
+                                  </p>
+                                </div>
+                                <Badge
+                                  variant="outline"
+                                  className={badgeClass}
+                                >
+                                  {badgeLabel}
+                                </Badge>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </DialogContent>
       </Dialog>
 
@@ -622,7 +840,12 @@ export function StockManagementPage() {
                 Cancelar
               </Button>
               <Button type="submit" disabled={editLoading} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
-                {editLoading ? 'Salvando...' : 'Salvar Alterações'}
+                {(() => {
+                  if (editLoading) {
+                    return 'Salvando...';
+                  }
+                  return 'Salvar Alterações';
+                })()}
               </Button>
             </DialogFooter>
           </form>
@@ -634,7 +857,13 @@ export function StockManagementPage() {
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title="Excluir Lote"
-        description={`Tem certeza que deseja excluir o lote "${selectedBatch?.batchNumber}"? Se o lote possuir retiradas ou descartes vinculados, a exclusão será bloqueada.`}
+        description={(() => {
+          let bNum = '';
+          if (selectedBatch) {
+            bNum = selectedBatch.batchNumber;
+          }
+          return `Tem certeza que deseja excluir o lote "${bNum}"? Se o lote possuir retiradas ou descartes vinculados, a exclusão será bloqueada.`;
+        })()}
         onConfirm={handleDelete}
         confirmLabel="Excluir"
         variant="danger"

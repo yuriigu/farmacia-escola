@@ -8,11 +8,11 @@ import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { Pill, Eye, EyeOff, Shield, LogIn } from 'lucide-react';
-import { useAuthStore } from '@/lib/auth-store';
-import { api } from '@/services/api';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
+import { useAuthStore } from '@/lib/AuthStore';
+import { api } from '@/services/Api';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
 
 const loginSchema = z.object({
   email: z.string().email('E-mail inválido'),
@@ -48,7 +48,11 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
       router.push('/dashboard');
     },
     onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao realizar login. Verifique suas credenciais.');
+      let msg = 'Erro ao realizar login. Verifique suas credenciais.';
+      if (err.message) {
+        msg = err.message;
+      }
+      toast.error(msg);
     },
   });
 
@@ -77,12 +81,23 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
         </div>
 
         {/* Error banner */}
-        {loginMutation.isError && (
-          <div className="mb-5 p-3.5 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl text-sm flex items-center gap-2.5">
-            <Shield className="w-4 h-4 shrink-0 text-rose-500" />
-            <span>{loginMutation.error?.message || 'Falha na autenticação'}</span>
-          </div>
-        )}
+        {(() => {
+          if (loginMutation.isError) {
+            let errorMsg = 'Falha na autenticação';
+            if (loginMutation.error) {
+              if (loginMutation.error.message) {
+                errorMsg = loginMutation.error.message;
+              }
+            }
+            return (
+              <div className="mb-5 p-3.5 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl text-sm flex items-center gap-2.5">
+                <Shield className="w-4 h-4 shrink-0 text-rose-500" />
+                <span>{errorMsg}</span>
+              </div>
+            );
+          }
+          return null;
+        })()}
 
         {/* Login form */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -90,18 +105,27 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
             <Label htmlFor="email" className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
               E-mail
             </Label>
-            <Input
-              id="email"
-              type="email"
-              placeholder="seu@email.com"
-              {...register('email')}
-              className={`rounded-xl h-11 transition-all ${
-                errors.email ? 'border-rose-500 focus:ring-rose-500/20' : 'focus:border-emerald-500 focus:ring-emerald-500/20'
-              }`}
-            />
-            {errors.email && (
-              <p className="text-xs text-rose-500 font-medium">{errors.email.message}</p>
-            )}
+            {(() => {
+              let emailInputClass = 'rounded-xl h-11 transition-all focus:border-emerald-500 focus:ring-emerald-500/20';
+              if (errors.email) {
+                emailInputClass = 'rounded-xl h-11 transition-all border-rose-500 focus:ring-rose-500/20';
+              }
+              return (
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="seu@email.com"
+                  {...register('email')}
+                  className={emailInputClass}
+                />
+              );
+            })()}
+            {(() => {
+              if (errors.email) {
+                return <p className="text-xs text-rose-500 font-medium">{errors.email.message}</p>;
+              }
+              return null;
+            })()}
           </div>
 
           <div className="space-y-1.5">
@@ -109,27 +133,45 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
               Senha
             </Label>
             <div className="relative">
-              <Input
-                id="password"
-                type={showPassword ? 'text' : 'password'}
-                placeholder="••••••••"
-                {...register('password')}
-                className={`rounded-xl h-11 pr-11 transition-all ${
-                  errors.password ? 'border-rose-500 focus:ring-rose-500/20' : 'focus:border-emerald-500 focus:ring-emerald-500/20'
-                }`}
-              />
+              {(() => {
+                let passType = 'password';
+                if (showPassword) {
+                  passType = 'text';
+                }
+                let passInputClass = 'rounded-xl h-11 pr-11 transition-all focus:border-emerald-500 focus:ring-emerald-500/20';
+                if (errors.password) {
+                  passInputClass = 'rounded-xl h-11 pr-11 transition-all border-rose-500 focus:ring-rose-500/20';
+                }
+                return (
+                  <Input
+                    id="password"
+                    type={passType}
+                    placeholder="••••••••"
+                    {...register('password')}
+                    className={passInputClass}
+                  />
+                );
+              })()}
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
                 tabIndex={-1}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors p-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {(() => {
+                  if (showPassword) {
+                    return <EyeOff className="w-4 h-4" />;
+                  }
+                  return <Eye className="w-4 h-4" />;
+                })()}
               </button>
             </div>
-            {errors.password && (
-              <p className="text-xs text-rose-500 font-medium">{errors.password.message}</p>
-            )}
+            {(() => {
+              if (errors.password) {
+                return <p className="text-xs text-rose-500 font-medium">{errors.password.message}</p>;
+              }
+              return null;
+            })()}
           </div>
 
           <Button
@@ -137,17 +179,22 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
             disabled={loginMutation.isPending}
             className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all active:scale-[0.98] mt-2"
           >
-            {loginMutation.isPending ? (
-              <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                Entrando...
-              </span>
-            ) : (
-              <span className="flex items-center justify-center gap-2">
-                <LogIn className="w-4 h-4" />
-                Entrar no Sistema
-              </span>
-            )}
+            {(() => {
+              if (loginMutation.isPending) {
+                return (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    Entrando...
+                  </span>
+                );
+              }
+              return (
+                <span className="flex items-center justify-center gap-2">
+                  <LogIn className="w-4 h-4" />
+                  Entrar no Sistema
+                </span>
+              );
+            })()}
           </Button>
         </form>
 

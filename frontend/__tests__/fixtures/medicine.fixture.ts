@@ -1,4 +1,4 @@
-import type { Medicine, Batch } from '@/lib/types';
+import type { Medicine, Batch } from '@/lib/Types';
 
 export const mockMedicine: Medicine = {
   id: 1,

@@ -2,7 +2,7 @@ import {
   LayoutDashboard, Package, Calendar, ShieldCheck, Settings,
   CalendarDays, Boxes, ArrowUpRight, Trash2, Users
 } from 'lucide-react';
-import { hasRouteAccess } from '@/config/rbac';
+import { hasRouteAccess } from '@/config/Rbac';
 
 // ==================== PERMISSION KEYS ====================
 export const PERMISSION_KEYS = {

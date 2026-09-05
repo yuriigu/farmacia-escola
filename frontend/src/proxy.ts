@@ -1,66 +1,116 @@
+// IMPORTS DE BIBLIOTECAS
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { hasRouteAccess } from './config/rbac';
 
-// Public routes that do not require authentication
+// IMPORTS LOCAIS
+import { hasRouteAccess } from './config/Rbac';
+
+// ROTAS PUBLICAS QUE NAO EXIGEM AUTENTICACAO
 const PUBLIC_PATHS = ['/login', '/register'];
 
+// FUNCAO DE PROXY PARA VERIFICAR REQUISICOES
 export function proxy(request: any) {
-  const { pathname } = request.nextUrl;
+  // OBTENDO O CAMINHO DA REQUISICAO
+  const pathname = request.nextUrl.pathname;
 
-  // Ignore static assets, next internal files, and api routes
-  if (
-    pathname.startsWith('/_next') ||
-    pathname.startsWith('/api') ||
-    pathname.startsWith('/static') ||
-    pathname.includes('.')
-  ) {
+  // VERIFICANDO SE DEVE IGNORAR ARQUIVOS ESTATICOS E APIS
+  let isIgnoredPath = false;
+  if (pathname.startsWith('/_next')) {
+    isIgnoredPath = true;
+  } else if (pathname.startsWith('/api')) {
+    isIgnoredPath = true;
+  } else if (pathname.startsWith('/static')) {
+    isIgnoredPath = true;
+  } else if (pathname.includes('.')) {
+    isIgnoredPath = true;
+  } else {
+    isIgnoredPath = false;
+  }
+
+  if (isIgnoredPath) {
     return NextResponse.next();
   }
 
-  const tokenCookie = request.cookies.get('auth_token')?.value;
-  const roleCookie = request.cookies.get('user_role')?.value;
+  // OBTENDO O TOKEN DE AUTENTICACAO DOS COOKIES
+  let tokenCookie = undefined;
+  const authTokenCookieObj = request.cookies.get('auth_token');
+  if (authTokenCookieObj) {
+    tokenCookie = authTokenCookieObj.value;
+  } else {
+    tokenCookie = undefined;
+  }
 
-  const isPublicPath = PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`));
+  // OBTENDO O PAPEL DO USUARIO DOS COOKIES
+  let roleCookie = undefined;
+  const roleCookieObj = request.cookies.get('user_role');
+  if (roleCookieObj) {
+    roleCookie = roleCookieObj.value;
+  } else {
+    roleCookie = undefined;
+  }
 
-  // 1. Unauthenticated user trying to access protected route -> redirect to /login
-  if (!tokenCookie && !isPublicPath) {
-    const loginUrl = new URL('/login', request.url);
-    if (pathname !== '/') {
-      loginUrl.searchParams.set('redirect', pathname);
+  // VERIFICANDO SE A ROTA ATUAL E PUBLICA
+  const isPublicPath = PUBLIC_PATHS.some((path) => {
+    let match = false;
+    if (pathname === path) {
+      match = true;
+    } else if (pathname.startsWith(`${path}/`)) {
+      match = true;
+    } else {
+      match = false;
     }
-    return NextResponse.redirect(loginUrl);
+    return match;
+  });
+
+  // CASO 1: USUARIO NAO AUTENTICADO TENTANDO ACESSAR ROTA PRIVADA
+  if (!tokenCookie) {
+    if (!isPublicPath) {
+      const loginUrl = new URL('/login', request.url);
+      if (pathname !== '/') {
+        loginUrl.searchParams.set('redirect', pathname);
+      }
+      return NextResponse.redirect(loginUrl);
+    }
   }
 
-  // 2. Authenticated user trying to access /login or /register -> redirect to /dashboard
-  if (tokenCookie && isPublicPath) {
-    return NextResponse.redirect(new URL('/dashboard', request.url));
+  // CASO 2: USUARIO AUTENTICADO TENTANDO ACESSAR LOGIN OU CADASTRO
+  if (tokenCookie) {
+    if (isPublicPath) {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
+    }
   }
 
-  // 3. Authenticated user accessing a protected route -> check role permissions
-  if (tokenCookie && !isPublicPath && pathname !== '/') {
-    const userRole = roleCookie ? decodeURIComponent(roleCookie) : null;
+  // CASO 3: USUARIO AUTENTICADO ACESSANDO ROTA PROTEGIDA
+  if (tokenCookie) {
+    if (!isPublicPath) {
+      if (pathname !== '/') {
+        // DEFININDO O PAPEL DO USUARIO
+        let userRole: string | null = null;
+        if (roleCookie) {
+          userRole = decodeURIComponent(roleCookie);
+        } else {
+          userRole = null;
+        }
 
-    // If role is present and user does not have permission for the requested route
-    if (userRole && !hasRouteAccess(userRole, pathname)) {
-      const dashboardUrl = new URL('/dashboard', request.url);
-      dashboardUrl.searchParams.set('denied', '1');
-      return NextResponse.redirect(dashboardUrl);
+        // VERIFICANDO PERMISSAO DE ACESSO A ROTA
+        if (userRole) {
+          const hasAccess = hasRouteAccess(userRole, pathname);
+          if (!hasAccess) {
+            const dashboardUrl = new URL('/dashboard', request.url);
+            dashboardUrl.searchParams.set('denied', '1');
+            return NextResponse.redirect(dashboardUrl);
+          }
+        }
+      }
     }
   }
 
   return NextResponse.next();
 }
 
+// CONFIGURACAO DO MATCHER
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public files
-     */
     '/((?!_next/static|_next/image|favicon.ico).*)',
   ],
 };

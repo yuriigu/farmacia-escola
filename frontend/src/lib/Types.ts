@@ -34,6 +34,7 @@ export interface Patient {
   id: number;
   name: string;
   cpf: string;
+  susCard?: string | null;
   phone?: string | null;
   birthDate?: string | null;
   address?: string | null;

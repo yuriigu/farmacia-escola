@@ -1,4 +1,4 @@
-import type { Patient } from '@/lib/types';
+import type { Patient } from '@/lib/Types';
 
 export const mockPatient: Patient = {
   id: 1,

@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useAuth } from '@/hooks/UseAuth';
-import { useAuthStore } from '@/lib/auth-store';
-import { api } from '@/services/api';
+import { useAuthStore } from '@/lib/AuthStore';
+import { api } from '@/services/Api';
 import { mockUser } from '../../fixtures/user.fixture';
 
 vi.mock('@/services/api', () => ({

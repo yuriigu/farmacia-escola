@@ -1,4 +1,4 @@
-import type { AuthUser, User } from '@/lib/types';
+import type { AuthUser, User } from '@/lib/Types';
 
 export const mockUser: AuthUser = {
   id: 1,

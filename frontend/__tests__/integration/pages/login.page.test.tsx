@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { LoginForm } from '@/components/modules/LoginForm';
-import { useAuthStore } from '@/lib/auth-store';
+import { useAuthStore } from '@/lib/AuthStore';
 
 describe('Login Flow Integration', () => {
   beforeEach(() => {

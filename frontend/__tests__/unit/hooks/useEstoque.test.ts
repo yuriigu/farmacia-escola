@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor, act } from '@testing-library/react';
 import { useEstoque } from '@/hooks/UseEstoque';
-import { estoqueService } from '@/services/estoqueService';
+import { estoqueService } from '@/services/EstoqueService';
 import { mockMedicine, mockMedicinesList, mockBatch, mockBatchesList } from '../../fixtures/medicine.fixture';
 
 vi.mock('@/services/estoqueService', () => ({

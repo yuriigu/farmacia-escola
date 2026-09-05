@@ -2,8 +2,8 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { usePatients, usePatient } from '@/services/queries';
-import { api } from '@/services/api';
+import { usePatients, usePatient } from '@/services/Queries';
+import { api } from '@/services/Api';
 import { mockPatient, mockPatientsList } from '../../fixtures/patient.fixture';
 
 vi.mock('@/services/api', () => ({

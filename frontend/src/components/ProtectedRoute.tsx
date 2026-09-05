@@ -1,13 +1,18 @@
 'use client';
 
+// IMPORTS DO REACT
 import { ReactNode, useEffect } from 'react';
+
+// IMPORTS DE BIBLIOTECAS
 import { useRouter, usePathname } from 'next/navigation';
 import { ShieldAlert, ArrowLeft, Lock } from 'lucide-react';
-import { useAuthStore } from '@/lib/auth-store';
-import { hasRouteAccess, AppRole } from '@/config/rbac';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+
+// IMPORTS LOCAIS
+import { useAuthStore } from '@/lib/AuthStore';
+import { hasRouteAccess, AppRole } from '@/config/Rbac';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/Card';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -22,22 +27,38 @@ export function ProtectedRoute({
   routeKey,
   fallback,
 }: ProtectedRouteProps) {
+  // HOOKS DE NAVEGACAO E ROTEAMENTO
   const router = useRouter();
   const pathname = usePathname();
+
+  // OBTENDO ESTADO DE AUTENTICACAO
   const { user, token, loading, hydrate } = useAuthStore();
 
+  // HIDRATANDO ESTADO DE AUTENTICACAO
   useEffect(() => {
     hydrate();
   }, [hydrate]);
 
-  // If unauthenticated after loading, redirect to login
+  // REDIRECIONANDO SE NAO ESTIVER AUTENTICADO
   useEffect(() => {
-    if (!loading && !token) {
-      const redirectUrl = pathname && pathname !== '/' ? `/login?redirect=${encodeURIComponent(pathname)}` : '/login';
-      router.replace(redirectUrl);
+    if (!loading) {
+      if (!token) {
+        let redirectUrl = '/login';
+        if (pathname) {
+          if (pathname !== '/') {
+            redirectUrl = `/login?redirect=${encodeURIComponent(pathname)}`;
+          } else {
+            redirectUrl = '/login';
+          }
+        } else {
+          redirectUrl = '/login';
+        }
+        router.replace(redirectUrl);
+      }
     }
   }, [loading, token, pathname, router]);
 
+  // EXIBINDO SPINNER ENQUANTO CARREGA
   if (loading) {
     return (
       <div className="min-h-[50vh] flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
@@ -47,24 +68,62 @@ export function ProtectedRoute({
     );
   }
 
-  if (!token || !user) {
+  // VERIFICANDO SE EXISTE TOKEN
+  if (!token) {
     return null;
   }
 
-  // Permission evaluation
+  // VERIFICANDO SE EXISTE USUARIO
+  if (!user) {
+    return null;
+  }
+
+  // AVALIANDO PERMISSOES DO USUARIO
   let isAuthorized = true;
 
-  if (allowedRoles && allowedRoles.length > 0) {
-    isAuthorized = allowedRoles.map((r) => r.toUpperCase()).includes(user.role.toUpperCase());
+  if (allowedRoles) {
+    if (allowedRoles.length > 0) {
+      const upperAllowed = allowedRoles.map((r) => r.toUpperCase());
+      const userRoleUpper = user.role.toUpperCase();
+      isAuthorized = upperAllowed.includes(userRoleUpper);
+    } else if (routeKey) {
+      isAuthorized = hasRouteAccess(user.role, routeKey);
+    } else if (pathname) {
+      isAuthorized = hasRouteAccess(user.role, pathname);
+    }
   } else if (routeKey) {
     isAuthorized = hasRouteAccess(user.role, routeKey);
   } else if (pathname) {
     isAuthorized = hasRouteAccess(user.role, pathname);
   }
 
+  // SE NAO ESTIVER AUTORIZADO
   if (!isAuthorized) {
     if (fallback) {
       return <>{fallback}</>;
+    }
+
+    // BLOCO DE ROLES PERMITIDAS
+    let allowedRolesBlock: ReactNode = null;
+    if (allowedRoles) {
+      if (allowedRoles.length > 0) {
+        allowedRolesBlock = (
+          <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-700/60">
+            <span className="text-slate-500">Perfis permitidos:</span>
+            <div className="flex flex-wrap gap-1 justify-end">
+              {allowedRoles.map((role) => (
+                <Badge key={role} variant="secondary" className="text-[10px] px-1.5 py-0">
+                  {role}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        );
+      } else {
+        allowedRolesBlock = null;
+      }
+    } else {
+      allowedRolesBlock = null;
     }
 
     return (
@@ -89,18 +148,7 @@ export function ProtectedRoute({
                   {user.role}
                 </Badge>
               </div>
-              {allowedRoles && allowedRoles.length > 0 && (
-                <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-700/60">
-                  <span className="text-slate-500">Perfis permitidos:</span>
-                  <div className="flex flex-wrap gap-1 justify-end">
-                    {allowedRoles.map((role) => (
-                      <Badge key={role} variant="secondary" className="text-[10px] px-1.5 py-0">
-                        {role}
-                      </Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {allowedRolesBlock}
             </div>
 
             <div className="flex gap-2">

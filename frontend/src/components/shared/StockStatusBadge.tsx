@@ -1,7 +1,22 @@
-import type { StockStatus } from '@/lib/types';
+// IMPORTS LOCAIS
+import type { StockStatus } from '@/lib/Types';
 
-export function StockStatusBadge({ status }: { status?: StockStatus }) {
-  const s = status || 'ok';
+// INTERFACE DAS PROPRIEDADES DO CRACHA DE STATUS DO ESTOQUE
+interface StockStatusBadgeProps {
+  status?: StockStatus;
+}
+
+// COMPONENTE PARA EXIBIR STATUS DO ESTOQUE
+export function StockStatusBadge({ status }: StockStatusBadgeProps) {
+  // DETERMINANDO STATUS COM FALLBACK
+  let s: StockStatus = 'ok';
+  if (status) {
+    s = status;
+  } else {
+    s = 'ok';
+  }
+
+  // CONFIGURACOES DE CADA STATUS
   const config: Record<StockStatus, { label: string; bg: string; text: string; border: string; dot: string }> = {
     ok: {
       label: 'Em dia',
@@ -33,13 +48,20 @@ export function StockStatusBadge({ status }: { status?: StockStatus }) {
     },
   };
 
-  const current = config[s] || config.ok;
+  // OBTENDO A CONFIGURACAO ATUAL COM VERIFICACAO EXPLICITA
+  let current = config.ok;
+  if (config[s]) {
+    current = config[s];
+  } else {
+    current = config.ok;
+  }
+
+  const badgeClassName = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ' + current.bg + ' ' + current.text + ' ' + current.border;
+  const dotClassName = 'w-1.5 h-1.5 rounded-full ' + current.dot;
 
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ${current.bg} ${current.text} ${current.border}`}
-    >
-      <span className={`w-1.5 h-1.5 rounded-full ${current.dot}`} />
+    <span className={badgeClassName}>
+      <span className={dotClassName} />
       {current.label}
     </span>
   );

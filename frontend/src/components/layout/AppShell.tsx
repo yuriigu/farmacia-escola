@@ -1,6 +1,9 @@
 'use client';
 
+// IMPORTS DO REACT
 import { useState, useEffect, ReactNode, Suspense } from 'react';
+
+// IMPORTS DE BIBLIOTECAS
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
@@ -8,20 +11,22 @@ import {
   Pill, LogOut, Menu, XIcon, Sun, Moon, UserRound, ChevronRight, Settings
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
-import { useAuthStore } from '@/lib/auth-store';
-import { fetchAllData, fetchBatchesData, useDataLoader } from '@/lib/pharmacy-store';
+
+// IMPORTS LOCAIS
+import { useAuthStore } from '@/lib/AuthStore';
+import { fetchAllData, fetchBatchesData, useDataLoader } from '@/lib/PharmacyStore';
 import {
   getVisibleModules, getModuleById,
-} from '@/lib/constants';
-import type { ModuleId } from '@/lib/constants';
+} from '@/lib/Constants';
+import type { ModuleId } from '@/lib/Constants';
 import { RoleBadge } from '@/components/shared/RoleBadge';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { ScrollArea } from '@/components/ui/ScrollArea';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
-} from '@/components/ui/dropdown-menu';
+} from '@/components/ui/DropdownMenu';
 
-// Map route path to ModuleId
+// MAPEAMENTO DE ROTA PARA ID DE MODULO
 const PATH_MODULE_MAP: Record<string, ModuleId> = {
   '/dashboard': 'dashboard',
   '/medicines': 'medicines',
@@ -39,13 +44,16 @@ const PATH_MODULE_MAP: Record<string, ModuleId> = {
   '/profile': 'configuracoes',
 };
 
+// INTERFACE DAS PROPRIEDADES DO COMPONENTE
 interface AppShellProps {
   children: ReactNode;
   activeModuleId?: ModuleId;
   pageTitle?: string;
 }
 
+// COMPONENTE INTERNO DO SHELL
 function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
+  // ESTADOS DO COMPONENTE
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { token, user, loading: authLoading, hydrate, logout } = useAuthStore();
   const { theme, setTheme } = useTheme();
@@ -53,49 +61,100 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const userRole = user?.role;
-  const visibleModules = getVisibleModules(userRole ?? '', user?.permissions);
+  // OBTENDO O PAPEL DO USUARIO DE FORMA EXPLICITA
+  let userRole = '';
+  if (user) {
+    if (user.role) {
+      userRole = user.role;
+    } else {
+      userRole = '';
+    }
+  } else {
+    userRole = '';
+  }
 
-  const currentModuleId = activeModuleId || PATH_MODULE_MAP[pathname] || 'dashboard';
+  // OBTENDO AS PERMISSOES DO USUARIO
+  let userPermissions: Record<string, boolean> | undefined = undefined;
+  if (user) {
+    if (user.permissions) {
+      userPermissions = user.permissions;
+    } else {
+      userPermissions = undefined;
+    }
+  } else {
+    userPermissions = undefined;
+  }
+
+  const visibleModules = getVisibleModules(userRole, userPermissions);
+
+  // DETERMINANDO O ID DO MODULO ATUAL
+  let currentModuleId: ModuleId = 'dashboard';
+  if (activeModuleId) {
+    currentModuleId = activeModuleId;
+  } else if (PATH_MODULE_MAP[pathname]) {
+    currentModuleId = PATH_MODULE_MAP[pathname];
+  } else {
+    currentModuleId = 'dashboard';
+  }
+
   const activeModule = getModuleById(currentModuleId);
 
-  // Hydrate on mount
+  // HIDRATAR ESTADO AO MONTAR COMPONENTE
   useEffect(() => {
     hydrate();
   }, [hydrate]);
 
-  // Notify if user was redirected due to lack of permissions
+  // NOTIFICAR ACESSO NEGADO SE REDIRECIONADO
   useEffect(() => {
-    if (searchParams.get('denied') === '1') {
+    const deniedParam = searchParams.get('denied');
+    if (deniedParam === '1') {
       toast.error('Acesso negado: Você não tem permissão para acessar aquela rota.');
     }
   }, [searchParams]);
 
-  // Auth protection: redirect to login if unauthenticated
+  // REDIRECIONAR PARA LOGIN SE NAO ESTIVER AUTENTICADO
   useEffect(() => {
-    if (!authLoading && !token) {
-      router.replace('/login');
+    if (!authLoading) {
+      if (!token) {
+        router.replace('/login');
+      }
     }
   }, [token, authLoading, router]);
 
-  useDataLoader(!!token);
+  const isUserAuthenticated = Boolean(token);
+  useDataLoader(isUserAuthenticated);
 
-  // Auto-refresh data periodically
+  // ATUALIZAR DADOS PERIODICAMENTE
   useEffect(() => {
-    if (!token) return;
+    if (!token) {
+      return;
+    }
     const interval = setInterval(() => {
       fetchAllData();
       fetchBatchesData();
     }, 300000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, [token]);
 
+  // FUNCAO PARA SAIR DO SISTEMA
   const handleLogout = () => {
     logout();
     router.replace('/login');
   };
 
-  if (authLoading || (!token && typeof window !== 'undefined')) {
+  // VERIFICANDO SE DEVE EXIBIR TELA DE CARREGAMENTO
+  let shouldShowLoading = false;
+  if (authLoading) {
+    shouldShowLoading = true;
+  } else if (!token) {
+    if (typeof window !== 'undefined') {
+      shouldShowLoading = true;
+    }
+  }
+
+  if (shouldShowLoading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400">
         <div className="w-8 h-8 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin mb-3" />
@@ -104,28 +163,120 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     );
   }
 
-  const headerTitle = pageTitle || activeModule?.label || 'Dashboard';
+  // DEFININDO O TITULO DO CABECALHO
+  let headerTitle = 'Dashboard';
+  if (pageTitle) {
+    headerTitle = pageTitle;
+  } else if (activeModule) {
+    if (activeModule.label) {
+      headerTitle = activeModule.label;
+    } else {
+      headerTitle = 'Dashboard';
+    }
+  } else {
+    headerTitle = 'Dashboard';
+  }
+
+  // PREPARANDO DADOS DO USUARIO PARA RENDERIZACAO
+  let userName = 'Usuário';
+  if (user) {
+    if (user.name) {
+      userName = user.name;
+    } else {
+      userName = 'Usuário';
+    }
+  } else {
+    userName = 'Usuário';
+  }
+
+  let userInitial = 'U';
+  if (user) {
+    if (user.name) {
+      const firstChar = user.name.charAt(0);
+      if (firstChar) {
+        userInitial = firstChar.toUpperCase();
+      } else {
+        userInitial = 'U';
+      }
+    } else {
+      userInitial = 'U';
+    }
+  } else {
+    userInitial = 'U';
+  }
+
+  let userEmail = '';
+  if (user) {
+    if (user.email) {
+      userEmail = user.email;
+    } else {
+      userEmail = '';
+    }
+  } else {
+    userEmail = '';
+  }
+
+  let userRoleProp: string | undefined = undefined;
+  if (user) {
+    if (user.role) {
+      userRoleProp = user.role;
+    } else {
+      userRoleProp = undefined;
+    }
+  } else {
+    userRoleProp = undefined;
+  }
+
+  // CLASSES DA BARRA LATERAL
+  let sidebarClasses = 'fixed lg:static inset-y-0 left-0 z-50 w-64 glass-sidebar text-slate-300 flex flex-col shrink-0 transform transition-transform duration-300 ease-out ';
+  if (sidebarOpen) {
+    sidebarClasses = sidebarClasses + 'translate-x-0';
+  } else {
+    sidebarClasses = sidebarClasses + '-translate-x-full lg:translate-x-0';
+  }
+
+  // OVERLAY MOBILE
+  let mobileOverlay: ReactNode = null;
+  if (sidebarOpen) {
+    mobileOverlay = (
+      <div
+        className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+        onClick={() => {
+          setSidebarOpen(false);
+        }}
+      />
+    );
+  }
+
+  // ALTERNAR TEMA
+  const handleToggleTheme = () => {
+    if (theme === 'dark') {
+      setTheme('light');
+    } else {
+      setTheme('dark');
+    }
+  };
+
+  let themeIcon = <Moon className="w-4 h-4" />;
+  let themeLabel = 'Tema Escuro';
+  if (theme === 'dark') {
+    themeIcon = <Sun className="w-4 h-4" />;
+    themeLabel = 'Tema Claro';
+  } else {
+    themeIcon = <Moon className="w-4 h-4" />;
+    themeLabel = 'Tema Escuro';
+  }
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex">
       <Toaster position="top-right" richColors />
 
-      {/* Mobile sidebar overlay */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        />
-      )}
+      {/* OVERLAY PARA MOBILE */}
+      {mobileOverlay}
 
-      {/* ==================== SIDEBAR ==================== */}
-      <aside
-        className={
-          'fixed lg:static inset-y-0 left-0 z-50 w-64 glass-sidebar text-slate-300 flex flex-col shrink-0 transform transition-transform duration-300 ease-out ' +
-          (sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0')
-        }
-      >
-        {/* Logo */}
+      {/* ==================== BARRA LATERAL ==================== */}
+      <aside className={sidebarClasses}>
+        {/* LOGO */}
         <div className="h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600" />
         <div className="p-5 flex items-center justify-between gap-3 border-b border-slate-800">
           <Link href="/dashboard" className="flex items-center gap-3">
@@ -138,34 +289,54 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
             </div>
           </Link>
           <button
-            onClick={() => setSidebarOpen(false)}
+            onClick={() => {
+              setSidebarOpen(false);
+            }}
             className="lg:hidden text-slate-400 hover:text-white transition-colors"
           >
             <XIcon className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Navigation links */}
+        {/* LINKS DE NAVEGACAO */}
         <ScrollArea className="flex-1 min-h-0 p-3 space-y-1 relative">
           {visibleModules.map((mod) => {
             const Icon = mod.icon;
-            const href = mod.path || `/${mod.id}`;
-            const isActive =
-              pathname === href ||
-              (href !== '/dashboard' && pathname.startsWith(`${href}/`)) ||
-              (mod.id === 'agendamentos' && pathname === '/appointments') ||
-              (mod.id === 'administracao' && pathname === '/admin');
+            let href = `/${mod.id}`;
+            if (mod.path) {
+              href = mod.path;
+            } else {
+              href = `/${mod.id}`;
+            }
+
+            let isActive = false;
+            if (pathname === href) {
+              isActive = true;
+            } else if (href !== '/dashboard' && pathname.startsWith(`${href}/`)) {
+              isActive = true;
+            } else if (mod.id === 'agendamentos' && pathname === '/appointments') {
+              isActive = true;
+            } else if (mod.id === 'administracao' && pathname === '/admin') {
+              isActive = true;
+            } else {
+              isActive = false;
+            }
+
+            let itemClasses = 'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ';
+            if (isActive) {
+              itemClasses = itemClasses + 'sidebar-item-active font-semibold';
+            } else {
+              itemClasses = itemClasses + 'hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 hover:translate-x-0.5';
+            }
+
             return (
               <Link
                 key={mod.id}
                 href={href}
-                onClick={() => setSidebarOpen(false)}
-                className={
-                  'w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 ' +
-                  (isActive
-                    ? 'sidebar-item-active font-semibold'
-                    : 'hover:bg-slate-800/80 text-slate-400 hover:text-slate-200 hover:translate-x-0.5')
-                }
+                onClick={() => {
+                  setSidebarOpen(false);
+                }}
+                className={itemClasses}
               >
                 <Icon className="w-4 h-4 shrink-0" />
                 <span className="flex-1 text-left">{mod.label}</span>
@@ -175,13 +346,15 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
         </ScrollArea>
       </aside>
 
-      {/* ==================== MAIN CONTENT ==================== */}
+      {/* ==================== CONTEUDO PRINCIPAL ==================== */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Header with Breadcrumbs */}
+        {/* CABECALHO COM BREADCRUMBS */}
         <header className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 px-4 sm:px-6 py-3 flex items-center justify-between sticky top-0 z-10">
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setSidebarOpen(true)}
+              onClick={() => {
+                setSidebarOpen(true);
+              }}
               className="lg:hidden p-2 text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
             >
               <Menu className="w-5 h-5" />
@@ -198,18 +371,18 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* User Profile Dropdown */}
+            {/* DROPDOWN DO PERFIL DO USUARIO */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div className="flex items-center gap-2.5 cursor-pointer">
                   <div className="hidden sm:block text-right">
                     <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight">
-                      {user?.name || 'Usuário'}
+                      {userName}
                     </p>
-                    <RoleBadge role={user?.role} className="mt-0.5 text-[10px] py-0 px-2" />
+                    <RoleBadge role={userRoleProp} className="mt-0.5 text-[10px] py-0 px-2" />
                   </div>
                   <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/50 dark:to-teal-900/50 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-sm ring-2 ring-emerald-200 dark:ring-emerald-800 hover:shadow-lg hover:shadow-emerald-500/20 transition-all">
-                    {user?.name?.charAt(0)?.toUpperCase() || 'U'}
+                    {userInitial}
                   </div>
                 </div>
               </DropdownMenuTrigger>
@@ -217,10 +390,10 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
                 <DropdownMenuLabel className="font-normal">
                   <div className="flex flex-col space-y-1">
                     <p className="font-semibold text-slate-800 dark:text-slate-100 text-sm">
-                      {user?.name || 'Usuário'}
+                      {userName}
                     </p>
-                    <p className="text-xs text-slate-400">{user?.email || ''}</p>
-                    <RoleBadge role={user?.role} className="w-fit text-[10px] mt-1" />
+                    <p className="text-xs text-slate-400">{userEmail}</p>
+                    <RoleBadge role={userRoleProp} className="w-fit text-[10px] mt-1" />
                   </div>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
@@ -237,11 +410,11 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem
-                  onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+                  onClick={handleToggleTheme}
                   className="cursor-pointer gap-2 text-sm"
                 >
-                  {theme === 'dark' ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-                  {theme === 'dark' ? 'Tema Claro' : 'Tema Escuro'}
+                  {themeIcon}
+                  {themeLabel}
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem
@@ -256,13 +429,14 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
           </div>
         </header>
 
-        {/* Page content */}
+        {/* CONTEUDO DA PAGINA */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );
 }
 
+// COMPONENTE PRINCIPAL APP SHELL
 export function AppShell(props: AppShellProps) {
   return (
     <Suspense fallback={<div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-slate-400">Carregando...</div>}>

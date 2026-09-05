@@ -15,20 +15,20 @@ import {
   useCreateAppointment,
   useMedicines,
   usePatients,
-} from '@/services/queries';
-import { useAuthStore } from '@/lib/auth-store';
-import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES } from '@/lib/constants';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
+} from '@/services/Queries';
+import { useAuthStore } from '@/lib/AuthStore';
+import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES } from '@/lib/Constants';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { Badge } from '@/components/ui/Badge';
+import { Textarea } from '@/components/ui/Textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle
-} from '@/components/ui/dialog';
+} from '@/components/ui/Dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,15 +38,43 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Appointment } from '@/lib/types';
+} from '@/components/ui/AlertDialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
+import type { Appointment, AppointmentItem } from '@/lib/Types';
 
 function AppointmentsContent() {
   const searchParams = useSearchParams();
-  const user = useAuthStore((s) => s.user);
-  const isPatient = user?.role === 'PACIENTE';
-  const isStaff = user?.role === 'ADMIN' || user?.role === 'FARMACEUTICO' || user?.role === 'ALUNO';
+  const user = useAuthStore((s) => {
+    return s.user;
+  });
+
+  // DETERMINANDO SE E PACIENTE
+  let isPatient = false;
+  if (user) {
+    if (user.role === 'PACIENTE') {
+      isPatient = true;
+    } else {
+      isPatient = false;
+    }
+  } else {
+    isPatient = false;
+  }
+
+  // DETERMINANDO SE E STAFF
+  let isStaff = false;
+  if (user) {
+    if (user.role === 'ADMIN') {
+      isStaff = true;
+    } else if (user.role === 'FARMACEUTICO') {
+      isStaff = true;
+    } else if (user.role === 'ALUNO') {
+      isStaff = true;
+    } else {
+      isStaff = false;
+    }
+  } else {
+    isStaff = false;
+  }
 
   const { data: appointments = [], isLoading, refetch } = useAppointments();
   const { data: medicines = [] } = useMedicines();
@@ -62,8 +90,24 @@ function AppointmentsContent() {
   const [selectedAppointmentForDetails, setSelectedAppointmentForDetails] = useState<Appointment | null>(null);
 
   // Create Appointment Dialog State
-  const initialNew = searchParams.get('new') === '1' || !!searchParams.get('medicineId');
-  const initialMedId = searchParams.get('medicineId') ? Number(searchParams.get('medicineId')) : undefined;
+  const newParam = searchParams.get('new');
+  const medIdParam = searchParams.get('medicineId');
+
+  let initialNew = false;
+  if (newParam === '1') {
+    initialNew = true;
+  } else if (medIdParam) {
+    initialNew = true;
+  } else {
+    initialNew = false;
+  }
+
+  let initialMedId: number | undefined = undefined;
+  if (medIdParam) {
+    initialMedId = Number(medIdParam);
+  } else {
+    initialMedId = undefined;
+  }
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(initialNew);
   const [selectedMedId, setSelectedMedId] = useState<number | undefined>(initialMedId);
@@ -109,12 +153,26 @@ function AppointmentsContent() {
       return;
     }
 
+    let targetPatientId: number | undefined = undefined;
+    if (!isPatient) {
+      targetPatientId = selectedPatientId;
+    } else {
+      targetPatientId = undefined;
+    }
+
+    let notesVal: string | undefined = undefined;
+    if (notes.trim().length > 0) {
+      notesVal = notes.trim();
+    } else {
+      notesVal = undefined;
+    }
+
     createAppointmentMutation.mutate(
       {
         scheduledDate: appointmentDate,
         scheduledTime: appointmentTime,
-        patientId: isPatient ? undefined : selectedPatientId,
-        notes: notes.trim() || undefined,
+        patientId: targetPatientId,
+        notes: notesVal,
         items: [
           {
             medicineId: selectedMedId,
@@ -129,7 +187,17 @@ function AppointmentsContent() {
           refetch();
         },
         onError: (err: any) => {
-          toast.error(err?.message || 'Erro ao criar agendamento.');
+          let msg = 'Erro ao criar agendamento.';
+          if (err) {
+            if (err.message) {
+              msg = err.message;
+            } else {
+              msg = 'Erro ao criar agendamento.';
+            }
+          } else {
+            msg = 'Erro ao criar agendamento.';
+          }
+          toast.error(msg);
         },
       }
     );
@@ -138,14 +206,52 @@ function AppointmentsContent() {
   // Filter appointments
   const filteredAppointments = useMemo(() => {
     return appointments.filter((app) => {
-      const matchesStatus = statusFilter === 'ALL' || app.status === statusFilter;
-      const matchesSearch =
-        (app.patient?.name && app.patient.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (app.patient?.cpf && app.patient.cpf.includes(searchTerm)) ||
-        (app.items && app.items.some((i) => i.medicine?.name.toLowerCase().includes(searchTerm.toLowerCase()))) ||
-        (app.notes && app.notes.toLowerCase().includes(searchTerm.toLowerCase()));
+      let matchesStatus = false;
+      if (statusFilter === 'ALL') {
+        matchesStatus = true;
+      } else if (app.status === statusFilter) {
+        matchesStatus = true;
+      } else {
+        matchesStatus = false;
+      }
 
-      return matchesStatus && matchesSearch;
+      const term = searchTerm.toLowerCase();
+      let matchesSearch = false;
+      if (app.patient) {
+        if (app.patient.name) {
+          if (app.patient.name.toLowerCase().includes(term)) {
+            matchesSearch = true;
+          }
+        }
+        if (app.patient.cpf) {
+          if (app.patient.cpf.includes(searchTerm)) {
+            matchesSearch = true;
+          }
+        }
+      }
+      if (!matchesSearch && app.items) {
+        for (let i = 0; i < app.items.length; i++) {
+          const item = app.items[i];
+          if (item.medicine) {
+            if (item.medicine.name) {
+              if (item.medicine.name.toLowerCase().includes(term)) {
+                matchesSearch = true;
+                break;
+              }
+            }
+          }
+        }
+      }
+      if (!matchesSearch && app.notes) {
+        if (app.notes.toLowerCase().includes(term)) {
+          matchesSearch = true;
+        }
+      }
+
+      if (matchesStatus && matchesSearch) {
+        return true;
+      }
+      return false;
     });
   }, [appointments, statusFilter, searchTerm]);
 
@@ -157,7 +263,17 @@ function AppointmentsContent() {
           setAppointmentToCancel(null);
         },
         onError: (err: any) => {
-          toast.error(err?.message || 'Erro ao cancelar agendamento.');
+          let msg = 'Erro ao cancelar agendamento.';
+          if (err) {
+            if (err.message) {
+              msg = err.message;
+            } else {
+              msg = 'Erro ao cancelar agendamento.';
+            }
+          } else {
+            msg = 'Erro ao cancelar agendamento.';
+          }
+          toast.error(msg);
         },
       });
     }
@@ -169,8 +285,21 @@ function AppointmentsContent() {
       width: '180px',
       cell: (app) => {
         const scheduled = new Date(app.scheduledDate);
-        const dateStr = Number.isNaN(scheduled.getTime()) ? '—' : scheduled.toLocaleDateString('pt-BR');
-        const timeStr = app.scheduledTime || (Number.isNaN(scheduled.getTime()) ? '' : scheduled.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }));
+        let dateStr = '—';
+        if (Number.isNaN(scheduled.getTime())) {
+          dateStr = '—';
+        } else {
+          dateStr = scheduled.toLocaleDateString('pt-BR');
+        }
+
+        let timeStr = '';
+        if (app.scheduledTime) {
+          timeStr = app.scheduledTime;
+        } else if (!Number.isNaN(scheduled.getTime())) {
+          timeStr = scheduled.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        } else {
+          timeStr = '';
+        }
 
         return (
           <div className="flex items-center gap-2.5">
@@ -196,8 +325,32 @@ function AppointmentsContent() {
       header: 'Paciente',
       width: '200px',
       cell: (app) => {
-        const name = app.patient?.name || (isPatient ? user?.name : 'Não informado');
-        const cpf = app.patient?.cpf;
+        let name = 'Não informado';
+        if (app.patient) {
+          if (app.patient.name) {
+            name = app.patient.name;
+          } else if (isPatient) {
+            if (user) {
+              if (user.name) {
+                name = user.name;
+              }
+            }
+          }
+        } else if (isPatient) {
+          if (user) {
+            if (user.name) {
+              name = user.name;
+            }
+          }
+        }
+
+        let cpf: string | undefined = undefined;
+        if (app.patient) {
+          if (app.patient.cpf) {
+            cpf = app.patient.cpf;
+          }
+        }
+
         return (
           <div>
             <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-sm line-clamp-1">
@@ -211,11 +364,48 @@ function AppointmentsContent() {
     {
       header: 'Medicamento(s)',
       cell: (app) => {
-        const firstItem = app.items?.[0];
-        const medName = firstItem?.medicine?.name || 'Medicamento não especificado';
-        const dosage = firstItem?.medicine?.dosage;
-        const qty = firstItem?.quantity || 1;
-        const totalItems = app.items?.length || 0;
+        let firstItem: AppointmentItem | undefined = undefined;
+        if (app.items) {
+          if (app.items.length > 0) {
+            firstItem = app.items[0];
+          }
+        }
+
+        let medName = 'Medicamento não especificado';
+        let dosage: string | undefined = undefined;
+        let qty = 1;
+        if (firstItem) {
+          if (firstItem.medicine) {
+            if (firstItem.medicine.name) {
+              medName = firstItem.medicine.name;
+            }
+            if (firstItem.medicine.dosage) {
+              dosage = firstItem.medicine.dosage;
+            }
+          }
+          if (firstItem.quantity) {
+            qty = firstItem.quantity;
+          }
+        }
+
+        let totalItems = 0;
+        if (app.items) {
+          totalItems = app.items.length;
+        }
+
+        let dosageElement: React.ReactNode = null;
+        if (dosage) {
+          dosageElement = <span className="text-slate-400 text-xs">({dosage})</span>;
+        }
+
+        let extraItemsBadge: React.ReactNode = null;
+        if (totalItems > 1) {
+          extraItemsBadge = (
+            <span className="ml-1.5 text-[10px] bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">
+              +{totalItems - 1} outro(s)
+            </span>
+          );
+        }
 
         return (
           <div className="flex items-center gap-2">
@@ -224,15 +414,11 @@ function AppointmentsContent() {
             </div>
             <div>
               <p className="font-medium text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
-                {medName} {dosage ? <span className="text-slate-400 text-xs">({dosage})</span> : null}
+                {medName} {dosageElement}
               </p>
               <p className="text-[11px] text-slate-500 dark:text-slate-400">
                 Quantidade: <span className="font-semibold text-slate-700 dark:text-slate-300">{qty} un.</span>
-                {totalItems > 1 && (
-                  <span className="ml-1.5 text-[10px] bg-slate-100 dark:bg-slate-700 px-1.5 py-0.5 rounded text-slate-600 dark:text-slate-300">
-                    +{totalItems - 1} outro(s)
-                  </span>
-                )}
+                {extraItemsBadge}
               </p>
             </div>
           </div>
@@ -242,14 +428,26 @@ function AppointmentsContent() {
     {
       header: 'Status',
       width: '130px',
-      cell: (app) => (
-        <Badge
-          variant="outline"
-          className={`font-semibold text-[11px] ${APPOINTMENT_STATUS_STYLES[app.status] || APPOINTMENT_STATUS_STYLES.PENDING}`}
-        >
-          {APPOINTMENT_STATUS_LABELS[app.status] || app.status}
-        </Badge>
-      ),
+      cell: (app) => {
+        let statusStyle = APPOINTMENT_STATUS_STYLES.PENDING;
+        if (APPOINTMENT_STATUS_STYLES[app.status]) {
+          statusStyle = APPOINTMENT_STATUS_STYLES[app.status];
+        }
+
+        let statusLabel: string = app.status;
+        if (APPOINTMENT_STATUS_LABELS[app.status]) {
+          statusLabel = APPOINTMENT_STATUS_LABELS[app.status];
+        }
+
+        return (
+          <Badge
+            variant="outline"
+            className={'font-semibold text-[11px] ' + statusStyle}
+          >
+            {statusLabel}
+          </Badge>
+        );
+      },
     },
     {
       header: 'Ações',
@@ -258,11 +456,48 @@ function AppointmentsContent() {
       cell: (app) => {
         // Strict IDOR & RBAC validation:
         // A patient can only cancel appointments that belong to their own patient profile.
-        const isOwner = isPatient
-          ? (app.patientId === user?.patientId || (user?.patientId && app.patient?.id === user.patientId))
-          : true;
+        let isOwner = true;
+        if (isPatient) {
+          if (user) {
+            if (app.patientId === user.patientId) {
+              isOwner = true;
+            } else if (user.patientId) {
+              if (app.patient) {
+                if (app.patient.id === user.patientId) {
+                  isOwner = true;
+                } else {
+                  isOwner = false;
+                }
+              } else {
+                isOwner = false;
+              }
+            } else {
+              isOwner = false;
+            }
+          } else {
+            isOwner = false;
+          }
+        } else {
+          isOwner = true;
+        }
 
-        const canCancel = (isStaff || (isPatient && isOwner)) && (app.status === 'PENDING' || app.status === 'CONFIRMED');
+        let canCancel = false;
+        let userCanAct = false;
+        if (isStaff) {
+          userCanAct = true;
+        } else if (isPatient) {
+          if (isOwner) {
+            userCanAct = true;
+          }
+        }
+
+        if (userCanAct) {
+          if (app.status === 'PENDING') {
+            canCancel = true;
+          } else if (app.status === 'CONFIRMED') {
+            canCancel = true;
+          }
+        }
 
         return (
           <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -322,17 +557,41 @@ function AppointmentsContent() {
     },
   ];
 
+  let pageDesc = 'Gerenciamento completo das solicitações e atendimentos da Farmácia Escola.';
+  if (isPatient) {
+    pageDesc = 'Acompanhe o status e as datas das suas consultas e retiradas agendadas.';
+  } else {
+    pageDesc = 'Gerenciamento completo das solicitações e atendimentos da Farmácia Escola.';
+  }
+
+  let createModalDesc = 'Registre um novo agendamento de atendimento farmacêutico.';
+  if (isPatient) {
+    createModalDesc = 'Agende a data e o horário para retirar seu medicamento gratuito.';
+  } else {
+    createModalDesc = 'Registre um novo agendamento de atendimento farmacêutico.';
+  }
+
+  let selectedPatientVal = '';
+  if (selectedPatientId) {
+    selectedPatientVal = String(selectedPatientId);
+  } else {
+    selectedPatientVal = '';
+  }
+
+  let selectedMedVal = '';
+  if (selectedMedId) {
+    selectedMedVal = String(selectedMedId);
+  } else {
+    selectedMedVal = '';
+  }
+
   return (
     <AppShell activeModuleId={'appointments' as any} pageTitle="Agendamentos de Retirada">
       <div className="space-y-5 max-w-7xl mx-auto page-enter">
         {/* Standard PageHeader */}
         <PageHeader
           title="Agendamentos de Retirada"
-          description={
-            isPatient
-              ? 'Acompanhe o status e as datas das suas consultas e retiradas agendadas.'
-              : 'Gerenciamento completo das solicitações e atendimentos da Farmácia Escola.'
-          }
+          description={pageDesc}
           icon={Calendar}
           actions={
             <div className="flex items-center gap-2">
@@ -367,14 +626,19 @@ function AppointmentsContent() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
             />
-            {searchTerm && (
-              <button
-                onClick={() => setSearchTerm('')}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
-            )}
+            {(() => {
+              if (searchTerm.length > 0) {
+                return (
+                  <button
+                    onClick={() => setSearchTerm('')}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                );
+              }
+              return null;
+            })()}
           </div>
 
           {/* Status Filter Chips */}
@@ -385,19 +649,23 @@ function AppointmentsContent() {
               { id: 'CONFIRMED', label: 'Confirmados' },
               { id: 'COMPLETED', label: 'Concluídos' },
               { id: 'CANCELLED', label: 'Cancelados' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                  statusFilter === tab.id
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+            ].map((tab) => {
+              let chipClass = 'px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ';
+              if (statusFilter === tab.id) {
+                chipClass = chipClass + 'bg-emerald-600 text-white shadow-sm';
+              } else {
+                chipClass = chipClass + 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600';
+              }
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setStatusFilter(tab.id)}
+                  className={chipClass}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -430,37 +698,46 @@ function AppointmentsContent() {
                 Novo Agendamento
               </DialogTitle>
               <DialogDescription>
-                {isPatient
-                  ? 'Agende a data e o horário para retirar seu medicamento gratuito.'
-                  : 'Registre um novo agendamento de atendimento farmacêutico.'}
+                {createModalDesc}
               </DialogDescription>
             </DialogHeader>
 
             <form onSubmit={handleCreateSubmit} className="space-y-4 py-2">
               {/* Patient Selector for Staff */}
-              {!isPatient && (
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                    <User className="w-3.5 h-3.5 text-emerald-600" />
-                    Paciente *
-                  </Label>
-                  <Select
-                    value={selectedPatientId ? String(selectedPatientId) : ''}
-                    onValueChange={(v) => setSelectedPatientId(Number(v))}
-                  >
-                    <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
-                      <SelectValue placeholder="Selecione o paciente..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {patients.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)} className="text-xs">
-                          {p.name} {p.cpf ? `(CPF: ${p.cpf})` : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              {(() => {
+                if (!isPatient) {
+                  return (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                        <User className="w-3.5 h-3.5 text-emerald-600" />
+                        Paciente *
+                      </Label>
+                      <Select
+                        value={selectedPatientVal}
+                        onValueChange={(v) => setSelectedPatientId(Number(v))}
+                      >
+                        <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                          <SelectValue placeholder="Selecione o paciente..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {patients.map((p) => {
+                            let cpfStr = '';
+                            if (p.cpf) {
+                              cpfStr = ' (CPF: ' + p.cpf + ')';
+                            }
+                            return (
+                              <SelectItem key={p.id} value={String(p.id)} className="text-xs">
+                                {p.name}{cpfStr}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  );
+                }
+                return null;
+              })()}
 
               {/* Medicine Selector */}
               <div className="space-y-1.5">
@@ -469,18 +746,30 @@ function AppointmentsContent() {
                   Medicamento *
                 </Label>
                 <Select
-                  value={selectedMedId ? String(selectedMedId) : ''}
+                  value={selectedMedVal}
                   onValueChange={(v) => setSelectedMedId(Number(v))}
                 >
                   <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
                     <SelectValue placeholder="Selecione o medicamento..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {medicines.map((m) => (
-                      <SelectItem key={m.id} value={String(m.id)} className="text-xs">
-                        {m.name} {m.dosage ? `— ${m.dosage}` : ''} ({m.totalQuantity ?? 0} un. disponíveis)
-                      </SelectItem>
-                    ))}
+                    {medicines.map((m) => {
+                      let dosageStr = '';
+                      if (m.dosage) {
+                        dosageStr = ' — ' + m.dosage;
+                      }
+                      let totalQty = 0;
+                      if (m.totalQuantity !== null && m.totalQuantity !== undefined) {
+                        totalQty = m.totalQuantity;
+                      } else {
+                        totalQty = 0;
+                      }
+                      return (
+                        <SelectItem key={m.id} value={String(m.id)} className="text-xs">
+                          {m.name}{dosageStr} ({totalQty} un. disponíveis)
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </div>
@@ -554,7 +843,13 @@ function AppointmentsContent() {
                   disabled={createAppointmentMutation.isPending}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs"
                 >
-                  {createAppointmentMutation.isPending ? 'Salvando...' : 'Confirmar Agendamento'}
+                  {(() => {
+                    if (createAppointmentMutation.isPending) {
+                      return 'Salvando...';
+                    } else {
+                      return 'Confirmar Agendamento';
+                    }
+                  })()}
                 </Button>
               </DialogFooter>
             </form>
@@ -565,15 +860,72 @@ function AppointmentsContent() {
         <Dialog
           open={selectedAppointmentForDetails !== null}
           onOpenChange={(open) => {
-            if (!open) setSelectedAppointmentForDetails(null);
+            if (!open) {
+              setSelectedAppointmentForDetails(null);
+            }
           }}
         >
           <DialogContent className="sm:max-w-[500px] rounded-3xl">
-            {selectedAppointmentForDetails && (() => {
+            {(() => {
+              if (!selectedAppointmentForDetails) {
+                return null;
+              }
               const app = selectedAppointmentForDetails;
               const scheduled = new Date(app.scheduledDate);
-              const dateStr = Number.isNaN(scheduled.getTime()) ? '—' : scheduled.toLocaleDateString('pt-BR');
-              const firstItem = app.items?.[0];
+              let dateStr = '—';
+              if (Number.isNaN(scheduled.getTime())) {
+                dateStr = '—';
+              } else {
+                dateStr = scheduled.toLocaleDateString('pt-BR');
+              }
+
+              let statusStyle = APPOINTMENT_STATUS_STYLES.PENDING;
+              if (APPOINTMENT_STATUS_STYLES[app.status]) {
+                statusStyle = APPOINTMENT_STATUS_STYLES[app.status];
+              }
+
+              let statusLabel: string = app.status;
+              if (APPOINTMENT_STATUS_LABELS[app.status]) {
+                statusLabel = APPOINTMENT_STATUS_LABELS[app.status];
+              }
+
+              let patientName = 'Não informado';
+              if (app.patient) {
+                if (app.patient.name) {
+                  patientName = app.patient.name;
+                } else if (isPatient) {
+                  if (user) {
+                    if (user.name) {
+                      patientName = user.name;
+                    }
+                  }
+                }
+              } else if (isPatient) {
+                if (user) {
+                  if (user.name) {
+                    patientName = user.name;
+                  }
+                }
+              }
+
+              let patientCpfElement: React.ReactNode = null;
+              if (app.patient) {
+                if (app.patient.cpf) {
+                  patientCpfElement = (
+                    <div className="flex items-center justify-between">
+                      <span className="text-slate-400">CPF:</span>
+                      <span className="font-mono text-slate-700 dark:text-slate-300">
+                        {app.patient.cpf}
+                      </span>
+                    </div>
+                  );
+                }
+              }
+
+              let timeString = '';
+              if (app.scheduledTime) {
+                timeString = ' às ' + app.scheduledTime;
+              }
 
               return (
                 <div className="space-y-4">
@@ -581,9 +933,9 @@ function AppointmentsContent() {
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <Badge
                         variant="outline"
-                        className={`font-semibold text-[11px] ${APPOINTMENT_STATUS_STYLES[app.status] || APPOINTMENT_STATUS_STYLES.PENDING}`}
+                        className={'font-semibold text-[11px] ' + statusStyle}
                       >
-                        {APPOINTMENT_STATUS_LABELS[app.status] || app.status}
+                        {statusLabel}
                       </Badge>
                       <span className="text-xs text-slate-400 font-mono">
                         #{app.id}
@@ -600,21 +952,14 @@ function AppointmentsContent() {
                       <div className="flex items-center justify-between">
                         <span className="text-slate-400">Paciente:</span>
                         <span className="font-bold text-slate-800 dark:text-slate-200">
-                          {app.patient?.name || (isPatient ? user?.name : 'Não informado')}
+                          {patientName}
                         </span>
                       </div>
-                      {app.patient?.cpf && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-slate-400">CPF:</span>
-                          <span className="font-mono text-slate-700 dark:text-slate-300">
-                            {app.patient.cpf}
-                          </span>
-                        </div>
-                      )}
+                      {patientCpfElement}
                       <div className="flex items-center justify-between">
                         <span className="text-slate-400">Data Agendada:</span>
                         <span className="font-semibold text-slate-800 dark:text-slate-200">
-                          {dateStr} {app.scheduledTime ? `às ${app.scheduledTime}` : ''}
+                          {dateStr}{timeString}
                         </span>
                       </div>
                     </div>
@@ -624,38 +969,56 @@ function AppointmentsContent() {
                       <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         Medicamento(s) Solicitados
                       </h4>
-                      {app.items && app.items.length > 0 ? (
-                        app.items.map((item, idx) => (
-                          <div
-                            key={idx}
-                            className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-800 flex items-center justify-between text-xs"
-                          >
-                            <div className="flex items-center gap-2">
-                              <Pill className="w-4 h-4 text-emerald-600" />
-                              <span className="font-bold text-slate-800 dark:text-slate-200">
-                                {item.medicine?.name}
-                              </span>
-                              {item.medicine?.dosage && (
-                                <span className="text-slate-400">({item.medicine.dosage})</span>
-                              )}
-                            </div>
-                            <span className="font-bold text-emerald-700 dark:text-emerald-400">
-                              {item.quantity} un.
-                            </span>
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-xs text-slate-400">Nenhum item listado.</p>
-                      )}
+                      {(() => {
+                        if (app.items && app.items.length > 0) {
+                          return app.items.map((item, idx) => {
+                            let itemName = '';
+                            if (item.medicine) {
+                              if (item.medicine.name) {
+                                itemName = item.medicine.name;
+                              }
+                            }
+                            let itemDosage: React.ReactNode = null;
+                            if (item.medicine) {
+                              if (item.medicine.dosage) {
+                                itemDosage = <span className="text-slate-400">({item.medicine.dosage})</span>;
+                              }
+                            }
+                            return (
+                              <div
+                                key={idx}
+                                className="p-3 bg-emerald-50/50 dark:bg-emerald-950/20 rounded-xl border border-emerald-100 dark:border-emerald-800 flex items-center justify-between text-xs"
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Pill className="w-4 h-4 text-emerald-600" />
+                                  <span className="font-bold text-slate-800 dark:text-slate-200">
+                                    {itemName}
+                                  </span>
+                                  {itemDosage}
+                                </div>
+                                <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                                  {item.quantity} un.
+                                </span>
+                              </div>
+                            );
+                          });
+                        }
+                        return <p className="text-xs text-slate-400">Nenhum item listado.</p>;
+                      })()}
                     </div>
 
                     {/* Observações */}
-                    {app.notes && (
-                      <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl text-xs text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-800">
-                        <span className="font-bold text-slate-700 dark:text-slate-300 block mb-0.5">Observações:</span>
-                        {app.notes}
-                      </div>
-                    )}
+                    {(() => {
+                      if (app.notes) {
+                        return (
+                          <div className="p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl text-xs text-slate-600 dark:text-slate-400 border border-slate-100 dark:border-slate-800">
+                            <span className="font-bold text-slate-700 dark:text-slate-300 block mb-0.5">Observações:</span>
+                            {app.notes}
+                          </div>
+                        );
+                      }
+                      return null;
+                    })()}
                   </div>
 
                   <DialogFooter className="pt-2">

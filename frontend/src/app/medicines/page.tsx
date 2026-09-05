@@ -11,13 +11,13 @@ import {
   Layers, Clock, User, Download
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/AppShell';
-import { useMedicines, useCreateMedicine, useCreateAppointment, usePatients } from '@/services/queries';
-import { useAuthStore } from '@/lib/auth-store';
-import { MEDICINE_CATEGORIES, downloadCSV } from '@/lib/constants';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { useMedicines, useCreateMedicine, useCreateAppointment, usePatients } from '@/services/Queries';
+import { useAuthStore } from '@/lib/AuthStore';
+import { MEDICINE_CATEGORIES, downloadCSV } from '@/lib/Constants';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { Textarea } from '@/components/ui/Textarea';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import { CategoryBadge } from '@/components/shared/CategoryBadge';
@@ -25,9 +25,9 @@ import { StockStatusBadge } from '@/components/shared/StockStatusBadge';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle
-} from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { computeStockStatus, type Medicine, type StockStatus } from '@/lib/types';
+} from '@/components/ui/Dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
+import { computeStockStatus, type Medicine, type StockStatus } from '@/lib/Types';
 
 const newMedicineSchema = z.object({
   name: z.string().min(2, 'Nome do medicamento é obrigatório'),
@@ -40,9 +40,35 @@ const newMedicineSchema = z.object({
 type NewMedicineFormData = z.infer<typeof newMedicineSchema>;
 
 export default function MedicinesPage() {
-  const user = useAuthStore((s) => s.user);
-  const isPatient = user?.role === 'PACIENTE';
-  const canCreateMedicine = user?.role === 'ADMIN' || user?.role === 'FARMACEUTICO';
+  const user = useAuthStore((s) => {
+    return s.user;
+  });
+
+  // DETERMINANDO SE E PACIENTE
+  let isPatient = false;
+  if (user) {
+    if (user.role === 'PACIENTE') {
+      isPatient = true;
+    } else {
+      isPatient = false;
+    }
+  } else {
+    isPatient = false;
+  }
+
+  // DETERMINANDO SE PODE CRIAR MEDICAMENTO
+  let canCreateMedicine = false;
+  if (user) {
+    if (user.role === 'ADMIN') {
+      canCreateMedicine = true;
+    } else if (user.role === 'FARMACEUTICO') {
+      canCreateMedicine = true;
+    } else {
+      canCreateMedicine = false;
+    }
+  } else {
+    canCreateMedicine = false;
+  }
 
   const { data: medicines = [], isLoading } = useMedicines();
   const { data: patients = [] } = usePatients();
@@ -89,7 +115,17 @@ export default function MedicinesPage() {
         toast.success('Medicamento cadastrado com sucesso!');
       },
       onError: (err: any) => {
-        toast.error(err?.message || 'Erro ao cadastrar medicamento.');
+        let msg = 'Erro ao cadastrar medicamento.';
+        if (err) {
+          if (err.message) {
+            msg = err.message;
+          } else {
+            msg = 'Erro ao cadastrar medicamento.';
+          }
+        } else {
+          msg = 'Erro ao cadastrar medicamento.';
+        }
+        toast.error(msg);
       },
     });
   };
@@ -109,7 +145,11 @@ export default function MedicinesPage() {
 
   const handleCreateAppointment = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedMedicineForAppointment || !appointmentDate) {
+    if (!selectedMedicineForAppointment) {
+      toast.error('Informe a data do agendamento.');
+      return;
+    }
+    if (!appointmentDate) {
       toast.error('Informe a data do agendamento.');
       return;
     }
@@ -119,12 +159,26 @@ export default function MedicinesPage() {
       return;
     }
 
+    let targetPatientId: number | undefined = undefined;
+    if (!isPatient) {
+      targetPatientId = selectedPatientId;
+    } else {
+      targetPatientId = undefined;
+    }
+
+    let notesVal: string | undefined = undefined;
+    if (appointmentNotes.trim().length > 0) {
+      notesVal = appointmentNotes.trim();
+    } else {
+      notesVal = undefined;
+    }
+
     createAppointmentMutation.mutate(
       {
         scheduledDate: appointmentDate,
         scheduledTime: appointmentTime,
-        patientId: isPatient ? undefined : selectedPatientId,
-        notes: appointmentNotes.trim() || undefined,
+        patientId: targetPatientId,
+        notes: notesVal,
         items: [
           {
             medicineId: selectedMedicineForAppointment.id,
@@ -139,7 +193,17 @@ export default function MedicinesPage() {
           setSelectedMedicineForDetails(null);
         },
         onError: (err: any) => {
-          toast.error(err?.message || 'Erro ao realizar agendamento.');
+          let msg = 'Erro ao realizar agendamento.';
+          if (err) {
+            if (err.message) {
+              msg = err.message;
+            } else {
+              msg = 'Erro ao realizar agendamento.';
+            }
+          } else {
+            msg = 'Erro ao realizar agendamento.';
+          }
+          toast.error(msg);
         },
       }
     );
@@ -148,35 +212,109 @@ export default function MedicinesPage() {
   // Filter medicines
   const filteredMedicines = useMemo(() => {
     return medicines.filter((med) => {
-      const matchesSearch =
-        med.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (med.activeIngredient && med.activeIngredient.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (med.dosage && med.dosage.toLowerCase().includes(searchTerm.toLowerCase()));
+      const term = searchTerm.toLowerCase();
 
-      const matchesCategory =
-        selectedCategory === 'all' || med.category?.toLowerCase() === selectedCategory.toLowerCase();
+      let matchesSearch = false;
+      if (med.name.toLowerCase().includes(term)) {
+        matchesSearch = true;
+      } else if (med.activeIngredient) {
+        if (med.activeIngredient.toLowerCase().includes(term)) {
+          matchesSearch = true;
+        }
+      } else if (med.dosage) {
+        if (med.dosage.toLowerCase().includes(term)) {
+          matchesSearch = true;
+        }
+      } else {
+        matchesSearch = false;
+      }
 
-      const computedStatus = computeStockStatus({ totalQuantity: med.totalQuantity ?? 0 });
-      const matchesStock =
-        stockFilter === 'all' ||
-        stockFilter === computedStatus;
+      let matchesCategory = false;
+      if (selectedCategory === 'all') {
+        matchesCategory = true;
+      } else if (med.category) {
+        if (med.category.toLowerCase() === selectedCategory.toLowerCase()) {
+          matchesCategory = true;
+        } else {
+          matchesCategory = false;
+        }
+      } else {
+        matchesCategory = false;
+      }
 
-      return matchesSearch && matchesCategory && matchesStock;
+      let medTotalQty = 0;
+      if (med.totalQuantity !== null && med.totalQuantity !== undefined) {
+        medTotalQty = med.totalQuantity;
+      } else {
+        medTotalQty = 0;
+      }
+
+      const computedStatus = computeStockStatus({ totalQuantity: medTotalQty });
+      let matchesStock = false;
+      if (stockFilter === 'all') {
+        matchesStock = true;
+      } else if (stockFilter === computedStatus) {
+        matchesStock = true;
+      } else {
+        matchesStock = false;
+      }
+
+      if (matchesSearch && matchesCategory && matchesStock) {
+        return true;
+      }
+      return false;
     });
   }, [medicines, searchTerm, selectedCategory, stockFilter]);
 
   const handleExportCSV = () => {
     const header = ['Nome', 'Princípio Ativo', 'Dosagem', 'Categoria', 'Estoque Total', 'Status'];
     const rows = filteredMedicines.map((m) => {
-      const status = computeStockStatus({ totalQuantity: m.totalQuantity ?? 0 });
-      const statusLabel =
-        status === 'ok' ? 'Em dia' : status === 'low' ? 'Baixo' : status === 'critical' ? 'Crítico' : 'Vencido';
+      let mQty = 0;
+      if (m.totalQuantity !== null && m.totalQuantity !== undefined) {
+        mQty = m.totalQuantity;
+      } else {
+        mQty = 0;
+      }
+
+      const status = computeStockStatus({ totalQuantity: mQty });
+      let statusLabel = 'Vencido';
+      if (status === 'ok') {
+        statusLabel = 'Em dia';
+      } else if (status === 'low') {
+        statusLabel = 'Baixo';
+      } else if (status === 'critical') {
+        statusLabel = 'Crítico';
+      } else {
+        statusLabel = 'Vencido';
+      }
+
+      let ingredient = '—';
+      if (m.activeIngredient) {
+        ingredient = m.activeIngredient;
+      } else {
+        ingredient = '—';
+      }
+
+      let dosage = '—';
+      if (m.dosage) {
+        dosage = m.dosage;
+      } else {
+        dosage = '—';
+      }
+
+      let category = 'Geral';
+      if (m.category) {
+        category = m.category;
+      } else {
+        category = 'Geral';
+      }
+
       return [
         m.name,
-        m.activeIngredient || '—',
-        m.dosage || '—',
-        m.category || 'Geral',
-        `${m.totalQuantity ?? 0} un.`,
+        ingredient,
+        dosage,
+        category,
+        mQty + ' un.',
         statusLabel,
       ];
     });
@@ -188,23 +326,30 @@ export default function MedicinesPage() {
     {
       header: 'Medicamento',
       width: '260px',
-      cell: (med) => (
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-            <Pill className="w-4 h-4" />
-          </div>
-          <div>
-            <p className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm leading-tight">
-              {med.name}
+      cell: (med) => {
+        let dosageElement: React.ReactNode = null;
+        if (med.dosage) {
+          dosageElement = (
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">
+              {med.dosage}
             </p>
-            {med.dosage && (
-              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">
-                {med.dosage}
+          );
+        }
+
+        return (
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+              <Pill className="w-4 h-4" />
+            </div>
+            <div>
+              <p className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm leading-tight">
+                {med.name}
               </p>
-            )}
+              {dosageElement}
+            </div>
           </div>
-        </div>
-      ),
+        );
+      },
     },
     {
       header: 'Categoria',
@@ -213,19 +358,35 @@ export default function MedicinesPage() {
     },
     {
       header: 'Princípio Ativo',
-      cell: (med) => (
-        <span className="text-xs text-slate-600 dark:text-slate-300">
-          {med.activeIngredient || '—'}
-        </span>
-      ),
+      cell: (med) => {
+        let ingredient = '—';
+        if (med.activeIngredient) {
+          ingredient = med.activeIngredient;
+        } else {
+          ingredient = '—';
+        }
+
+        return (
+          <span className="text-xs text-slate-600 dark:text-slate-300">
+            {ingredient}
+          </span>
+        );
+      },
     },
     {
       header: 'Estoque Total',
       width: '140px',
       cell: (med) => {
+        let qty = 0;
+        if (med.totalQuantity !== null && med.totalQuantity !== undefined) {
+          qty = med.totalQuantity;
+        } else {
+          qty = 0;
+        }
+
         return (
           <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200">
-            {med.totalQuantity ?? 0} un.
+            {qty} un.
           </span>
         );
       },
@@ -234,7 +395,14 @@ export default function MedicinesPage() {
       header: 'Status',
       width: '140px',
       cell: (med) => {
-        const status = computeStockStatus({ totalQuantity: med.totalQuantity ?? 0 });
+        let qty = 0;
+        if (med.totalQuantity !== null && med.totalQuantity !== undefined) {
+          qty = med.totalQuantity;
+        } else {
+          qty = 0;
+        }
+
+        const status = computeStockStatus({ totalQuantity: qty });
         return <StockStatusBadge status={status} />;
       },
     },
@@ -243,7 +411,34 @@ export default function MedicinesPage() {
       width: '170px',
       align: 'right',
       cell: (med) => {
-        const isAvailable = (med.totalQuantity ?? 0) > 0;
+        let qty = 0;
+        if (med.totalQuantity !== null && med.totalQuantity !== undefined) {
+          qty = med.totalQuantity;
+        } else {
+          qty = 0;
+        }
+
+        let isAvailable = false;
+        if (qty > 0) {
+          isAvailable = true;
+        } else {
+          isAvailable = false;
+        }
+
+        let scheduleButton: React.ReactNode = null;
+        if (isAvailable) {
+          scheduleButton = (
+            <Button
+              size="sm"
+              onClick={() => handleOpenAppointmentModal(med)}
+              className="h-8 px-2.5 rounded-lg text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Agendar</span>
+            </Button>
+          );
+        }
+
         return (
           <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
             <Button
@@ -255,16 +450,7 @@ export default function MedicinesPage() {
               <Eye className="w-3.5 h-3.5" />
               <span>Ver</span>
             </Button>
-            {isAvailable && (
-              <Button
-                size="sm"
-                onClick={() => handleOpenAppointmentModal(med)}
-                className="h-8 px-2.5 rounded-lg text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
-              >
-                <Calendar className="w-3.5 h-3.5" />
-                <span>Agendar</span>
-              </Button>
-            )}
+            {scheduleButton}
           </div>
         );
       },
@@ -358,39 +544,132 @@ export default function MedicinesPage() {
         </div>
 
         {/* Standard DataTable */}
-        <DataTable
-          columns={columns}
-          data={filteredMedicines}
-          isLoading={isLoading}
-          emptyIcon={Package}
-          emptyTitle="Nenhum medicamento encontrado"
-          emptyDescription="Tente ajustar os termos de busca ou os filtros selecionados."
-          emptyAction={
-            canCreateMedicine ? (
+        {(() => {
+          let emptyActionElement: React.ReactNode = undefined;
+          if (canCreateMedicine) {
+            emptyActionElement = (
               <Button
-                onClick={() => setIsCreateMedicineOpen(true)}
+                onClick={() => {
+                  setIsCreateMedicineOpen(true);
+                }}
                 className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Novo Medicamento
               </Button>
-            ) : undefined
+            );
+          } else {
+            emptyActionElement = undefined;
           }
-          onRowClick={(med) => setSelectedMedicineForDetails(med)}
-        />
+
+          return (
+            <DataTable
+              columns={columns}
+              data={filteredMedicines}
+              isLoading={isLoading}
+              emptyIcon={Package}
+              emptyTitle="Nenhum medicamento encontrado"
+              emptyDescription="Tente ajustar os termos de busca ou os filtros selecionados."
+              emptyAction={emptyActionElement}
+              onRowClick={(med) => {
+                setSelectedMedicineForDetails(med);
+              }}
+            />
+          );
+        })()}
 
         {/* ==================== MEDICINE DETAILS MODAL (LG) ==================== */}
         <Dialog
           open={selectedMedicineForDetails !== null}
           onOpenChange={(open) => {
-            if (!open) setSelectedMedicineForDetails(null);
+            if (!open) {
+              setSelectedMedicineForDetails(null);
+            }
           }}
         >
           <DialogContent className="sm:max-w-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
             {selectedMedicineForDetails && (() => {
               const med = selectedMedicineForDetails;
-              const isAvail = (med.totalQuantity ?? 0) > 0;
-              const status = computeStockStatus({ totalQuantity: med.totalQuantity ?? 0 });
+              let medTotalQty = 0;
+              if (med.totalQuantity !== null && med.totalQuantity !== undefined) {
+                medTotalQty = med.totalQuantity;
+              } else {
+                medTotalQty = 0;
+              }
+
+              let isAvail = false;
+              if (medTotalQty > 0) {
+                isAvail = true;
+              } else {
+                isAvail = false;
+              }
+
+              const status = computeStockStatus({ totalQuantity: medTotalQty });
+
+              let activeIngredientText = 'Não informado';
+              if (med.activeIngredient) {
+                activeIngredientText = med.activeIngredient;
+              } else {
+                activeIngredientText = 'Não informado';
+              }
+
+              let accessibleDescElement: React.ReactNode = null;
+              if (med.accessibleDesc) {
+                accessibleDescElement = (
+                  <div className="p-3.5 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-xl text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                    {med.accessibleDesc}
+                  </div>
+                );
+              } else {
+                accessibleDescElement = (
+                  <p className="text-xs text-slate-400 italic">
+                    Nenhuma orientação específica registrada para este medicamento.
+                  </p>
+                );
+              }
+
+              let batchesCount = 0;
+              if (med.batchesCount !== null && med.batchesCount !== undefined) {
+                batchesCount = med.batchesCount;
+              } else {
+                batchesCount = 0;
+              }
+
+              let batchesSection: React.ReactNode = null;
+              if (batchesCount > 0) {
+                batchesSection = (
+                  <div className="space-y-2">
+                    <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Layers className="w-4 h-4 text-teal-600" />
+                      Lotes Registrados ({batchesCount})
+                    </h4>
+                    <div className="p-3 bg-teal-50/60 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 rounded-xl text-xs text-slate-700 dark:text-slate-300">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold">Total em Estoque:</span>
+                        <span className="font-bold text-teal-700 dark:text-teal-300">{medTotalQty} unidades</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              }
+
+              let scheduleButton: React.ReactNode = null;
+              if (isAvail) {
+                scheduleButton = (
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      const currentMed = med;
+                      setSelectedMedicineForDetails(null);
+                      handleOpenAppointmentModal(currentMed);
+                    }}
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs gap-1.5 shadow-sm"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Agendar Retirada
+                  </Button>
+                );
+              }
 
               return (
                 <div className="space-y-5">
@@ -415,13 +694,13 @@ export default function MedicinesPage() {
                     <div>
                       <span className="text-slate-400 block font-medium">Princípio Ativo</span>
                       <span className="text-slate-800 dark:text-slate-200 font-bold text-sm">
-                        {med.activeIngredient || 'Não informado'}
+                        {activeIngredientText}
                       </span>
                     </div>
                     <div>
                       <span className="text-slate-400 block font-medium">Saldo em Estoque</span>
                       <span className="text-slate-800 dark:text-slate-200 font-bold text-sm">
-                        {med.totalQuantity ?? 0} unidades disponíveis
+                        {medTotalQty} unidades disponíveis
                       </span>
                     </div>
                   </div>
@@ -432,15 +711,7 @@ export default function MedicinesPage() {
                       <HeartPulse className="w-4 h-4 text-emerald-600" />
                       Orientações e Instruções
                     </h4>
-                    {med.accessibleDesc ? (
-                      <div className="p-3.5 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/40 rounded-xl text-xs sm:text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                        {med.accessibleDesc}
-                      </div>
-                    ) : (
-                      <p className="text-xs text-slate-400 italic">
-                        Nenhuma orientação específica registrada para este medicamento.
-                      </p>
-                    )}
+                    {accessibleDescElement}
 
                     <div className="flex items-start gap-2 p-3 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-100 dark:border-slate-800 text-[11px] text-slate-600 dark:text-slate-400">
                       <ShieldCheck className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
@@ -451,45 +722,21 @@ export default function MedicinesPage() {
                   </div>
 
                   {/* Lotes Registrados */}
-                  {(med.batchesCount ?? 0) > 0 && (
-                    <div className="space-y-2">
-                      <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                        <Layers className="w-4 h-4 text-teal-600" />
-                        Lotes Registrados ({med.batchesCount})
-                      </h4>
-                      <div className="p-3 bg-teal-50/60 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 rounded-xl text-xs text-slate-700 dark:text-slate-300">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold">Total em Estoque:</span>
-                          <span className="font-bold text-teal-700 dark:text-teal-300">{med.totalQuantity} unidades</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
+                  {batchesSection}
 
                   {/* Footer Ações */}
                   <DialogFooter className="pt-2 gap-2 sm:gap-0">
                     <Button
                       type="button"
                       variant="outline"
-                      onClick={() => setSelectedMedicineForDetails(null)}
+                      onClick={() => {
+                        setSelectedMedicineForDetails(null);
+                      }}
                       className="rounded-xl text-xs"
                     >
                       Fechar
                     </Button>
-                    {isAvail && (
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          const currentMed = med;
-                          setSelectedMedicineForDetails(null);
-                          handleOpenAppointmentModal(currentMed);
-                        }}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs gap-1.5 shadow-sm"
-                      >
-                        <Calendar className="w-4 h-4" />
-                        Agendar Retirada
-                      </Button>
-                    )}
+                    {scheduleButton}
                   </DialogFooter>
                 </div>
               );
@@ -501,7 +748,9 @@ export default function MedicinesPage() {
         <Dialog
           open={selectedMedicineForAppointment !== null}
           onOpenChange={(open) => {
-            if (!open) setSelectedMedicineForAppointment(null);
+            if (!open) {
+              setSelectedMedicineForAppointment(null);
+            }
           }}
         >
           <DialogContent className="sm:max-w-lg rounded-3xl">
@@ -511,9 +760,19 @@ export default function MedicinesPage() {
                 Agendar Retirada de Medicamento
               </DialogTitle>
               <DialogDescription>
-                {selectedMedicineForAppointment
-                  ? `Agendando: ${selectedMedicineForAppointment.name} ${selectedMedicineForAppointment.dosage ? `(${selectedMedicineForAppointment.dosage})` : ''}`
-                  : 'Preencha as informações para agendar a dispensação.'}
+                {(() => {
+                  if (selectedMedicineForAppointment) {
+                    let dosageStr = '';
+                    if (selectedMedicineForAppointment.dosage) {
+                      dosageStr = ' (' + selectedMedicineForAppointment.dosage + ')';
+                    } else {
+                      dosageStr = '';
+                    }
+                    return 'Agendando: ' + selectedMedicineForAppointment.name + dosageStr;
+                  } else {
+                    return 'Preencha as informações para agendar a dispensação.';
+                  }
+                })()}
               </DialogDescription>
             </DialogHeader>
 
@@ -526,18 +785,35 @@ export default function MedicinesPage() {
                     Paciente *
                   </Label>
                   <Select
-                    value={selectedPatientId ? String(selectedPatientId) : ''}
-                    onValueChange={(val) => setSelectedPatientId(Number(val))}
+                    value={(() => {
+                      if (selectedPatientId) {
+                        return String(selectedPatientId);
+                      } else {
+                        return '';
+                      }
+                    })()}
+                    onValueChange={(val) => {
+                      setSelectedPatientId(Number(val));
+                    }}
                   >
                     <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
                       <SelectValue placeholder="Selecione o paciente..." />
                     </SelectTrigger>
                     <SelectContent>
-                      {patients.map((p) => (
-                        <SelectItem key={p.id} value={String(p.id)} className="text-xs">
-                          {p.name} {p.cpf ? `(CPF: ${p.cpf})` : ''}
-                        </SelectItem>
-                      ))}
+                      {patients.map((p) => {
+                        let cpfStr = '';
+                        if (p.cpf) {
+                          cpfStr = ' (CPF: ' + p.cpf + ')';
+                        } else {
+                          cpfStr = '';
+                        }
+
+                        return (
+                          <SelectItem key={p.id} value={String(p.id)} className="text-xs">
+                            {p.name}{cpfStr}
+                          </SelectItem>
+                        );
+                      })}
                     </SelectContent>
                   </Select>
                 </div>
@@ -553,7 +829,9 @@ export default function MedicinesPage() {
                     type="date"
                     required
                     value={appointmentDate}
-                    onChange={(e) => setAppointmentDate(e.target.value)}
+                    onChange={(e) => {
+                      setAppointmentDate(e.target.value);
+                    }}
                     className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
                   />
                 </div>
@@ -564,7 +842,9 @@ export default function MedicinesPage() {
                   <Input
                     type="time"
                     value={appointmentTime}
-                    onChange={(e) => setAppointmentTime(e.target.value)}
+                    onChange={(e) => {
+                      setAppointmentTime(e.target.value);
+                    }}
                     className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
                   />
                 </div>
@@ -577,15 +857,33 @@ export default function MedicinesPage() {
                     Quantidade de Unidades *
                   </Label>
                   <span className="text-[11px] text-slate-400">
-                    Disponível: {selectedMedicineForAppointment?.totalQuantity ?? 0} un.
+                    Disponível:{' '}
+                    {(() => {
+                      if (selectedMedicineForAppointment) {
+                        if (selectedMedicineForAppointment.totalQuantity !== null && selectedMedicineForAppointment.totalQuantity !== undefined) {
+                          return selectedMedicineForAppointment.totalQuantity;
+                        }
+                      }
+                      return 0;
+                    })()}{' '}
+                    un.
                   </span>
                 </div>
                 <Input
                   type="number"
                   min={1}
-                  max={selectedMedicineForAppointment?.totalQuantity || 999}
+                  max={(() => {
+                    if (selectedMedicineForAppointment) {
+                      if (selectedMedicineForAppointment.totalQuantity) {
+                        return selectedMedicineForAppointment.totalQuantity;
+                      }
+                    }
+                    return 999;
+                  })()}
                   value={appointmentQuantity}
-                  onChange={(e) => setAppointmentQuantity(Math.max(1, Number(e.target.value)))}
+                  onChange={(e) => {
+                    setAppointmentQuantity(Math.max(1, Number(e.target.value)));
+                  }}
                   className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
                 />
               </div>
@@ -599,7 +897,9 @@ export default function MedicinesPage() {
                   rows={2}
                   placeholder="Informações adicionais para a equipe farmacêutica..."
                   value={appointmentNotes}
-                  onChange={(e) => setAppointmentNotes(e.target.value)}
+                  onChange={(e) => {
+                    setAppointmentNotes(e.target.value);
+                  }}
                   className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
                 />
               </div>
@@ -608,7 +908,9 @@ export default function MedicinesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setSelectedMedicineForAppointment(null)}
+                  onClick={() => {
+                    setSelectedMedicineForAppointment(null);
+                  }}
                   className="rounded-xl text-xs"
                 >
                   Cancelar
@@ -618,7 +920,13 @@ export default function MedicinesPage() {
                   disabled={createAppointmentMutation.isPending}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs"
                 >
-                  {createAppointmentMutation.isPending ? 'Confirmando...' : 'Confirmar Agendamento'}
+                  {(() => {
+                    if (createAppointmentMutation.isPending) {
+                      return 'Confirmando...';
+                    } else {
+                      return 'Confirmar Agendamento';
+                    }
+                  })()}
                 </Button>
               </DialogFooter>
             </form>
@@ -626,7 +934,12 @@ export default function MedicinesPage() {
         </Dialog>
 
         {/* ==================== CREATE MEDICINE MODAL (MD) ==================== */}
-        <Dialog open={isCreateMedicineOpen} onOpenChange={setIsCreateMedicineOpen}>
+        <Dialog
+          open={isCreateMedicineOpen}
+          onOpenChange={(open) => {
+            setIsCreateMedicineOpen(open);
+          }}
+        >
           <DialogContent className="sm:max-w-lg rounded-3xl">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
@@ -674,7 +987,13 @@ export default function MedicinesPage() {
                     {...register('category')}
                     className="w-full h-10 px-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   >
-                    {MEDICINE_CATEGORIES.filter((c) => c.id !== 'all').map((c) => (
+                    {MEDICINE_CATEGORIES.filter((c) => {
+                      if (c.id !== 'all') {
+                        return true;
+                      } else {
+                        return false;
+                      }
+                    }).map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.label}
                       </option>
@@ -711,7 +1030,9 @@ export default function MedicinesPage() {
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={() => setIsCreateMedicineOpen(false)}
+                  onClick={() => {
+                    setIsCreateMedicineOpen(false);
+                  }}
                   className="rounded-xl"
                 >
                   Cancelar
@@ -721,7 +1042,13 @@ export default function MedicinesPage() {
                   disabled={createMedicineMutation.isPending}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold"
                 >
-                  {createMedicineMutation.isPending ? 'Salvando...' : 'Salvar Medicamento'}
+                  {(() => {
+                    if (createMedicineMutation.isPending) {
+                      return 'Salvando...';
+                    } else {
+                      return 'Salvar Medicamento';
+                    }
+                  })()}
                 </Button>
               </DialogFooter>
             </form>

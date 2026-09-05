@@ -2,7 +2,7 @@
 
 import { useEffect, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/lib/auth-store';
+import { useAuthStore } from '@/lib/AuthStore';
 
 function RootRedirect() {
   const router = useRouter();

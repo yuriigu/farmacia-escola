@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
+import type { ReactElement } from 'react';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -15,18 +16,18 @@ import {
   useMedicines,
   useCreateBatch,
   useDeleteBatch,
-} from '@/services/queries';
-import { useAuthStore } from '@/lib/auth-store';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
+} from '@/services/Queries';
+import { useAuthStore } from '@/lib/AuthStore';
+import { Button } from '@/components/ui/Button';
+import { Input } from '@/components/ui/Input';
+import { Label } from '@/components/ui/Label';
+import { Badge } from '@/components/ui/Badge';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle
-} from '@/components/ui/dialog';
+} from '@/components/ui/Dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,8 +37,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import type { Batch } from '@/lib/types';
+} from '@/components/ui/AlertDialog';
+import type { Batch } from '@/lib/Types';
 
 const batchSchema = z.object({
   medicineId: z.number({ message: 'Selecione um medicamento' }).min(1, 'Selecione um medicamento'),
@@ -106,10 +107,25 @@ export default function AdminStockPage() {
 
   const filteredBatches = useMemo(() => {
     return batches.filter((batch) => {
-      const medName = batch.medicine?.name || '';
-      const matchesSearch =
-        medName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        batch.batchNumber.toLowerCase().includes(searchTerm.toLowerCase());
+      let medName = '';
+      if (batch.medicine) {
+        if (batch.medicine.name) {
+          medName = batch.medicine.name;
+        } else {
+          medName = '';
+        }
+      } else {
+        medName = '';
+      }
+
+      let matchesSearch = false;
+      if (medName.toLowerCase().includes(searchTerm.toLowerCase())) {
+        matchesSearch = true;
+      } else if (batch.batchNumber.toLowerCase().includes(searchTerm.toLowerCase())) {
+        matchesSearch = true;
+      } else {
+        matchesSearch = false;
+      }
 
       const expTime = new Date(batch.expirationDate).getTime();
       const isExpired = expTime < now;
@@ -144,16 +160,36 @@ export default function AdminStockPage() {
     },
     {
       header: 'Medicamento Associado',
-      cell: (batch) => (
-        <div>
-          <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
-            {batch.medicine?.name || 'Medicamento não identificado'}
-          </p>
-          {batch.medicine?.dosage && (
-            <p className="text-[11px] text-slate-400 mt-0.5">{batch.medicine.dosage}</p>
-          )}
-        </div>
-      ),
+      cell: (batch) => {
+        let medName = 'Medicamento não identificado';
+        if (batch.medicine) {
+          if (batch.medicine.name) {
+            medName = batch.medicine.name;
+          } else {
+            medName = 'Medicamento não identificado';
+          }
+        } else {
+          medName = 'Medicamento não identificado';
+        }
+
+        let dosageElement: ReactElement | null = null;
+        if (batch.medicine) {
+          if (batch.medicine.dosage) {
+            dosageElement = (
+              <p className="text-[11px] text-slate-400 mt-0.5">{batch.medicine.dosage}</p>
+            );
+          }
+        }
+
+        return (
+          <div>
+            <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
+              {medName}
+            </p>
+            {dosageElement}
+          </div>
+        );
+      },
     },
     {
       header: 'Quantidade em Estoque',
@@ -191,18 +227,25 @@ export default function AdminStockPage() {
         const isExpired = expTime < now;
         const isExpiring = !isExpired && expTime - now <= thirtyDaysMs;
 
+        let badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold text-[11px]';
+        let badgeLabel = 'Em Dia';
+        if (isExpired) {
+          badgeClass = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 font-semibold text-[11px]';
+          badgeLabel = 'Vencido';
+        } else if (isExpiring) {
+          badgeClass = 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 font-semibold text-[11px]';
+          badgeLabel = 'Vencendo em 30d';
+        } else {
+          badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold text-[11px]';
+          badgeLabel = 'Em Dia';
+        }
+
         return (
           <Badge
             variant="outline"
-            className={
-              isExpired
-                ? 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 font-semibold text-[11px]'
-                : isExpiring
-                ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-400 font-semibold text-[11px]'
-                : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 font-semibold text-[11px]'
-            }
+            className={badgeClass}
           >
-            {isExpired ? 'Vencido' : isExpiring ? 'Vencendo em 30d' : 'Em Dia'}
+            {badgeLabel}
           </Badge>
         );
       },
@@ -274,19 +317,26 @@ export default function AdminStockPage() {
               { id: 'OK', label: 'Em Dia' },
               { id: 'EXPIRING', label: 'Vencendo em 30d' },
               { id: 'EXPIRED', label: 'Vencidos' },
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setStatusFilter(tab.id as any)}
-                className={`px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ${
-                  statusFilter === tab.id
-                    ? 'bg-emerald-600 text-white shadow-sm'
-                    : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
+            ].map((tab) => {
+              let buttonClass = 'px-3 py-1 rounded-lg text-xs font-semibold whitespace-nowrap transition-all ';
+              if (statusFilter === tab.id) {
+                buttonClass = buttonClass + 'bg-emerald-600 text-white shadow-sm';
+              } else {
+                buttonClass = buttonClass + 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-600';
+              }
+
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setStatusFilter(tab.id as any);
+                  }}
+                  className={buttonClass}
+                >
+                  {tab.label}
+                </button>
+              );
+            })}
           </div>
         </div>
 
@@ -300,7 +350,9 @@ export default function AdminStockPage() {
           emptyDescription="Tente ajustar os filtros ou cadastre um novo lote para começar."
           emptyAction={
             <Button
-              onClick={() => setIsDialogOpen(true)}
+              onClick={() => {
+                setIsDialogOpen(true);
+              }}
               className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -333,11 +385,20 @@ export default function AdminStockPage() {
                   className="w-full h-10 px-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-sm text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 >
                   <option value={0}>Selecione um medicamento...</option>
-                  {medicines.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name} {m.dosage ? `(${m.dosage})` : ''}
-                    </option>
-                  ))}
+                  {medicines.map((m) => {
+                    let dosageStr = '';
+                    if (m.dosage) {
+                      dosageStr = ' (' + m.dosage + ')';
+                    } else {
+                      dosageStr = '';
+                    }
+
+                    return (
+                      <option key={m.id} value={m.id}>
+                        {m.name}{dosageStr}
+                      </option>
+                    );
+                  })}
                 </select>
                 {errors.medicineId && (
                   <p className="text-xs text-rose-500 font-medium">{errors.medicineId.message}</p>
@@ -406,7 +467,13 @@ export default function AdminStockPage() {
                   disabled={createBatchMutation.isPending}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold"
                 >
-                  {createBatchMutation.isPending ? 'Salvando...' : 'Salvar Lote'}
+                  {(() => {
+                    if (createBatchMutation.isPending) {
+                      return 'Salvando...';
+                    } else {
+                      return 'Salvar Lote';
+                    }
+                  })()}
                 </Button>
               </DialogFooter>
             </form>

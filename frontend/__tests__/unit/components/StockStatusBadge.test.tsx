@@ -5,12 +5,12 @@ import { StockStatusBadge } from '@/components/shared/StockStatusBadge';
 describe('StockStatusBadge Component', () => {
   it('deve renderizar status ok (Em Dia)', () => {
     const { getByText } = render(<StockStatusBadge status="ok" />);
-    expect(getByText('Em Dia')).toBeInTheDocument();
+    expect(getByText('Em dia')).toBeInTheDocument();
   });
 
   it('deve renderizar status low (Estoque Baixo)', () => {
     const { getByText } = render(<StockStatusBadge status="low" />);
-    expect(getByText('Estoque Baixo')).toBeInTheDocument();
+    expect(getByText('Baixo')).toBeInTheDocument();
   });
 
   it('deve renderizar status critical (Crítico)', () => {

@@ -6,7 +6,7 @@ import { useAppointments, useAppointment } from '@/services/Queries';
 import { api } from '@/services/Api';
 import { mockAppointment, mockAppointmentsList } from '../../fixtures/appointment.fixture';
 
-vi.mock('@/services/api', () => ({
+vi.mock('@/services/Api', () => ({
   api: {
     appointments: {
       getAll: vi.fn(),

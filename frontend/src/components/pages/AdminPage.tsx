@@ -376,41 +376,39 @@ export function AdminPage() {
     }
   };
 
-  const filteredUsers = useMemo(() => {
-    return users.filter((u) => {
-      let matchSearch = false;
-      if (search.trim() === '') {
+  const filteredUsers = users.filter((u) => {
+    let matchSearch = false;
+    if (search.trim() === '') {
+      matchSearch = true;
+    } else {
+      const term = search.toLowerCase();
+      if (u.name.toLowerCase().includes(term)) {
         matchSearch = true;
-      } else {
-        const term = search.toLowerCase();
-        if (u.name.toLowerCase().includes(term)) {
-          matchSearch = true;
-        } else if (u.email.toLowerCase().includes(term)) {
-          matchSearch = true;
-        } else if (u.registerDoc && u.registerDoc.toLowerCase().includes(term)) {
-          matchSearch = true;
-        } else if (u.phone && u.phone.includes(search)) {
-          matchSearch = true;
-        } else if (u.address && u.address.toLowerCase().includes(term)) {
-          matchSearch = true;
-        }
+      } else if (u.email.toLowerCase().includes(term)) {
+        matchSearch = true;
+      } else if (u.registerDoc && u.registerDoc.toLowerCase().includes(term)) {
+        matchSearch = true;
+      } else if (u.phone && u.phone.includes(search)) {
+        matchSearch = true;
+      } else if (u.address && u.address.toLowerCase().includes(term)) {
+        matchSearch = true;
       }
+    }
 
-      let matchRole = false;
-      if (selectedRoleFilter === 'ALL') {
-        matchRole = true;
-      } else if (u.role === selectedRoleFilter) {
-        matchRole = true;
-      }
+    let matchRole = false;
+    if (selectedRoleFilter === 'ALL') {
+      matchRole = true;
+    } else if (u.role === selectedRoleFilter) {
+      matchRole = true;
+    }
 
-      if (matchSearch) {
-        if (matchRole) {
-          return true;
-        }
+    if (matchSearch) {
+      if (matchRole) {
+        return true;
       }
-      return false;
-    });
-  }, [users, search, selectedRoleFilter]);
+    }
+    return false;
+  });
 
   const activeCount = useMemo(() => {
     return users.filter((u) => {
@@ -658,7 +656,7 @@ export function AdminPage() {
   const docInfo = getDocInfo(form.role);
 
   return (
-    <div className="space-y-6 page-enter pb-10">
+    <div className="space-y-6 max-w-7xl mx-auto page-enter pb-10">
       {/* Header with quick stats */}
       <PageHeader
         title="Administração e Usuários"

@@ -111,7 +111,7 @@ export function CalendarModule({ module, activeTab, onTabChange }: CalendarModul
   }
 
   return (
-    <div className="space-y-6 page-enter">
+    <div className="space-y-6 max-w-7xl mx-auto page-enter">
       <TabBar tabs={module.tabs} activeTab={activeTab} onTabChange={onTabChange} />
       {activeTabContent}
       {scheduleToggleButton}

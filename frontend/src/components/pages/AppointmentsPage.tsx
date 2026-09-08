@@ -1005,7 +1005,7 @@ export function AppointmentsPage() {
   }
 
   return (
-    <div className="space-y-5 page-enter">
+    <div className="space-y-5 max-w-7xl mx-auto page-enter">
       {/* Standardized PageHeader */}
       <PageHeader
         title="Agendamentos de Retirada"

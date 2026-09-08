@@ -2,17 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, User, Plus } from 'lucide-react';
+import dynamic from 'next/dynamic';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import listPlugin from '@fullcalendar/list';
+import { CalendarDays, Clock, Plus } from 'lucide-react';
 import { useAuthStore } from '@/lib/AuthStore';
 import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/PharmacyStore';
 import type { Appointment } from '@/lib/Types';
 import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS } from '@/lib/Constants';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Button } from '@/components/ui/Button';
-import { Card, CardContent } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/Dialog';
 import { Separator } from '@/components/ui/Separator';
+
+const FullCalendar = dynamic(() => import('@fullcalendar/react'), {
+  ssr: false,
+  loading: () => (
+    <div className="min-h-[500px] flex items-center justify-center text-slate-400 text-sm">
+      Carregando calendário...
+    </div>
+  ),
+}) as any;
 
 export function AppointmentsOverviewPage() {
   const { appointments, scheduleSlots } = usePharmacyStore();
@@ -38,8 +52,6 @@ export function AppointmentsOverviewPage() {
   useEffect(() => {
     fetchScheduleSlotsData();
   }, []);
-
-  const WEEKDAYS = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
 
   const appointmentsByDay = (() => {
     const map: Record<string, Appointment[]> = {};
@@ -87,26 +99,64 @@ export function AppointmentsOverviewPage() {
     patientAppointmentsByDay = map;
   }
 
-  const buildMonthDays = (year: number, month: number) => {
-    const first = new Date(year, month, 1);
-    const startWeekday = first.getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const cells: (number | null)[] = [];
-    for (let i = 0; i < startWeekday; i++) {
-      cells.push(null);
-    }
-    for (let d = 1; d <= daysInMonth; d++) {
-      cells.push(d);
-    }
-    while (cells.length % 7 !== 0) {
-      cells.push(null);
-    }
-    return cells;
-  };
+  const calendarEvents = (() => {
+    const list: any[] = [];
+    appointments.forEach((app) => {
+      if (app.status === 'CANCELLED') {
+        return;
+      }
+      if (isPatient) {
+        if (user) {
+          if (app.patientId !== user.patientId) {
+            return;
+          }
+        } else {
+          return;
+        }
+      }
+      let patientName = 'Paciente';
+      if (app.patient) {
+        if (app.patient.name) {
+          patientName = app.patient.name;
+        }
+      }
+      let timeText = '';
+      if (app.scheduledTime) {
+        timeText = app.scheduledTime;
+      }
+      let title = patientName;
+      if (timeText) {
+        title = timeText + ' - ' + patientName;
+      }
 
-  const days = buildMonthDays(viewYear, viewMonth);
-  const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  const capitalizedMonth = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+      let eventColor = '#059669';
+      if (app.status === 'PENDING') {
+        eventColor = '#d97706';
+      } else if (app.status === 'CONFIRMED') {
+        eventColor = '#059669';
+      } else {
+        eventColor = '#475569';
+      }
+
+      let dateIso = '';
+      if (app.scheduledDate) {
+        dateIso = app.scheduledDate.slice(0, 10);
+      }
+
+      list.push({
+        id: app.id,
+        title: title,
+        date: dateIso,
+        backgroundColor: eventColor,
+        borderColor: eventColor,
+        textColor: '#ffffff',
+        extendedProps: {
+          appointment: app,
+        },
+      });
+    });
+    return list;
+  })();
 
   let dateStr = '';
   if (selectedDay) {
@@ -159,211 +209,82 @@ export function AppointmentsOverviewPage() {
     setSelectedDay(null);
   };
 
+  const handleDateClick = (info: { dateStr: string }) => {
+    if (info) {
+      if (info.dateStr) {
+        const parts = info.dateStr.split('-');
+        if (parts.length === 3) {
+          const y = parseInt(parts[0], 10);
+          const m = parseInt(parts[1], 10) - 1;
+          const d = parseInt(parts[2], 10);
+          setViewYear(y);
+          setViewMonth(m);
+          setSelectedDay(d);
+        }
+      }
+    }
+  };
+
+  const handleEventClick = (info: { event: { startStr: string } }) => {
+    if (info) {
+      if (info.event) {
+        if (info.event.startStr) {
+          const dateOnly = info.event.startStr.slice(0, 10);
+          const parts = dateOnly.split('-');
+          if (parts.length === 3) {
+            const y = parseInt(parts[0], 10);
+            const m = parseInt(parts[1], 10) - 1;
+            const d = parseInt(parts[2], 10);
+            setViewYear(y);
+            setViewMonth(m);
+            setSelectedDay(d);
+          }
+        }
+      }
+    }
+  };
+
   return (
-    <div className="space-y-5 page-enter">
+    <div className="space-y-5 max-w-7xl mx-auto page-enter">
       {/* Standardized PageHeader */}
       <PageHeader
         title="Agenda Geral de Atendimentos"
         description="Calendário mensal de dispensações e acompanhamento das vagas disponíveis."
         icon={CalendarDays}
         actions={
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (viewMonth === 0) {
-                    setViewMonth(11);
-                    setViewYear(viewYear - 1);
-                  } else {
-                    setViewMonth(viewMonth - 1);
-                  }
-                }}
-                className="h-8 w-8 p-0 rounded-lg"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs px-2 min-w-[120px] text-center">
-                {capitalizedMonth}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (viewMonth === 11) {
-                    setViewMonth(0);
-                    setViewYear(viewYear + 1);
-                  } else {
-                    setViewMonth(viewMonth + 1);
-                  }
-                }}
-                className="h-8 w-8 p-0 rounded-lg"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-            <Button
-              onClick={handleGoToAppointments}
-              className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Novo Agendamento</span>
-            </Button>
-          </div>
+          <Button
+            onClick={handleGoToAppointments}
+            className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+          >
+            <Plus className="w-4 h-4" />
+            <span>Novo Agendamento</span>
+          </Button>
         }
       />
 
       {/* Calendar Card */}
-      <Card className="rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 sm:p-5">
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {WEEKDAYS.map((d) => (
-            <div key={d} className="text-center text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider py-1.5">
-              {d}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1.5">
-          {days.map((d, i) => {
-            if (d === null) {
-              return <div key={i} className="aspect-square rounded-xl bg-slate-50/50 dark:bg-slate-900/20" />;
-            }
-            const key = `${viewYear}-${viewMonth + 1}-${d}`;
-            const dayAppsCal = appointmentsByDay[key];
-
-            let patientDayApps: Appointment[] | undefined = undefined;
-            if (isPatient) {
-              patientDayApps = patientAppointmentsByDay[key];
-            } else {
-              patientDayApps = undefined;
-            }
-
-            let hasOwnAppointment = false;
-            if (patientDayApps) {
-              if (patientDayApps.length > 0) {
-                hasOwnAppointment = true;
-              }
-            }
-
-            let todayCell = false;
-            if (today.getFullYear() === viewYear) {
-              if (today.getMonth() === viewMonth) {
-                if (today.getDate() === d) {
-                  todayCell = true;
-                }
-              }
-            }
-
-            let cellBorderBg = 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800';
-            if (todayCell) {
-              cellBorderBg = 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20 shadow-xs';
-            } else if (hasOwnAppointment) {
-              cellBorderBg = 'border-emerald-400 dark:border-emerald-600 bg-emerald-50/40 dark:bg-emerald-950/20';
-            } else {
-              cellBorderBg = 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800';
-            }
-
-            let dayTextClass = 'text-slate-700 dark:text-slate-300';
-            if (todayCell) {
-              dayTextClass = 'text-emerald-700 dark:text-emerald-400';
-            } else {
-              dayTextClass = 'text-slate-700 dark:text-slate-300';
-            }
-
-            let appListToRender: Appointment[] = [];
-            if (isPatient) {
-              if (patientDayApps) {
-                appListToRender = patientDayApps;
-              }
-            } else {
-              if (dayAppsCal) {
-                appListToRender = dayAppsCal;
-              }
-            }
-
-            let totalCalApps = 0;
-            if (isPatient) {
-              if (patientDayApps) {
-                totalCalApps = patientDayApps.length;
-              }
-            } else {
-              if (dayAppsCal) {
-                totalCalApps = dayAppsCal.length;
-              }
-            }
-
-            return (
-              <div
-                key={i}
-                onClick={() => setSelectedDay(d)}
-                className={'min-h-[85px] rounded-xl p-2 flex flex-col justify-between border transition-all cursor-pointer hover:border-emerald-400 hover:shadow-xs ' + cellBorderBg}
-              >
-                <div className="flex items-center justify-between">
-                  <span className={'text-xs font-bold ' + dayTextClass}>
-                    {d}
-                  </span>
-                  {(() => {
-                    if (todayCell) {
-                      return (
-                        <span className="text-[9px] bg-emerald-600 text-white font-bold px-1.5 py-0.2 rounded-full">
-                          Hoje
-                        </span>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
-
-                {(() => {
-                  if (dayAppsCal) {
-                    if (dayAppsCal.length > 0) {
-                      return (
-                        <div className="mt-1 flex gap-1 flex-wrap">
-                          {appListToRender.slice(0, 3).map((app) => {
-                            let badgeStyle = 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400';
-                            if (app.status === 'PENDING') {
-                              badgeStyle = 'bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 border border-amber-200';
-                            } else if (app.status === 'CONFIRMED') {
-                              badgeStyle = 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400 border border-emerald-200';
-                            } else {
-                              badgeStyle = 'bg-slate-100 text-slate-500 dark:bg-slate-700 dark:text-slate-400';
-                            }
-
-                            let appTime = '';
-                            if (app.scheduledTime) {
-                              appTime = app.scheduledTime;
-                            }
-
-                            return (
-                              <span
-                                key={app.id}
-                                className={'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-semibold ' + badgeStyle}
-                              >
-                                <Clock className="w-2.5 h-2.5" />
-                                {appTime}
-                              </span>
-                            );
-                          })}
-                          {(() => {
-                            if (totalCalApps > 3) {
-                              return (
-                                <span className="text-[9px] text-slate-400 font-bold">
-                                  +{totalCalApps - 3}
-                                </span>
-                              );
-                            }
-                            return null;
-                          })()}
-                        </div>
-                      );
-                    }
-                  }
-                  return null;
-                })()}
-              </div>
-            );
-          })}
-        </div>
+      <Card className="rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 sm:p-5 bg-white dark:bg-slate-800">
+        <FullCalendar
+          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
+          initialView="dayGridMonth"
+          headerToolbar={{
+            left: 'prev,next today',
+            center: 'title',
+            right: 'dayGridMonth,timeGridWeek,listMonth',
+          }}
+          buttonText={{
+            today: 'Hoje',
+            month: 'Mês',
+            week: 'Semana',
+            list: 'Lista',
+          }}
+          events={calendarEvents}
+          dateClick={handleDateClick}
+          eventClick={handleEventClick}
+          height="auto"
+          dayMaxEvents={3}
+          moreLinkText={(n) => `+${n}`}
+        />
       </Card>
 
       {/* Day Click Dialog */}

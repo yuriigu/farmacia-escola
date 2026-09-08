@@ -55,7 +55,9 @@ export function SettingsPage() {
     const tab = searchParams.get('tab');
     if (tab) {
       if (['perfil', 'aparencia', 'sistema'].includes(tab)) {
-        setActiveTab(tab);
+        setTimeout(() => {
+          setActiveTab(tab);
+        }, 0);
       }
     }
   }, [searchParams]);
@@ -189,7 +191,7 @@ export function SettingsPage() {
             <div className="space-y-6">
               {/* User Profile Header Card */}
               <div className="glass-card rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
-                <div className="h-20 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 relative">
+                <div className="h-24 sm:h-28 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 relative">
                   <div
                     className="absolute inset-0 opacity-20"
                     style={{
@@ -198,8 +200,8 @@ export function SettingsPage() {
                     }}
                   />
                 </div>
-                <div className="px-6 pb-6 -mt-10">
-                  <div className="flex flex-col sm:flex-row items-start sm:items-end gap-4">
+                <div className="px-6 pb-6 relative">
+                  <div className="flex flex-col sm:flex-row sm:items-end gap-4">
                     <div
                       className={`w-20 h-20 rounded-2xl ${(() => {
                         let avatarName = 'U';
@@ -209,7 +211,7 @@ export function SettingsPage() {
                           }
                         }
                         return getAvatarColor(avatarName);
-                      })()} text-white flex items-center justify-center font-bold text-2xl shadow-lg ring-4 ring-white dark:ring-slate-800 shrink-0`}
+                      })()} text-white flex items-center justify-center font-bold text-2xl shadow-lg ring-4 ring-white dark:ring-slate-800 shrink-0 -mt-10 sm:-mt-12 relative z-10`}
                     >
                       {(() => {
                         if (user) {
@@ -220,7 +222,7 @@ export function SettingsPage() {
                         return 'U';
                       })()}
                     </div>
-                    <div className="flex-1 min-w-0 pt-2">
+                    <div className="flex-1 min-w-0 pt-1 sm:pt-0 sm:pb-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-xl font-bold text-slate-900 dark:text-white truncate">
                           {(() => {

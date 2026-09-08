@@ -1443,3 +1443,181 @@ button, a, input, select, textarea, [role="button"] {
   transform: translateX(-50%) rotate(45deg);
 }
 
+/* Ajuste de margem para o botao de acao / dev tools no canto inferior esquerdo */
+nextjs-portal,
+[data-nextjs-dev-tools-button],
+[data-next-badge],
+button[aria-label="Next.js Dev Tools"] {
+  bottom: 1.5rem !important;
+  margin-bottom: 1.25rem !important;
+  margin-left: 0.75rem !important;
+}
+
+/* FullCalendar - Tema Claro e Escuro */
+.fc {
+  --fc-border-color: #e2e8f0;
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: #f8fafc;
+  --fc-list-event-hover-bg-color: #f1f5f9;
+  --fc-today-bg-color: rgba(16, 185, 129, 0.08);
+  font-family: inherit;
+}
+
+.dark .fc {
+  --fc-border-color: #334155;
+  --fc-page-bg-color: transparent;
+  --fc-neutral-bg-color: #1e293b;
+  --fc-list-event-hover-bg-color: #334155;
+  --fc-today-bg-color: rgba(16, 185, 129, 0.15);
+}
+
+.fc .fc-toolbar {
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem !important;
+}
+
+.fc .fc-toolbar-title {
+  font-size: 1rem !important;
+  font-weight: 700 !important;
+  color: #1e293b;
+}
+
+.dark .fc .fc-toolbar-title {
+  color: #f1f5f9;
+}
+
+.fc .fc-button {
+  background-color: #ffffff !important;
+  border: 1px solid #e2e8f0 !important;
+  color: #334155 !important;
+  font-size: 0.75rem !important;
+  font-weight: 600 !important;
+  padding: 0.375rem 0.75rem !important;
+  border-radius: 0.75rem !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  text-transform: capitalize !important;
+  transition: all 0.15s ease-in-out !important;
+}
+
+.fc .fc-button:hover {
+  background-color: #f8fafc !important;
+  border-color: #cbd5e1 !important;
+  color: #0f172a !important;
+}
+
+.fc .fc-button:focus,
+.fc .fc-button:active {
+  box-shadow: none !important;
+}
+
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  background-color: #059669 !important;
+  border-color: #059669 !important;
+  color: #ffffff !important;
+}
+
+.dark .fc .fc-button {
+  background-color: #1e293b !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.dark .fc .fc-button:hover {
+  background-color: #334155 !important;
+  border-color: #475569 !important;
+  color: #ffffff !important;
+}
+
+.dark .fc .fc-button-primary:not(:disabled).fc-button-active,
+.dark .fc .fc-button-primary:not(:disabled):active {
+  background-color: #10b981 !important;
+  border-color: #10b981 !important;
+  color: #ffffff !important;
+}
+
+.fc .fc-col-header-cell {
+  background-color: #f8fafc;
+  padding: 0.5rem 0 !important;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-color: #e2e8f0 !important;
+}
+
+.dark .fc .fc-col-header-cell {
+  background-color: rgba(30, 41, 59, 0.6);
+  color: #94a3b8;
+  border-color: #334155 !important;
+}
+
+.fc .fc-daygrid-day {
+  background-color: #ffffff;
+  transition: background-color 0.15s;
+  cursor: pointer;
+}
+
+.fc .fc-daygrid-day:hover {
+  background-color: #f8fafc;
+}
+
+.dark .fc .fc-daygrid-day {
+  background-color: rgba(30, 41, 59, 0.4);
+}
+
+.dark .fc .fc-daygrid-day:hover {
+  background-color: rgba(51, 65, 85, 0.4);
+}
+
+.fc .fc-daygrid-day-number {
+  font-size: 0.75rem !important;
+  font-weight: 700 !important;
+  color: #475569 !important;
+  padding: 0.375rem 0.5rem !important;
+}
+
+.dark .fc .fc-daygrid-day-number {
+  color: #cbd5e1 !important;
+}
+
+.fc .fc-day-today .fc-daygrid-day-number {
+  color: #059669 !important;
+  font-weight: 800 !important;
+}
+
+.dark .fc .fc-day-today .fc-daygrid-day-number {
+  color: #34d399 !important;
+}
+
+.fc .fc-daygrid-day-events {
+  margin-top: 2px !important;
+  margin-bottom: 2px !important;
+}
+
+.fc-theme-standard td,
+.fc-theme-standard th {
+  border-color: #e2e8f0 !important;
+}
+
+.dark .fc-theme-standard td,
+.dark .fc-theme-standard th {
+  border-color: #334155 !important;
+}
+
+.fc .fc-daygrid-day-frame {
+  min-height: 85px;
+}
+
+.fc-event {
+  border-radius: 0.375rem !important;
+  font-size: 0.7rem !important;
+  font-weight: 600 !important;
+  padding: 1px 4px !important;
+  border: none !important;
+  cursor: pointer;
+}
+
+

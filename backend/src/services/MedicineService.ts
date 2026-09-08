@@ -11,7 +11,49 @@ export class MedicineService {
   }
 
   async getAll() {
-    return this.medicineRepo.findAll();
+    const medicines = await this.medicineRepo.findAll();
+    const formattedMedicines = [];
+    for (let i = 0; i < medicines.length; i++) {
+      const med = medicines[i];
+      let totalQuantity = 0;
+      let batchesCount = 0;
+
+      if (med.batches) {
+        if (Array.isArray(med.batches)) {
+          batchesCount = med.batches.length;
+          totalQuantity = 0;
+          for (let j = 0; j < med.batches.length; j++) {
+            const batch = med.batches[j];
+            let isValid = true;
+            if (batch.expirationDate) {
+              const expTime = new Date(batch.expirationDate).getTime();
+              const nowTime = new Date().getTime();
+              if (expTime < nowTime) {
+                isValid = false;
+              } else {
+                isValid = true;
+              }
+            } else {
+              isValid = true;
+            }
+            if (isValid) {
+              if (batch.currentQuantity) {
+                if (batch.currentQuantity > 0) {
+                  totalQuantity = totalQuantity + batch.currentQuantity;
+                }
+              }
+            }
+          }
+        }
+      }
+
+      formattedMedicines.push({
+        ...med,
+        totalQuantity: totalQuantity,
+        batchesCount: batchesCount,
+      });
+    }
+    return formattedMedicines;
   }
 
   async getById(id: number) {
@@ -19,7 +61,44 @@ export class MedicineService {
     if (!med) {
       throw { statusCode: 404, message: 'Medicamento não encontrado' };
     }
-    return med;
+
+    let totalQuantity = 0;
+    let batchesCount = 0;
+
+    if (med.batches) {
+      if (Array.isArray(med.batches)) {
+        batchesCount = med.batches.length;
+        totalQuantity = 0;
+        for (let j = 0; j < med.batches.length; j++) {
+          const batch = med.batches[j];
+          let isValid = true;
+          if (batch.expirationDate) {
+            const expTime = new Date(batch.expirationDate).getTime();
+            const nowTime = new Date().getTime();
+            if (expTime < nowTime) {
+              isValid = false;
+            } else {
+              isValid = true;
+            }
+          } else {
+            isValid = true;
+          }
+          if (isValid) {
+            if (batch.currentQuantity) {
+              if (batch.currentQuantity > 0) {
+                totalQuantity = totalQuantity + batch.currentQuantity;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return {
+      ...med,
+      totalQuantity: totalQuantity,
+      batchesCount: batchesCount,
+    };
   }
 
   async create(userId: number, role: string, data: {

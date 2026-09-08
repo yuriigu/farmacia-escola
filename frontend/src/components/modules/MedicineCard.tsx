@@ -1,22 +1,16 @@
 'use client';
 
-// IMPORTS DO REACT
 import React from 'react';
-
-// IMPORTS LOCAIS
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { StockStatusBadge } from '@/components/shared/StockStatusBadge';
 import type { Medicine, StockStatus } from '@/lib/Types';
 
-// INTERFACE DAS PROPRIEDADES DO CARTAO DE MEDICAMENTO
 interface MedicineCardProps {
   medicine: Medicine;
   onSelect?: (medicine: Medicine) => void;
 }
 
-// COMPONENTE DO CARTAO DE MEDICAMENTO
 export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
-  // FUNCAO PARA RETORNAR O STATUS DO ESTOQUE
   const getStatus = (qty: number): StockStatus => {
     if (qty === 0) {
       return 'critical';
@@ -27,15 +21,17 @@ export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
     return 'ok';
   };
 
-  // DETERMINANDO QUANTIDADE TOTAL
   let totalQty = 0;
-  if (medicine.totalQuantity) {
-    totalQty = medicine.totalQuantity;
+  if (medicine.totalQuantity !== undefined) {
+    if (medicine.totalQuantity !== null) {
+      totalQty = medicine.totalQuantity;
+    } else {
+      totalQty = 0;
+    }
   } else {
     totalQty = 0;
   }
 
-  // RENDERIZANDO CATEGORIA
   let renderedCategory: React.ReactNode = null;
   if (medicine.category) {
     renderedCategory = (
@@ -43,7 +39,6 @@ export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
     );
   }
 
-  // RENDERIZANDO DOSAGEM
   let renderedDosage: React.ReactNode = null;
   if (medicine.dosage) {
     renderedDosage = (
@@ -53,7 +48,6 @@ export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
     );
   }
 
-  // RENDERIZANDO DESCRICAO ACESSIVEL
   let renderedAccessibleDesc: React.ReactNode = null;
   if (medicine.accessibleDesc) {
     renderedAccessibleDesc = (

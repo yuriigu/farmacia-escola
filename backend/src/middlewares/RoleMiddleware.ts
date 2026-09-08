@@ -35,6 +35,13 @@ export function requirePermission(permissionKey: string) {
       }
     }
 
+    if (req.user.role === 'MEDICO') {
+      if (permissionKey === 'patients') {
+        next();
+        return;
+      }
+    }
+
     if (req.user.role === 'ALUNO') {
       const perms = req.user.permissions;
       if (perms) {

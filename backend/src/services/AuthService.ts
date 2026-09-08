@@ -30,10 +30,18 @@ export class AuthService {
 
     const user = await this.userRepo.findByEmail(email);
     if (!user) {
-      throw { statusCode: 401, message: 'Credenciais inválidas ou usuário inativo' };
+      await bcrypt.compare(password, '$2a$12$e8uq0wG64.gL1iZqBv1Yy.x38yvTq3kHek4vD3lO0G7Xm3z3T2O6m');
+      throw { statusCode: 401, message: 'Credenciais inválidas' };
     } else {
       if (!user.active) {
-        throw { statusCode: 401, message: 'Credenciais inválidas ou usuário inativo' };
+        let userHash = '$2a$12$e8uq0wG64.gL1iZqBv1Yy.x38yvTq3kHek4vD3lO0G7Xm3z3T2O6m';
+        if (user.password) {
+          userHash = user.password;
+        } else {
+          userHash = '$2a$12$e8uq0wG64.gL1iZqBv1Yy.x38yvTq3kHek4vD3lO0G7Xm3z3T2O6m';
+        }
+        await bcrypt.compare(password, userHash);
+        throw { statusCode: 401, message: 'Credenciais inválidas' };
       }
     }
 
@@ -99,16 +107,23 @@ export class AuthService {
     }
 
     const existingUser = await this.userRepo.findByEmail(email);
+    let hasConflict = false;
     if (existingUser) {
-      throw { statusCode: 409, message: 'Email já cadastrado' };
+      hasConflict = true;
+    } else {
+      hasConflict = false;
     }
 
     const existingPatient = await this.patientRepo.findByCpf(cpf);
     if (existingPatient) {
-      throw { statusCode: 409, message: 'CPF já cadastrado' };
+      hasConflict = true;
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    if (hasConflict) {
+      throw { statusCode: 409, message: 'Dados cadastrais já em uso ou inválidos' };
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 12);
 
     const user = await prisma.$transaction(async (tx) => {
       const newUser = await tx.user.create({
@@ -210,7 +225,7 @@ export class AuthService {
       if (!valid) {
         throw { statusCode: 400, message: 'Senha atual incorreta' };
       }
-      updateData.password = await bcrypt.hash(data.newPassword, 10);
+      updateData.password = await bcrypt.hash(data.newPassword, 12);
     }
 
     const updated = await this.userRepo.update(userId, updateData);

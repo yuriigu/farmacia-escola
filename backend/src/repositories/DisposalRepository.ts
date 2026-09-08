@@ -36,6 +36,36 @@ export class DisposalRepository {
     reason?: string | null;
   }) {
     return prisma.$transaction(async (tx) => {
+      const batch = await tx.stockBatch.findUnique({
+        where: { id: data.batchId },
+      });
+
+      if (!batch) {
+        throw { statusCode: 404, message: 'Lote não encontrado' };
+      }
+
+      if (batch.currentQuantity < data.quantity) {
+        throw { statusCode: 400, message: 'Quantidade de descarte maior que o saldo em estoque' };
+      }
+
+      const updateResult = await tx.stockBatch.updateMany({
+        where: {
+          id: data.batchId,
+          currentQuantity: {
+            gte: data.quantity,
+          },
+        },
+        data: {
+          currentQuantity: {
+            decrement: data.quantity,
+          },
+        },
+      });
+
+      if (updateResult.count === 0) {
+        throw { statusCode: 400, message: 'Quantidade de descarte maior que o saldo em estoque devido à concorrência' };
+      }
+
       const disposal = await tx.disposal.create({
         data: {
           batchId: data.batchId,
@@ -53,11 +83,6 @@ export class DisposalRepository {
         },
       });
 
-      await tx.stockBatch.update({
-        where: { id: data.batchId },
-        data: { currentQuantity: { decrement: data.quantity } },
-      });
-
       return disposal;
     });
   }
@@ -73,9 +98,22 @@ export class DisposalRepository {
         }
       }
 
-      const updated = await tx.disposal.update({
+      const updateDisposalResult = await tx.disposal.updateMany({
+        where: {
+          id: id,
+          reverted: false,
+        },
+        data: {
+          reverted: true,
+        },
+      });
+
+      if (updateDisposalResult.count === 0) {
+        throw new Error('Descarte não encontrado ou já revertido');
+      }
+
+      const updated = await tx.disposal.findUnique({
         where: { id },
-        data: { reverted: true },
         include: {
           user: { select: { name: true } },
           batch: {
@@ -91,7 +129,7 @@ export class DisposalRepository {
         data: { currentQuantity: { increment: disposal.quantity } },
       });
 
-      return updated;
+      return updated!;
     });
   }
 

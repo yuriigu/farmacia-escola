@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/Index';
 import { errorMiddleware } from './middlewares/ErrorMiddleware';
+import { globalRateLimiter } from './middlewares/RateLimitMiddleware';
 
 dotenv.config();
 
@@ -48,6 +49,7 @@ app.use(cors({
 
 app.use(express.json());
 
+app.use('/api', globalRateLimiter);
 app.use('/api', apiRoutes);
 
 app.get('/health', (req, res) => {
@@ -61,6 +63,17 @@ app.get('/health', (req, res) => {
 
 app.use(errorMiddleware);
 
-app.listen(PORT, () => {
-  console.log(`[API] Servidor Express iniciado em http://localhost:${PORT}`);
-});
+let isTesting = false;
+if (process.env.NODE_ENV === 'test') {
+  isTesting = true;
+} else {
+  isTesting = false;
+}
+
+if (!isTesting) {
+  app.listen(PORT, () => {
+    console.log(`[API] Servidor Express iniciado em http://localhost:${PORT}`);
+  });
+}
+
+export default app;

@@ -68,17 +68,42 @@ export class WithdrawalRepository {
       });
 
       for (const item of data.items) {
+        const batch = await tx.stockBatch.findUnique({
+          where: { id: item.batchId },
+        });
+
+        if (!batch) {
+          throw { statusCode: 404, message: 'Lote não encontrado' };
+        }
+
+        if (batch.currentQuantity < item.quantity) {
+          throw { statusCode: 400, message: 'Quantidade insuficiente em estoque para o lote informado' };
+        }
+
+        const updateResult = await tx.stockBatch.updateMany({
+          where: {
+            id: item.batchId,
+            currentQuantity: {
+              gte: item.quantity,
+            },
+          },
+          data: {
+            currentQuantity: {
+              decrement: item.quantity,
+            },
+          },
+        });
+
+        if (updateResult.count === 0) {
+          throw { statusCode: 400, message: 'Estoque insuficiente no lote devido à concorrência de operações' };
+        }
+
         await tx.withdrawalItem.create({
           data: {
             withdrawalId: withdrawal.id,
             batchId: item.batchId,
             quantity: item.quantity,
           },
-        });
-
-        await tx.stockBatch.update({
-          where: { id: item.batchId },
-          data: { currentQuantity: { decrement: item.quantity } },
         });
       }
 

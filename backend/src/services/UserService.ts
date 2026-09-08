@@ -171,7 +171,7 @@ export class UserService {
       permissionsVal = undefined;
     }
 
-    const hashedPassword = await bcrypt.hash(data.password, 10);
+    const hashedPassword = await bcrypt.hash(data.password, 12);
     const user = await this.userRepo.create({
       ...data,
       name: cleanName,
@@ -238,7 +238,7 @@ export class UserService {
     if (data.password !== undefined) {
       if (data.password.trim() !== '') {
         this.validatePassword(data.password);
-        updateData.password = await bcrypt.hash(data.password, 10);
+        updateData.password = await bcrypt.hash(data.password, 12);
       }
     }
 

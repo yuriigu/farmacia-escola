@@ -1,6 +1,8 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/AuthMiddleware';
 import { WithdrawalService } from '../services/WithdrawalService';
+import { prisma } from '../utils/Prisma';
+import { withdrawalCreateSchema, withdrawalUpdateSchema } from '../middlewares/ValidationMiddleware';
 
 export class WithdrawalController {
   private withdrawalService: WithdrawalService;
@@ -11,7 +13,26 @@ export class WithdrawalController {
 
   getAll = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const { role, patientId } = req.user!;
+      if (!req.user) {
+        res.status(401).json({ error: 'Não autenticado' });
+        return;
+      }
+      const userId = req.user.userId;
+      const role = req.user.role;
+      let patientId: number | null = null;
+
+      if (role === 'PACIENTE') {
+        const patientRecord = await prisma.patient.findUnique({
+          where: { userId: userId },
+        });
+        if (!patientRecord) {
+          res.json([]);
+          return;
+        } else {
+          patientId = patientRecord.id;
+        }
+      }
+
       const withdrawals = await this.withdrawalService.getAll(role, patientId);
       res.json(withdrawals);
       return;
@@ -28,8 +49,62 @@ export class WithdrawalController {
 
   getById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const { role, patientId } = req.user!;
+      if (!req.user) {
+        res.status(401).json({ error: 'Não autenticado' });
+        return;
+      }
+      const userId = req.user.userId;
+      const role = req.user.role;
       const id = Number(req.params.id);
+
+      if (!id) {
+        res.status(400).json({ error: 'ID de dispensação inválido' });
+        return;
+      } else {
+        if (isNaN(id)) {
+          res.status(400).json({ error: 'ID de dispensação inválido' });
+          return;
+        }
+      }
+
+      const withdrawalRecord = await prisma.withdrawal.findUnique({
+        where: { id: id },
+        include: {
+          patient: true,
+        },
+      });
+
+      if (!withdrawalRecord) {
+        res.status(404).json({ error: 'Dispensação não encontrada' });
+        return;
+      }
+
+      if (role === 'PACIENTE') {
+        const patientRecord = await prisma.patient.findUnique({
+          where: { userId: userId },
+        });
+
+        if (!patientRecord) {
+          res.status(403).json({ error: 'Acesso não autorizado à dispensação' });
+          return;
+        } else {
+          if (withdrawalRecord.patientId !== patientRecord.id) {
+            res.status(403).json({ error: 'Acesso não autorizado à dispensação' });
+            return;
+          }
+        }
+      }
+
+      let patientId: number | null = null;
+      if (role === 'PACIENTE') {
+        const patientRecord = await prisma.patient.findUnique({
+          where: { userId: userId },
+        });
+        if (patientRecord) {
+          patientId = patientRecord.id;
+        }
+      }
+
       const withdrawal = await this.withdrawalService.getById(id, role, patientId);
       res.json(withdrawal);
       return;
@@ -46,8 +121,110 @@ export class WithdrawalController {
 
   create = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const { userId, role } = req.user!;
-      const withdrawal = await this.withdrawalService.create(userId, role, req.body);
+      if (!req.user) {
+        res.status(401).json({ error: 'Não autenticado' });
+        return;
+      }
+      const userId = req.user.userId;
+      const role = req.user.role;
+
+      let isAllowedRole = false;
+      if (role === 'ADMIN') {
+        isAllowedRole = true;
+      } else {
+        if (role === 'FARMACEUTICO') {
+          isAllowedRole = true;
+        } else {
+          if (role === 'ALUNO') {
+            isAllowedRole = true;
+          } else {
+            isAllowedRole = false;
+          }
+        }
+      }
+
+      if (!isAllowedRole) {
+        res.status(403).json({ error: 'Acesso negado para este perfil de usuário' });
+        return;
+      }
+
+      const validationResult = withdrawalCreateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        let errorMsg = 'Dados inválidos na requisição';
+        if (validationResult.error) {
+          if (validationResult.error.issues) {
+            if (validationResult.error.issues.length > 0) {
+              const firstIssue = validationResult.error.issues[0];
+              if (firstIssue) {
+                if (firstIssue.message) {
+                  errorMsg = firstIssue.message;
+                }
+              }
+            }
+          }
+        }
+        res.status(400).json({ error: errorMsg, details: validationResult.error.issues });
+        return;
+      }
+
+      const validatedData = validationResult.data;
+
+      if (validatedData.batchId) {
+        const requestedQuantity = Number(validatedData.quantity);
+        if (!requestedQuantity) {
+          res.status(400).json({ error: 'A quantidade deve ser maior que zero' });
+          return;
+        } else {
+          if (isNaN(requestedQuantity)) {
+            res.status(400).json({ error: 'A quantidade deve ser maior que zero' });
+            return;
+          } else {
+            if (requestedQuantity <= 0) {
+              res.status(400).json({ error: 'A quantidade deve ser maior que zero' });
+              return;
+            }
+          }
+        }
+
+        const batchRecord = await prisma.stockBatch.findUnique({
+          where: { id: Number(validatedData.batchId) },
+        });
+
+        if (!batchRecord) {
+          res.status(404).json({ error: 'Lote não encontrado' });
+          return;
+        }
+
+        if (batchRecord.currentQuantity < requestedQuantity) {
+          res.status(400).json({ error: 'Estoque insuficiente para esta dispensação' });
+          return;
+        }
+      }
+
+      if (validatedData.items) {
+        if (Array.isArray(validatedData.items)) {
+          for (const item of validatedData.items) {
+            const itemBatchId = Number(item.batchId);
+            const itemQuantity = Number(item.quantity);
+
+            const batchRecord = await prisma.stockBatch.findUnique({
+              where: { id: itemBatchId },
+            });
+
+            if (!batchRecord) {
+              res.status(404).json({ error: 'Lote #' + itemBatchId + ' não encontrado' });
+              return;
+            }
+
+            if (batchRecord.currentQuantity < itemQuantity) {
+              res.status(400).json({ error: 'Estoque insuficiente no lote #' + batchRecord.batchNumber });
+              return;
+            }
+          }
+        }
+      }
+
+      const withdrawal = await this.withdrawalService.create(userId, role, validatedData as any);
       res.status(201).json(withdrawal);
       return;
     } catch (err: any) {
@@ -63,9 +240,73 @@ export class WithdrawalController {
 
   update = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const { userId, role } = req.user!;
+      if (!req.user) {
+        res.status(401).json({ error: 'Não autenticado' });
+        return;
+      }
+      const userId = req.user.userId;
+      const role = req.user.role;
       const id = Number(req.params.id);
-      const updated = await this.withdrawalService.update(userId, role, id, req.body);
+
+      if (!id) {
+        res.status(400).json({ error: 'ID de dispensação inválido' });
+        return;
+      } else {
+        if (isNaN(id)) {
+          res.status(400).json({ error: 'ID de dispensação inválido' });
+          return;
+        }
+      }
+
+      let isAllowedRole = false;
+      if (role === 'ADMIN') {
+        isAllowedRole = true;
+      } else {
+        if (role === 'FARMACEUTICO') {
+          isAllowedRole = true;
+        } else {
+          if (role === 'ALUNO') {
+            isAllowedRole = true;
+          } else {
+            isAllowedRole = false;
+          }
+        }
+      }
+
+      if (!isAllowedRole) {
+        res.status(403).json({ error: 'Acesso negado para este perfil de usuário' });
+        return;
+      }
+
+      const existingRecord = await prisma.withdrawal.findUnique({
+        where: { id: id },
+      });
+
+      if (!existingRecord) {
+        res.status(404).json({ error: 'Dispensação não encontrada' });
+        return;
+      }
+
+      const validationResult = withdrawalUpdateSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        let errorMsg = 'Dados inválidos na requisição';
+        if (validationResult.error) {
+          if (validationResult.error.issues) {
+            if (validationResult.error.issues.length > 0) {
+              const firstIssue = validationResult.error.issues[0];
+              if (firstIssue) {
+                if (firstIssue.message) {
+                  errorMsg = firstIssue.message;
+                }
+              }
+            }
+          }
+        }
+        res.status(400).json({ error: errorMsg, details: validationResult.error.issues });
+        return;
+      }
+
+      const updated = await this.withdrawalService.update(userId, role, id, validationResult.data);
       res.json(updated);
       return;
     } catch (err: any) {
@@ -81,8 +322,49 @@ export class WithdrawalController {
 
   delete = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const { userId, role } = req.user!;
+      if (!req.user) {
+        res.status(401).json({ error: 'Não autenticado' });
+        return;
+      }
+      const userId = req.user.userId;
+      const role = req.user.role;
       const id = Number(req.params.id);
+
+      if (!id) {
+        res.status(400).json({ error: 'ID de dispensação inválido' });
+        return;
+      } else {
+        if (isNaN(id)) {
+          res.status(400).json({ error: 'ID de dispensação inválido' });
+          return;
+        }
+      }
+
+      let isAllowedRole = false;
+      if (role === 'ADMIN') {
+        isAllowedRole = true;
+      } else {
+        if (role === 'FARMACEUTICO') {
+          isAllowedRole = true;
+        } else {
+          isAllowedRole = false;
+        }
+      }
+
+      if (!isAllowedRole) {
+        res.status(403).json({ error: 'Apenas administradores e farmacêuticos podem estornar dispensações' });
+        return;
+      }
+
+      const existingRecord = await prisma.withdrawal.findUnique({
+        where: { id: id },
+      });
+
+      if (!existingRecord) {
+        res.status(404).json({ error: 'Dispensação não encontrada' });
+        return;
+      }
+
       const result = await this.withdrawalService.delete(userId, role, id);
       res.json(result);
       return;

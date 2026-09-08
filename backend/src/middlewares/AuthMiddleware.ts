@@ -54,7 +54,7 @@ export async function authMiddleware(
       role: user.role as Role,
       email: user.email,
       patientId: patientId,
-      permissions: user.permissions as Record<string, boolean> | null,
+      permissions: (user.permissions as unknown) as Record<string, boolean> | null,
     };
 
     next();

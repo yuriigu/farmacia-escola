@@ -1,6 +1,11 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/AuthMiddleware';
 import { AuthService } from '../services/AuthService';
+import {
+  loginSchema,
+  registerPatientSchema,
+  updateProfileSchema,
+} from '../middlewares/ValidationMiddleware';
 
 export class AuthController {
   private authService: AuthService;
@@ -11,7 +16,27 @@ export class AuthController {
 
   login = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const { email, password } = req.body;
+      const validationResult = loginSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        let errorMsg = 'Dados inválidos na requisição';
+        if (validationResult.error) {
+          if (validationResult.error.issues) {
+            if (validationResult.error.issues.length > 0) {
+              const firstIssue = validationResult.error.issues[0];
+              if (firstIssue) {
+                if (firstIssue.message) {
+                  errorMsg = firstIssue.message;
+                }
+              }
+            }
+          }
+        }
+        res.status(400).json({ error: errorMsg, details: validationResult.error.issues });
+        return;
+      }
+
+      const email = validationResult.data.email;
+      const password = validationResult.data.password;
       const result = await this.authService.login(email, password);
       res.json(result);
       return;
@@ -28,7 +53,26 @@ export class AuthController {
 
   register = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const result = await this.authService.registerPatient(req.body);
+      const validationResult = registerPatientSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        let errorMsg = 'Dados inválidos na requisição';
+        if (validationResult.error) {
+          if (validationResult.error.issues) {
+            if (validationResult.error.issues.length > 0) {
+              const firstIssue = validationResult.error.issues[0];
+              if (firstIssue) {
+                if (firstIssue.message) {
+                  errorMsg = firstIssue.message;
+                }
+              }
+            }
+          }
+        }
+        res.status(400).json({ error: errorMsg, details: validationResult.error.issues });
+        return;
+      }
+
+      const result = await this.authService.registerPatient(validationResult.data as any);
       res.status(201).json(result);
       return;
     } catch (err: any) {
@@ -68,7 +112,27 @@ export class AuthController {
         res.status(401).json({ error: 'Não autenticado' });
         return;
       }
-      const result = await this.authService.updateProfile(req.user.userId, req.body);
+
+      const validationResult = updateProfileSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        let errorMsg = 'Dados inválidos na requisição';
+        if (validationResult.error) {
+          if (validationResult.error.issues) {
+            if (validationResult.error.issues.length > 0) {
+              const firstIssue = validationResult.error.issues[0];
+              if (firstIssue) {
+                if (firstIssue.message) {
+                  errorMsg = firstIssue.message;
+                }
+              }
+            }
+          }
+        }
+        res.status(400).json({ error: errorMsg, details: validationResult.error.issues });
+        return;
+      }
+
+      const result = await this.authService.updateProfile(req.user.userId, validationResult.data as any);
       res.json(result);
       return;
     } catch (err: any) {

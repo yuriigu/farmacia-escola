@@ -12,7 +12,7 @@ router.get('/', controller.getAll);
 router.get('/:id', controller.getById);
 router.post('/', controller.create);
 router.put('/:id', authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.update);
-router.put('/:id/status', authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.updateStatus);
+router.put('/:id/status', authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO', 'PACIENTE'), controller.updateStatus);
 router.delete('/:id', controller.delete);
 
 export default router;

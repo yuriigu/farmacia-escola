@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/AuthMiddleware';
 import { ActivityLogService } from '../services/ActivityLogService';
+import { prisma } from '../utils/Prisma';
 
 export class ActivityLogController {
   private logService: ActivityLogService;
@@ -11,6 +12,28 @@ export class ActivityLogController {
 
   getAll = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Não autenticado' });
+        return;
+      }
+      const role = req.user.role;
+
+      let isAllowed = false;
+      if (role === 'ADMIN') {
+        isAllowed = true;
+      } else {
+        if (role === 'FARMACEUTICO') {
+          isAllowed = true;
+        } else {
+          isAllowed = false;
+        }
+      }
+
+      if (!isAllowed) {
+        res.status(403).json({ error: 'Apenas administradores e farmacêuticos podem acessar logs de auditoria' });
+        return;
+      }
+
       let userId = undefined;
       if (req.query.userId) {
         userId = Number(req.query.userId);
@@ -61,7 +84,48 @@ export class ActivityLogController {
 
   getById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Não autenticado' });
+        return;
+      }
+      const role = req.user.role;
+
+      let isAllowed = false;
+      if (role === 'ADMIN') {
+        isAllowed = true;
+      } else {
+        if (role === 'FARMACEUTICO') {
+          isAllowed = true;
+        } else {
+          isAllowed = false;
+        }
+      }
+
+      if (!isAllowed) {
+        res.status(403).json({ error: 'Apenas administradores e farmacêuticos podem acessar logs de auditoria' });
+        return;
+      }
+
       const id = Number(req.params.id);
+      if (!id) {
+        res.status(400).json({ error: 'ID de log inválido' });
+        return;
+      } else {
+        if (isNaN(id)) {
+          res.status(400).json({ error: 'ID de log inválido' });
+          return;
+        }
+      }
+
+      const logRecord = await prisma.activityLog.findUnique({
+        where: { id: id },
+      });
+
+      if (!logRecord) {
+        res.status(404).json({ error: 'Log de atividade não encontrado' });
+        return;
+      }
+
       const log = await this.logService.getById(id);
       res.json(log);
       return;

@@ -4,7 +4,7 @@ import { z, ZodSchema } from 'zod';
 export const loginSchema = z.object({
   email: z.string().email('Formato de email inválido'),
   password: z.string().min(1, 'Senha é obrigatória'),
-});
+}).strict();
 
 export const registerPatientSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
@@ -14,7 +14,14 @@ export const registerPatientSchema = z.object({
   phone: z.string().optional(),
   birthDate: z.string().optional(),
   address: z.string().optional(),
-});
+}).strict();
+
+export const updateProfileSchema = z.object({
+  name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').optional(),
+  phone: z.string().optional(),
+  currentPassword: z.string().min(1, 'Senha atual é obrigatória para alteração de senha').optional(),
+  newPassword: z.string().min(6, 'Nova senha deve ter no mínimo 6 caracteres').optional(),
+}).strict();
 
 export const withdrawalCreateSchema = z.object({
   patientId: z.number().int().positive().optional(),
@@ -27,14 +34,22 @@ export const withdrawalCreateSchema = z.object({
   items: z.array(z.object({
     batchId: z.number().int().positive('ID do lote deve ser positivo'),
     quantity: z.number().int().positive('Quantidade deve ser maior que zero'),
-  })).optional(),
-});
+  }).strict()).optional(),
+}).strict();
+
+export const withdrawalUpdateSchema = z.object({
+  notes: z.string().optional(),
+}).strict();
 
 export const disposalCreateSchema = z.object({
   batchId: z.number().int().positive('ID do lote deve ser um número positivo'),
   quantity: z.number().int().positive('Quantidade deve ser maior que zero'),
   reason: z.string().min(1, 'Motivo do descarte é obrigatório'),
-});
+}).strict();
+
+export const disposalUpdateSchema = z.object({
+  reason: z.string().optional(),
+}).strict();
 
 export const medicineCreateSchema = z.object({
   name: z.string().min(1, 'Nome do medicamento é obrigatório'),
@@ -42,14 +57,108 @@ export const medicineCreateSchema = z.object({
   dosage: z.string().optional(),
   accessibleDesc: z.string().optional(),
   category: z.string().optional(),
-});
+}).strict();
+
+export const medicineUpdateSchema = z.object({
+  name: z.string().optional(),
+  activeIngredient: z.string().optional(),
+  dosage: z.string().optional(),
+  accessibleDesc: z.string().optional(),
+  category: z.string().optional(),
+}).strict();
 
 export const batchCreateSchema = z.object({
   medicineId: z.number().int().positive('ID do medicamento inválido'),
   batchNumber: z.string().min(1, 'Número do lote é obrigatório'),
   currentQuantity: z.number().int().min(0, 'Quantidade inicial não pode ser negativa'),
   expirationDate: z.string().min(1, 'Data de validade é obrigatória'),
-});
+}).strict();
+
+export const batchUpdateSchema = z.object({
+  currentQuantity: z.number().int().min(0).optional(),
+  expirationDate: z.string().optional(),
+}).strict();
+
+export const patientCreateSchema = z.object({
+  name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
+  cpf: z.string().min(11, 'CPF deve conter no mínimo 11 dígitos'),
+  phone: z.string().optional(),
+  birthDate: z.string().optional(),
+  address: z.string().optional(),
+}).strict();
+
+export const patientUpdateSchema = z.object({
+  name: z.string().optional(),
+  cpf: z.string().optional(),
+  phone: z.string().optional(),
+  birthDate: z.string().optional(),
+  address: z.string().optional(),
+}).strict();
+
+export const appointmentCreateSchema = z.object({
+  scheduledDate: z.string().min(1, 'Data do agendamento é obrigatória'),
+  scheduledTime: z.string().optional(),
+  slotId: z.number().int().positive().optional(),
+  patientId: z.number().int().positive().optional(),
+  patientName: z.string().optional(),
+  patientCpf: z.string().optional(),
+  notes: z.string().optional(),
+  items: z.array(z.object({
+    medicineId: z.number().int().positive('ID do medicamento deve ser positivo'),
+    quantity: z.number().int().positive('Quantidade deve ser maior que zero'),
+  }).strict()).min(1, 'Ao menos um medicamento deve ser adicionado ao agendamento'),
+}).strict();
+
+export const appointmentUpdateSchema = z.object({
+  scheduledDate: z.string().optional(),
+  scheduledTime: z.string().optional(),
+  slotId: z.number().int().positive().optional(),
+  notes: z.string().optional(),
+  status: z.string().optional(),
+}).strict();
+
+export const appointmentUpdateStatusSchema = z.object({
+  status: z.string().min(1, 'Status é obrigatório'),
+  notes: z.string().optional(),
+}).strict();
+
+export const userCreateSchema = z.object({
+  name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
+  email: z.string().email('Formato de email inválido'),
+  password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+  role: z.string().optional(),
+  registerDoc: z.string().optional(),
+  phone: z.string().optional(),
+  permissions: z.record(z.string(), z.boolean()).optional(),
+}).strict();
+
+export const userUpdateSchema = z.object({
+  name: z.string().optional(),
+  email: z.string().email('Formato de email inválido').optional(),
+  password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres').optional(),
+  role: z.string().optional(),
+  registerDoc: z.string().optional(),
+  phone: z.string().optional(),
+  permissions: z.record(z.string(), z.boolean()).optional(),
+}).strict();
+
+export const userToggleActiveSchema = z.object({
+  active: z.boolean(),
+}).strict();
+
+export const scheduleSlotCreateSchema = z.object({
+  date: z.string().min(1, 'Data da escala é obrigatória'),
+  timeSlot: z.string().min(1, 'Horário do slot é obrigatório'),
+  maxCapacity: z.number().int().positive('Capacidade deve ser positiva').optional(),
+  assignedToId: z.number().int().positive().nullable().optional(),
+}).strict();
+
+export const scheduleSlotUpdateSchema = z.object({
+  date: z.string().optional(),
+  timeSlot: z.string().optional(),
+  maxCapacity: z.number().int().positive().optional(),
+  assignedToId: z.number().int().positive().nullable().optional(),
+}).strict();
 
 export function validateBody(schema: ZodSchema) {
   return (req: Request, res: Response, next: NextFunction): void => {

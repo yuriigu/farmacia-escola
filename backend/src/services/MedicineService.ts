@@ -1,56 +1,98 @@
 import { MedicineRepository } from '../repositories/MedicineRepository';
 import { ActivityLogService } from './ActivityLogService';
+import { StockStatusService } from './StockStatusService';
+import { StockStatus } from '../types/Enums';
+import { prisma } from '../utils/Prisma';
 
 export class MedicineService {
   private medicineRepo: MedicineRepository;
   private logService: ActivityLogService;
+  private stockStatusService: StockStatusService;
 
   constructor() {
     this.medicineRepo = new MedicineRepository();
     this.logService = new ActivityLogService();
+    this.stockStatusService = new StockStatusService();
   }
 
   async getAll() {
     const medicines = await this.medicineRepo.findAll();
+    let reservedMap: Record<number, number> = {};
+    try {
+      if (prisma && prisma.appointmentItem) {
+        const pendingItems = await prisma.appointmentItem.findMany({
+          where: {
+            appointment: {
+              status: 'PENDING',
+            },
+          },
+          select: {
+            medicineId: true,
+            quantity: true,
+          },
+        });
+        if (pendingItems) {
+          for (let p = 0; p < pendingItems.length; p++) {
+            const item = pendingItems[p];
+            const mId = item.medicineId;
+            let curRes = 0;
+            if (reservedMap[mId]) {
+              curRes = reservedMap[mId];
+            }
+            reservedMap[mId] = curRes + item.quantity;
+          }
+        }
+      }
+    } catch {
+      reservedMap = {};
+    }
+
     const formattedMedicines = [];
     for (let i = 0; i < medicines.length; i++) {
       const med = medicines[i];
-      let totalQuantity = 0;
-      let batchesCount = 0;
-
+      let batchesList = [];
       if (med.batches) {
         if (Array.isArray(med.batches)) {
-          batchesCount = med.batches.length;
-          totalQuantity = 0;
-          for (let j = 0; j < med.batches.length; j++) {
-            const batch = med.batches[j];
-            let isValid = true;
-            if (batch.expirationDate) {
-              const expTime = new Date(batch.expirationDate).getTime();
-              const nowTime = new Date().getTime();
-              if (expTime < nowTime) {
-                isValid = false;
-              } else {
-                isValid = true;
-              }
-            } else {
-              isValid = true;
-            }
-            if (isValid) {
-              if (batch.currentQuantity) {
-                if (batch.currentQuantity > 0) {
-                  totalQuantity = totalQuantity + batch.currentQuantity;
-                }
-              }
-            }
-          }
+          batchesList = med.batches;
         }
+      }
+
+      const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList);
+
+      const formattedBatches = [];
+      for (let j = 0; j < batchesList.length; j++) {
+        const batch = batchesList[j];
+        const batchStatus = this.stockStatusService.calculateBatchStatus(
+          batch.currentQuantity,
+          batch.expirationDate
+        );
+        formattedBatches.push({
+          ...batch,
+          status: batchStatus,
+        });
+      }
+
+      let resQty = 0;
+      if (reservedMap[med.id]) {
+        resQty = reservedMap[med.id];
+      }
+      const physicalQty = stockCalc.totalQuantity;
+      let availQty = 0;
+      if (physicalQty > resQty) {
+        availQty = physicalQty - resQty;
+      } else {
+        availQty = 0;
       }
 
       formattedMedicines.push({
         ...med,
-        totalQuantity: totalQuantity,
-        batchesCount: batchesCount,
+        batches: formattedBatches,
+        totalQuantity: physicalQty,
+        physicalQuantity: physicalQty,
+        reservedQuantity: resQty,
+        availableQuantity: availQty,
+        batchesCount: stockCalc.batchesCount,
+        status: stockCalc.status,
       });
     }
     return formattedMedicines;
@@ -62,42 +104,69 @@ export class MedicineService {
       throw { statusCode: 404, message: 'Medicamento não encontrado' };
     }
 
-    let totalQuantity = 0;
-    let batchesCount = 0;
-
+    let batchesList = [];
     if (med.batches) {
       if (Array.isArray(med.batches)) {
-        batchesCount = med.batches.length;
-        totalQuantity = 0;
-        for (let j = 0; j < med.batches.length; j++) {
-          const batch = med.batches[j];
-          let isValid = true;
-          if (batch.expirationDate) {
-            const expTime = new Date(batch.expirationDate).getTime();
-            const nowTime = new Date().getTime();
-            if (expTime < nowTime) {
-              isValid = false;
-            } else {
-              isValid = true;
-            }
-          } else {
-            isValid = true;
-          }
-          if (isValid) {
-            if (batch.currentQuantity) {
-              if (batch.currentQuantity > 0) {
-                totalQuantity = totalQuantity + batch.currentQuantity;
-              }
-            }
+        batchesList = med.batches;
+      }
+    }
+
+    const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList);
+
+    const formattedBatches = [];
+    for (let j = 0; j < batchesList.length; j++) {
+      const batch = batchesList[j];
+      const batchStatus = this.stockStatusService.calculateBatchStatus(
+        batch.currentQuantity,
+        batch.expirationDate
+      );
+      formattedBatches.push({
+        ...batch,
+        status: batchStatus,
+      });
+    }
+
+    let resQty = 0;
+    try {
+      if (prisma && prisma.appointmentItem) {
+        const pendingItems = await prisma.appointmentItem.findMany({
+          where: {
+            medicineId: id,
+            appointment: {
+              status: 'PENDING',
+            },
+          },
+          select: {
+            quantity: true,
+          },
+        });
+        if (pendingItems) {
+          for (let p = 0; p < pendingItems.length; p++) {
+            resQty = resQty + pendingItems[p].quantity;
           }
         }
       }
+    } catch {
+      resQty = 0;
+    }
+
+    const physicalQty = stockCalc.totalQuantity;
+    let availQty = 0;
+    if (physicalQty > resQty) {
+      availQty = physicalQty - resQty;
+    } else {
+      availQty = 0;
     }
 
     return {
       ...med,
-      totalQuantity: totalQuantity,
-      batchesCount: batchesCount,
+      batches: formattedBatches,
+      totalQuantity: physicalQty,
+      physicalQuantity: physicalQty,
+      reservedQuantity: resQty,
+      availableQuantity: availQty,
+      batchesCount: stockCalc.batchesCount,
+      status: stockCalc.status,
     };
   }
 
@@ -165,7 +234,20 @@ export class MedicineService {
       `Atualizou medicamento: ${updated.name}`
     );
 
-    return updated;
+    let batchesList = [];
+    if (updated.batches) {
+      if (Array.isArray(updated.batches)) {
+        batchesList = updated.batches;
+      }
+    }
+    const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList);
+
+    return {
+      ...updated,
+      totalQuantity: stockCalc.totalQuantity,
+      batchesCount: stockCalc.batchesCount,
+      status: stockCalc.status,
+    };
   }
 
   async delete(userId: number, role: string, id: number) {

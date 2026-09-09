@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { z, ZodSchema } from 'zod';
+import { z, ZodType } from 'zod';
 
 export const loginSchema = z.object({
   email: z.string().email('Formato de email inválido'),
@@ -23,16 +23,51 @@ export const updateProfileSchema = z.object({
   newPassword: z.string().min(6, 'Nova senha deve ter no mínimo 6 caracteres').optional(),
 }).strict();
 
+export const dosageUnitEnum = z.enum(['MG', 'ML', 'G', 'MCG', 'UI']);
+
+export const dosageSchema = z.union([
+  z.object({
+    value: z.number().positive('O valor da dosagem deve ser maior que zero'),
+    unit: dosageUnitEnum,
+  }).strict().transform((data) => {
+    return `${data.value} ${data.unit}`;
+  }),
+  z.string().trim().refine((val) => {
+    if (val.length === 0) {
+      return false;
+    }
+    const match = val.match(/^(\d+(?:\.\d+)?)\s*(mg|ml|g|mcg|ui)$/i);
+    if (match) {
+      return true;
+    } else {
+      return false;
+    }
+  }, {
+    message: 'Formato de dosagem inválido. Formato esperado: número e unidade permitida (MG, ML, G, MCG, UI). Exemplo: "500 MG" ou "10 ML"',
+  }).transform((val) => {
+    const match = val.match(/^(\d+(?:\.\d+)?)\s*(mg|ml|g|mcg|ui)$/i);
+    if (match) {
+      const numPart = match[1];
+      const unitPart = match[2].toUpperCase();
+      return `${numPart} ${unitPart}`;
+    } else {
+      return val;
+    }
+  }),
+]);
+
 export const withdrawalCreateSchema = z.object({
   patientId: z.number().int().positive().optional(),
   patientName: z.string().optional(),
   patientCpf: z.string().optional(),
+  medicineId: z.number().int().positive().optional(),
   batchId: z.number().int().positive().optional(),
   quantity: z.number().int().positive().optional(),
   notes: z.string().optional(),
   appointmentId: z.number().int().positive().optional(),
   items: z.array(z.object({
-    batchId: z.number().int().positive('ID do lote deve ser positivo'),
+    medicineId: z.number().int().positive().optional(),
+    batchId: z.number().int().positive().optional(),
     quantity: z.number().int().positive('Quantidade deve ser maior que zero'),
   }).strict()).optional(),
 }).strict();
@@ -54,7 +89,7 @@ export const disposalUpdateSchema = z.object({
 export const medicineCreateSchema = z.object({
   name: z.string().min(1, 'Nome do medicamento é obrigatório'),
   activeIngredient: z.string().optional(),
-  dosage: z.string().optional(),
+  dosage: dosageSchema.optional(),
   accessibleDesc: z.string().optional(),
   category: z.string().optional(),
 }).strict();
@@ -62,7 +97,7 @@ export const medicineCreateSchema = z.object({
 export const medicineUpdateSchema = z.object({
   name: z.string().optional(),
   activeIngredient: z.string().optional(),
-  dosage: z.string().optional(),
+  dosage: dosageSchema.optional(),
   accessibleDesc: z.string().optional(),
   category: z.string().optional(),
 }).strict();
@@ -106,7 +141,7 @@ export const appointmentCreateSchema = z.object({
   items: z.array(z.object({
     medicineId: z.number().int().positive('ID do medicamento deve ser positivo'),
     quantity: z.number().int().positive('Quantidade deve ser maior que zero'),
-  }).strict()).min(1, 'Ao menos um medicamento deve ser adicionado ao agendamento'),
+  }).strict()).optional(),
 }).strict();
 
 export const appointmentUpdateSchema = z.object({
@@ -125,7 +160,7 @@ export const appointmentUpdateStatusSchema = z.object({
 export const userCreateSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
   email: z.string().email('Formato de email inválido'),
-  password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
+  password: z.string().min(1, 'Senha é obrigatória'),
   role: z.string().optional(),
   registerDoc: z.string().optional(),
   phone: z.string().optional(),
@@ -160,7 +195,7 @@ export const scheduleSlotUpdateSchema = z.object({
   assignedToId: z.number().int().positive().nullable().optional(),
 }).strict();
 
-export function validateBody(schema: ZodSchema) {
+export function validateBody(schema: ZodType) {
   return (req: Request, res: Response, next: NextFunction): void => {
     const parseResult = schema.safeParse(req.body);
     if (!parseResult.success) {

@@ -291,7 +291,11 @@ export const api = {
       quantity: number;
       notes?: string;
     }) => {
-      const response = await apiClient.post<{ message: string; withdrawal: Withdrawal }>('/api/withdrawals', data);
+      const response = await apiClient.post<{
+        message: string;
+        withdrawal: Withdrawal;
+        allocatedItems?: Array<{ batchId: number; batchNumber: string; quantity: number }>;
+      }>('/api/withdrawals', data);
       const result = response.data;
       return result;
     },

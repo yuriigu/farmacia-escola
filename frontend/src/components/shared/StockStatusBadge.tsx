@@ -8,55 +8,89 @@ interface StockStatusBadgeProps {
 
 // COMPONENTE PARA EXIBIR STATUS DO ESTOQUE
 export function StockStatusBadge({ status }: StockStatusBadgeProps) {
-  // DETERMINANDO STATUS COM FALLBACK
-  let s: StockStatus = 'ok';
+  // DETERMINANDO STATUS NORMALIZADO COM FALLBACK
+  let normalizedStatus: StockStatus = 'IN_STOCK';
   if (status) {
-    s = status;
+    if (status === 'CRITICAL_EXPIRATION') {
+      normalizedStatus = 'CRITICAL_EXPIRATION';
+    } else if (status === 'low') {
+      normalizedStatus = 'CRITICAL_EXPIRATION';
+    } else if (status === 'EXPIRED') {
+      normalizedStatus = 'EXPIRED';
+    } else if (status === 'expired') {
+      normalizedStatus = 'EXPIRED';
+    } else if (status === 'OUT_OF_STOCK') {
+      normalizedStatus = 'OUT_OF_STOCK';
+    } else if (status === 'critical') {
+      normalizedStatus = 'OUT_OF_STOCK';
+    } else if (status === 'IN_STOCK') {
+      normalizedStatus = 'IN_STOCK';
+    } else if (status === 'ok') {
+      normalizedStatus = 'IN_STOCK';
+    } else {
+      normalizedStatus = 'IN_STOCK';
+    }
   } else {
-    s = 'ok';
+    normalizedStatus = 'IN_STOCK';
   }
 
-  // CONFIGURACOES DE CADA STATUS
-  const config: Record<StockStatus, { label: string; bg: string; text: string; border: string; dot: string }> = {
-    ok: {
-      label: 'Em dia',
+  // CONFIGURACOES VISUAIS DOS STATUS DINAMICOS
+  const config: Record<
+    'IN_STOCK' | 'CRITICAL_EXPIRATION' | 'EXPIRED' | 'OUT_OF_STOCK',
+    { label: string; bg: string; text: string; border: string; dot: string }
+  > = {
+    // IN_STOCK: Badge verde (disponivel)
+    IN_STOCK: {
+      label: 'Disponível',
       bg: 'bg-emerald-50 dark:bg-emerald-950/40',
       text: 'text-emerald-700 dark:text-emerald-400',
       border: 'border-emerald-200 dark:border-emerald-800/80',
       dot: 'bg-emerald-500',
     },
-    low: {
-      label: 'Baixo',
+    // CRITICAL_EXPIRATION: Badge amarelo/alerta (vencimento em <= 30 dias)
+    CRITICAL_EXPIRATION: {
+      label: 'Vencimento Próximo (≤ 30d)',
       bg: 'bg-amber-50 dark:bg-amber-950/40',
-      text: 'text-amber-700 dark:text-amber-400',
-      border: 'border-amber-200 dark:border-amber-800/80',
+      text: 'text-amber-800 dark:text-amber-300',
+      border: 'border-amber-300 dark:border-amber-700',
       dot: 'bg-amber-500',
     },
-    critical: {
-      label: 'Crítico',
+    // EXPIRED: Badge vermelho estatico (medicamento vencido)
+    EXPIRED: {
+      label: 'Vencido',
       bg: 'bg-rose-50 dark:bg-rose-950/40',
       text: 'text-rose-700 dark:text-rose-400',
-      border: 'border-rose-200 dark:border-rose-800/80',
-      dot: 'bg-rose-500',
+      border: 'border-rose-300 dark:border-rose-800',
+      dot: 'bg-rose-600',
     },
-    expired: {
-      label: 'Vencido',
+    // OUT_OF_STOCK: Badge cinza/neutro (saldo zerado)
+    OUT_OF_STOCK: {
+      label: 'Sem Estoque',
       bg: 'bg-slate-100 dark:bg-slate-800',
-      text: 'text-slate-700 dark:text-slate-300',
+      text: 'text-slate-600 dark:text-slate-400',
       border: 'border-slate-300 dark:border-slate-700',
-      dot: 'bg-slate-500',
+      dot: 'bg-slate-400',
     },
   };
 
-  // OBTENDO A CONFIGURACAO ATUAL COM VERIFICACAO EXPLICITA
-  let current = config.ok;
-  if (config[s]) {
-    current = config[s];
+  let current = config.IN_STOCK;
+  if (normalizedStatus === 'CRITICAL_EXPIRATION') {
+    current = config.CRITICAL_EXPIRATION;
+  } else if (normalizedStatus === 'EXPIRED') {
+    current = config.EXPIRED;
+  } else if (normalizedStatus === 'OUT_OF_STOCK') {
+    current = config.OUT_OF_STOCK;
   } else {
-    current = config.ok;
+    current = config.IN_STOCK;
   }
 
-  const badgeClassName = 'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ' + current.bg + ' ' + current.text + ' ' + current.border;
+  const badgeClassName =
+    'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold border ' +
+    current.bg +
+    ' ' +
+    current.text +
+    ' ' +
+    current.border;
   const dotClassName = 'w-1.5 h-1.5 rounded-full ' + current.dot;
 
   return (

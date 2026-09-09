@@ -98,47 +98,6 @@ export class PatientController {
         }
       }
 
-      const patientRecord = await prisma.patient.findUnique({
-        where: { id: id },
-      });
-
-      if (!patientRecord) {
-        res.status(404).json({ error: 'Paciente não encontrado' });
-        return;
-      }
-
-      let isAuthorized = false;
-      if (role === 'ADMIN') {
-        isAuthorized = true;
-      } else {
-        if (role === 'FARMACEUTICO') {
-          isAuthorized = true;
-        } else {
-          if (role === 'ALUNO') {
-            isAuthorized = true;
-          } else {
-            if (role === 'MEDICO') {
-              isAuthorized = true;
-            } else {
-              if (role === 'PACIENTE') {
-                if (patientRecord.userId === userId) {
-                  isAuthorized = true;
-                } else {
-                  isAuthorized = false;
-                }
-              } else {
-                isAuthorized = false;
-              }
-            }
-          }
-        }
-      }
-
-      if (!isAuthorized) {
-        res.status(403).json({ error: 'Acesso não autorizado ao prontuário do paciente' });
-        return;
-      }
-
       const patient = await this.patientService.getById(id, role, userId);
       res.json(patient);
       return;

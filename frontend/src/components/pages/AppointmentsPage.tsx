@@ -134,6 +134,40 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
       return;
     }
 
+    const selectedMed = medicines.find((m) => m.id === medicineId);
+    if (selectedMed) {
+      let physicalStock = 0;
+      if (selectedMed.physicalQuantity !== null && selectedMed.physicalQuantity !== undefined) {
+        physicalStock = selectedMed.physicalQuantity;
+      } else if (selectedMed.totalQuantity !== null && selectedMed.totalQuantity !== undefined) {
+        physicalStock = selectedMed.totalQuantity;
+      }
+      let reservedStock = 0;
+      if (selectedMed.reservedQuantity !== null && selectedMed.reservedQuantity !== undefined) {
+        reservedStock = selectedMed.reservedQuantity;
+      }
+      let realAvailableStock = 0;
+      if (selectedMed.availableQuantity !== null && selectedMed.availableQuantity !== undefined) {
+        realAvailableStock = selectedMed.availableQuantity;
+      } else {
+        if (physicalStock > reservedStock) {
+          realAvailableStock = physicalStock - reservedStock;
+        } else {
+          realAvailableStock = 0;
+        }
+      }
+      if (quantity > realAvailableStock) {
+        toast.error(
+          'Estoque insuficiente: Quantidade solicitada (' +
+            quantity +
+            ' un.) excede o saldo disponível real (' +
+            realAvailableStock +
+            ' un.).'
+        );
+        return;
+      }
+    }
+
     try {
       setLoading(true);
       const dateVal = new Date(scheduledDate);
@@ -292,6 +326,61 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
               </SelectContent>
             </Select>
           </div>
+
+          {/* Painel de Reserva & Disponibilidade */}
+          {(() => {
+            if (medicineId) {
+              const selectedMed = medicines.find((m) => m.id === medicineId);
+              if (selectedMed) {
+                let physicalStock = 0;
+                if (selectedMed.physicalQuantity !== null && selectedMed.physicalQuantity !== undefined) {
+                  physicalStock = selectedMed.physicalQuantity;
+                } else if (selectedMed.totalQuantity !== null && selectedMed.totalQuantity !== undefined) {
+                  physicalStock = selectedMed.totalQuantity;
+                }
+                let reservedStock = 0;
+                if (selectedMed.reservedQuantity !== null && selectedMed.reservedQuantity !== undefined) {
+                  reservedStock = selectedMed.reservedQuantity;
+                }
+                let realAvailableStock = 0;
+                if (selectedMed.availableQuantity !== null && selectedMed.availableQuantity !== undefined) {
+                  realAvailableStock = selectedMed.availableQuantity;
+                } else {
+                  if (physicalStock > reservedStock) {
+                    realAvailableStock = physicalStock - reservedStock;
+                  } else {
+                    realAvailableStock = 0;
+                  }
+                }
+                const isOver = quantity > realAvailableStock;
+
+                return (
+                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                        <span className="block text-[10px] uppercase font-bold text-slate-400">Físico</span>
+                        <span className="font-bold text-slate-800 dark:text-slate-100">{physicalStock} un.</span>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                        <span className="block text-[10px] uppercase font-bold text-amber-500">Reservado</span>
+                        <span className="font-bold text-amber-600 dark:text-amber-400">{reservedStock} un.</span>
+                      </div>
+                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                        <span className="block text-[10px] uppercase font-bold text-emerald-600">Disponível</span>
+                        <span className="font-bold text-emerald-700 dark:text-emerald-300">{realAvailableStock} un.</span>
+                      </div>
+                    </div>
+                    {isOver && (
+                      <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                        Estoque insuficiente: A quantidade solicitada ({quantity} un.) excede o saldo disponível real ({realAvailableStock} un.), pois há {reservedStock} un. reservadas para outros agendamentos pendentes.
+                      </p>
+                    )}
+                  </div>
+                );
+              }
+            }
+            return null;
+          })()}
 
           {/* Quantidade */}
           <div>
@@ -475,6 +564,41 @@ export function AppointmentsPage() {
     if (!isPatient && !isMedico && !form.patientId) {
       return;
     }
+
+    const selectedMed = medicines.find((m) => m.id === form.items[0].medicineId);
+    if (selectedMed) {
+      let physicalStock = 0;
+      if (selectedMed.physicalQuantity !== null && selectedMed.physicalQuantity !== undefined) {
+        physicalStock = selectedMed.physicalQuantity;
+      } else if (selectedMed.totalQuantity !== null && selectedMed.totalQuantity !== undefined) {
+        physicalStock = selectedMed.totalQuantity;
+      }
+      let reservedStock = 0;
+      if (selectedMed.reservedQuantity !== null && selectedMed.reservedQuantity !== undefined) {
+        reservedStock = selectedMed.reservedQuantity;
+      }
+      let realAvailableStock = 0;
+      if (selectedMed.availableQuantity !== null && selectedMed.availableQuantity !== undefined) {
+        realAvailableStock = selectedMed.availableQuantity;
+      } else {
+        if (physicalStock > reservedStock) {
+          realAvailableStock = physicalStock - reservedStock;
+        } else {
+          realAvailableStock = 0;
+        }
+      }
+      if (form.items[0].quantity > realAvailableStock) {
+        toast.error(
+          'Estoque insuficiente: A quantidade solicitada (' +
+            form.items[0].quantity +
+            ' un.) excede o saldo disponível real (' +
+            realAvailableStock +
+            ' un.).'
+        );
+        return;
+      }
+    }
+
     try {
       const dateVal = new Date(form.scheduledDate);
       let timeVal = '';
@@ -1334,6 +1458,60 @@ export function AppointmentsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {(() => {
+                    const selectedMedId = form.items[0]?.medicineId;
+                    if (selectedMedId) {
+                      const selectedMed = medicines.find((m) => m.id === selectedMedId);
+                      if (selectedMed) {
+                        let physicalStock = 0;
+                        if (selectedMed.physicalQuantity !== null && selectedMed.physicalQuantity !== undefined) {
+                          physicalStock = selectedMed.physicalQuantity;
+                        } else if (selectedMed.totalQuantity !== null && selectedMed.totalQuantity !== undefined) {
+                          physicalStock = selectedMed.totalQuantity;
+                        }
+                        let reservedStock = 0;
+                        if (selectedMed.reservedQuantity !== null && selectedMed.reservedQuantity !== undefined) {
+                          reservedStock = selectedMed.reservedQuantity;
+                        }
+                        let realAvailableStock = 0;
+                        if (selectedMed.availableQuantity !== null && selectedMed.availableQuantity !== undefined) {
+                          realAvailableStock = selectedMed.availableQuantity;
+                        } else {
+                          if (physicalStock > reservedStock) {
+                            realAvailableStock = physicalStock - reservedStock;
+                          } else {
+                            realAvailableStock = 0;
+                          }
+                        }
+                        const isOver = form.items[0].quantity > realAvailableStock;
+
+                        return (
+                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                              <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                                <span className="block text-[10px] uppercase font-bold text-slate-400">Físico</span>
+                                <span className="font-bold text-slate-800 dark:text-slate-100">{physicalStock} un.</span>
+                              </div>
+                              <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                                <span className="block text-[10px] uppercase font-bold text-amber-500">Reservado</span>
+                                <span className="font-bold text-amber-600 dark:text-amber-400">{reservedStock} un.</span>
+                              </div>
+                              <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
+                                <span className="block text-[10px] uppercase font-bold text-emerald-600">Disponível</span>
+                                <span className="font-bold text-emerald-700 dark:text-emerald-300">{realAvailableStock} un.</span>
+                              </div>
+                            </div>
+                            {isOver && (
+                              <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
+                                Quantidade solicitada ({form.items[0].quantity} un.) excede o saldo disponível real ({realAvailableStock} un.), pois há {reservedStock} un. reservadas.
+                              </p>
+                            )}
+                          </div>
+                        );
+                      }
+                    }
+                    return null;
+                  })()}
                   <div>
                     <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Quantidade</Label>
                     <Input type="number" min={1} value={formQtyVal} onChange={(e) => setForm({ ...form, items: [{ ...form.items[0], quantity: Math.max(1, Number(e.target.value)) }] })} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />

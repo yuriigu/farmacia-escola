@@ -169,61 +169,6 @@ export class WithdrawalController {
 
       const validatedData = validationResult.data;
 
-      if (validatedData.batchId) {
-        const requestedQuantity = Number(validatedData.quantity);
-        if (!requestedQuantity) {
-          res.status(400).json({ error: 'A quantidade deve ser maior que zero' });
-          return;
-        } else {
-          if (isNaN(requestedQuantity)) {
-            res.status(400).json({ error: 'A quantidade deve ser maior que zero' });
-            return;
-          } else {
-            if (requestedQuantity <= 0) {
-              res.status(400).json({ error: 'A quantidade deve ser maior que zero' });
-              return;
-            }
-          }
-        }
-
-        const batchRecord = await prisma.stockBatch.findUnique({
-          where: { id: Number(validatedData.batchId) },
-        });
-
-        if (!batchRecord) {
-          res.status(404).json({ error: 'Lote não encontrado' });
-          return;
-        }
-
-        if (batchRecord.currentQuantity < requestedQuantity) {
-          res.status(400).json({ error: 'Estoque insuficiente para esta dispensação' });
-          return;
-        }
-      }
-
-      if (validatedData.items) {
-        if (Array.isArray(validatedData.items)) {
-          for (const item of validatedData.items) {
-            const itemBatchId = Number(item.batchId);
-            const itemQuantity = Number(item.quantity);
-
-            const batchRecord = await prisma.stockBatch.findUnique({
-              where: { id: itemBatchId },
-            });
-
-            if (!batchRecord) {
-              res.status(404).json({ error: 'Lote #' + itemBatchId + ' não encontrado' });
-              return;
-            }
-
-            if (batchRecord.currentQuantity < itemQuantity) {
-              res.status(400).json({ error: 'Estoque insuficiente no lote #' + batchRecord.batchNumber });
-              return;
-            }
-          }
-        }
-      }
-
       const withdrawal = await this.withdrawalService.create(userId, role, validatedData as any);
       res.status(201).json(withdrawal);
       return;

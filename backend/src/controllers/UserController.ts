@@ -62,15 +62,6 @@ export class UserController {
         }
       }
 
-      const userRecord = await prisma.user.findUnique({
-        where: { id: id },
-      });
-
-      if (!userRecord) {
-        res.status(404).json({ error: 'Usuário não encontrado' });
-        return;
-      }
-
       if (role !== 'ADMIN') {
         if (id !== userId) {
           res.status(403).json({ error: 'Acesso não autorizado aos dados de outro usuário' });

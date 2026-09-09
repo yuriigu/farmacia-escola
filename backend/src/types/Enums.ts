@@ -16,3 +16,22 @@ export const AppointmentStatus = {
 } as const;
 
 export type AppointmentStatus = typeof AppointmentStatus[keyof typeof AppointmentStatus];
+
+export const StockStatus = {
+  CRITICAL_EXPIRATION: 'CRITICAL_EXPIRATION',
+  EXPIRED: 'EXPIRED',
+  OUT_OF_STOCK: 'OUT_OF_STOCK',
+  IN_STOCK: 'IN_STOCK',
+} as const;
+
+export type StockStatus = typeof StockStatus[keyof typeof StockStatus];
+
+export const DosageUnit = {
+  MG: 'MG',
+  ML: 'ML',
+  G: 'G',
+  MCG: 'MCG',
+  UI: 'UI',
+} as const;
+
+export type DosageUnit = typeof DosageUnit[keyof typeof DosageUnit];

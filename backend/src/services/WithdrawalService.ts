@@ -57,12 +57,15 @@ export class WithdrawalService {
   }
 
   async create(userId: number, role: string, data: {
-    patientName: string;
-    patientCpf: string;
-    batchId: number;
-    quantity: number;
+    patientName?: string;
+    patientCpf?: string;
+    patientId?: number;
+    medicineId?: number;
+    batchId?: number;
+    quantity?: number;
     notes?: string;
     appointmentId?: number;
+    items?: Array<{ medicineId?: number; batchId?: number; quantity: number }>;
   }) {
     let cleanName = '';
     if (data.patientName) {
@@ -78,52 +81,115 @@ export class WithdrawalService {
       cleanCpf = '';
     }
 
-    const parsedBatchId = Number(data.batchId);
-    const parsedQuantity = Number(data.quantity);
+    let itemsToProcess: Array<{ medicineId?: number; batchId?: number; quantity: number }> = [];
 
-    if (!cleanName) {
-      throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
-    } else {
-      if (!cleanCpf) {
-        throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
-      } else {
-        if (!parsedBatchId) {
-          throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
-        } else {
-          if (!parsedQuantity) {
-            throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
+    if (data.items) {
+      if (Array.isArray(data.items)) {
+        if (data.items.length > 0) {
+          for (let i = 0; i < data.items.length; i++) {
+            const currentItem = data.items[i];
+            let itemMedId = undefined;
+            if (currentItem.medicineId) {
+              itemMedId = Number(currentItem.medicineId);
+            }
+            let itemBatchId = undefined;
+            if (currentItem.batchId) {
+              itemBatchId = Number(currentItem.batchId);
+            }
+            const itemQty = Number(currentItem.quantity);
+            if (isNaN(itemQty)) {
+              throw { statusCode: 400, message: 'A quantidade do item deve ser maior que zero' };
+            } else {
+              if (itemQty <= 0) {
+                throw { statusCode: 400, message: 'A quantidade do item deve ser maior que zero' };
+              }
+            }
+            itemsToProcess.push({
+              medicineId: itemMedId,
+              batchId: itemBatchId,
+              quantity: itemQty,
+            });
           }
         }
       }
     }
 
-    if (cleanCpf.length !== 11) {
-      throw { statusCode: 400, message: 'CPF inválido' };
+    if (itemsToProcess.length === 0) {
+      let singleMedId = undefined;
+      if (data.medicineId) {
+        singleMedId = Number(data.medicineId);
+      }
+      let singleBatchId = undefined;
+      if (data.batchId) {
+        singleBatchId = Number(data.batchId);
+      }
+      const singleQty = Number(data.quantity);
+
+      if (isNaN(singleQty)) {
+        throw { statusCode: 400, message: 'A quantidade deve ser maior que zero' };
+      } else {
+        if (singleQty <= 0) {
+          throw { statusCode: 400, message: 'A quantidade deve ser maior que zero' };
+        }
+      }
+
+      if (!singleBatchId) {
+        if (!singleMedId) {
+          throw { statusCode: 400, message: 'Lote ou medicamento é obrigatório para a dispensação' };
+        }
+      }
+
+      itemsToProcess.push({
+        medicineId: singleMedId,
+        batchId: singleBatchId,
+        quantity: singleQty,
+      });
     }
 
-    if (isNaN(parsedQuantity)) {
-      throw { statusCode: 400, message: 'A quantidade deve ser maior que zero' };
+    let targetPatientId = undefined;
+    if (data.patientId) {
+      targetPatientId = Number(data.patientId);
+    }
+
+    let patientRecord: any = null;
+    if (targetPatientId) {
+      patientRecord = await this.patientRepo.findById(targetPatientId);
+      if (!patientRecord) {
+        throw { statusCode: 404, message: 'Paciente não encontrado' };
+      }
     } else {
-      if (parsedQuantity <= 0) {
-        throw { statusCode: 400, message: 'A quantidade deve ser maior que zero' };
+      if (!cleanName) {
+        throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
+      } else {
+        if (!cleanCpf) {
+          throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
+        }
+      }
+
+      if (cleanCpf.length !== 11) {
+        throw { statusCode: 400, message: 'CPF inválido' };
+      }
+
+      patientRecord = await this.patientRepo.findByCpf(cleanCpf);
+      if (!patientRecord) {
+        patientRecord = await this.patientRepo.create({
+          name: cleanName,
+          cpf: cleanCpf,
+        });
       }
     }
 
-    const batch = await this.batchRepo.findById(parsedBatchId);
-    if (!batch) {
-      throw { statusCode: 404, message: 'Lote não encontrado' };
-    }
-
-    if (batch.currentQuantity < parsedQuantity) {
-      throw { statusCode: 400, message: 'Estoque insuficiente para esta dispensação' };
-    }
-
-    let patient = await this.patientRepo.findByCpf(cleanCpf);
-    if (!patient) {
-      patient = await this.patientRepo.create({
-        name: cleanName,
-        cpf: cleanCpf,
-      });
+    if (itemsToProcess.length === 1) {
+      const firstItem = itemsToProcess[0];
+      if (firstItem.batchId) {
+        const batch = await this.batchRepo.findById(firstItem.batchId);
+        if (!batch) {
+          throw { statusCode: 404, message: 'Lote não encontrado' };
+        }
+        if (batch.currentQuantity < firstItem.quantity) {
+          throw { statusCode: 400, message: 'Estoque insuficiente para esta dispensação' };
+        }
+      }
     }
 
     let cleanNotes = undefined;
@@ -140,13 +206,36 @@ export class WithdrawalService {
       parsedAppointmentId = undefined;
     }
 
-    const withdrawal = await this.withdrawalRepo.create({
-      patientId: patient.id,
-      userId,
-      notes: cleanNotes,
-      appointmentId: parsedAppointmentId,
-      items: [{ batchId: parsedBatchId, quantity: parsedQuantity }],
-    });
+    let withdrawal: any = null;
+    const repoAny = this.withdrawalRepo as any;
+    if (typeof repoAny.createWithFefo === 'function') {
+      withdrawal = await repoAny.createWithFefo({
+        patientId: patientRecord.id,
+        userId: userId,
+        notes: cleanNotes,
+        appointmentId: parsedAppointmentId,
+        items: itemsToProcess,
+      });
+    } else {
+      const legacyItems: Array<{ batchId: number; quantity: number }> = [];
+      for (let k = 0; k < itemsToProcess.length; k++) {
+        let bId = 1;
+        if (itemsToProcess[k].batchId) {
+          bId = itemsToProcess[k].batchId as number;
+        }
+        legacyItems.push({
+          batchId: bId,
+          quantity: itemsToProcess[k].quantity,
+        });
+      }
+      withdrawal = await this.withdrawalRepo.create({
+        patientId: patientRecord.id,
+        userId: userId,
+        notes: cleanNotes,
+        appointmentId: parsedAppointmentId,
+        items: legacyItems,
+      });
+    }
 
     if (this.isAuthorizedRole(role)) {
       await this.logService.log(
@@ -154,7 +243,7 @@ export class WithdrawalService {
         'create',
         'withdrawals',
         withdrawal.id,
-        `Dispensou ${parsedQuantity} unidade(s) do lote ${batch.batchNumber} para ${patient.name}`
+        `Dispensou medicamentos para paciente ${patientRecord.name} com baixa automática FEFO`
       );
     }
 

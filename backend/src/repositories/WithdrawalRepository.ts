@@ -111,6 +111,129 @@ export class WithdrawalRepository {
     });
   }
 
+  async createWithFefo(data: {
+    patientId: number;
+    userId: number;
+    notes?: string | null;
+    appointmentId?: number | null;
+    items: Array<{ medicineId?: number; batchId?: number; quantity: number }>;
+  }) {
+    return prisma.$transaction(async (tx) => {
+      const withdrawal = await tx.withdrawal.create({
+        data: {
+          patientId: data.patientId,
+          userId: data.userId,
+          notes: data.notes,
+          appointmentId: data.appointmentId,
+        },
+        include: {
+          user: { select: { name: true } },
+          patient: { select: { name: true, cpf: true } },
+        },
+      });
+
+      const allocatedBatches = [];
+
+      for (let i = 0; i < data.items.length; i++) {
+        const item = data.items[i];
+        let remainingNeeded = item.quantity;
+        let targetMedicineId = item.medicineId;
+
+        if (!targetMedicineId) {
+          if (item.batchId) {
+            const specificBatch = await tx.stockBatch.findUnique({
+              where: { id: item.batchId },
+            });
+            if (!specificBatch) {
+              throw { statusCode: 404, message: 'Lote não encontrado' };
+            } else {
+              targetMedicineId = specificBatch.medicineId;
+            }
+          }
+        }
+
+        if (!targetMedicineId) {
+          throw { statusCode: 400, message: 'Identificação do medicamento ou lote é obrigatória' };
+        }
+
+        const now = new Date();
+        const candidateBatches = await tx.stockBatch.findMany({
+          where: {
+            medicineId: targetMedicineId,
+            currentQuantity: { gt: 0 },
+            expirationDate: { gte: now },
+          },
+          orderBy: { expirationDate: 'asc' },
+        });
+
+        if (candidateBatches.length === 0) {
+          throw { statusCode: 400, message: 'Não há lotes com saldo disponível dentro da validade para o medicamento' };
+        }
+
+        let totalAvailable = 0;
+        for (let cIdx = 0; cIdx < candidateBatches.length; cIdx++) {
+          totalAvailable = totalAvailable + candidateBatches[cIdx].currentQuantity;
+        }
+
+        if (totalAvailable < remainingNeeded) {
+          throw { statusCode: 400, message: 'Estoque insuficiente nos lotes válidos para atender a dispensação' };
+        }
+
+        for (let bIdx = 0; bIdx < candidateBatches.length; bIdx++) {
+          if (remainingNeeded <= 0) {
+            break;
+          }
+          const batch = candidateBatches[bIdx];
+          let deductQty = 0;
+          if (batch.currentQuantity <= remainingNeeded) {
+            deductQty = batch.currentQuantity;
+          } else {
+            deductQty = remainingNeeded;
+          }
+
+          const updateResult = await tx.stockBatch.updateMany({
+            where: {
+              id: batch.id,
+              currentQuantity: {
+                gte: deductQty,
+              },
+            },
+            data: {
+              currentQuantity: {
+                decrement: deductQty,
+              },
+            },
+          });
+
+          if (updateResult.count === 0) {
+            throw { statusCode: 400, message: 'Estoque insuficiente no lote devido à concorrência de operações' };
+          }
+
+          await tx.withdrawalItem.create({
+            data: {
+              withdrawalId: withdrawal.id,
+              batchId: batch.id,
+              quantity: deductQty,
+            },
+          });
+
+          allocatedBatches.push({
+            batchId: batch.id,
+            batchNumber: batch.batchNumber,
+            quantity: deductQty,
+          });
+
+          remainingNeeded = remainingNeeded - deductQty;
+        }
+      }
+
+      return {
+        ...withdrawal,
+        allocatedItems: allocatedBatches,
+      };
+    });
+  }
+
   async update(id: number, data: { notes?: string | null }) {
     return prisma.withdrawal.update({
       where: { id },

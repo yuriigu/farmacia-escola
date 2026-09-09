@@ -2,7 +2,15 @@
 
 export type Role = 'ADMIN' | 'FARMACEUTICO' | 'MEDICO' | 'ALUNO' | 'PACIENTE';
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
-export type StockStatus = 'ok' | 'low' | 'critical' | 'expired';
+export type StockStatus =
+  | 'IN_STOCK'
+  | 'CRITICAL_EXPIRATION'
+  | 'EXPIRED'
+  | 'OUT_OF_STOCK'
+  | 'ok'
+  | 'low'
+  | 'critical'
+  | 'expired';
 
 export interface Medicine {
   id: number;
@@ -12,7 +20,12 @@ export interface Medicine {
   accessibleDesc: string;
   category?: string | null;
   totalQuantity: number;
+  physicalQuantity?: number;
+  reservedQuantity?: number;
+  availableQuantity?: number;
   batchesCount: number;
+  status?: StockStatus;
+  batches?: Batch[];
   createdAt: string;
 }
 
@@ -23,6 +36,7 @@ export interface Batch {
   currentQuantity: number;
   expirationDate: string;
   receivedAt: string;
+  status?: StockStatus;
   medicine?: {
     id: number;
     name: string;
@@ -75,6 +89,11 @@ export interface Withdrawal {
   createdAt: string;
   quantity: number;
   notes: string;
+  allocatedItems?: Array<{
+    batchId: number;
+    batchNumber: string;
+    quantity: number;
+  }>;
   patient: {
     name: string;
     cpf: string;
@@ -215,37 +234,43 @@ export interface AppointmentDraft {
 }
 
 // FUNCAO PARA CALCULAR O STATUS DO ESTOQUE
-export function computeStockStatus(item: { totalQuantity?: number; expirationDate?: string; isExpired?: boolean }): StockStatus {
+export function computeStockStatus(item: {
+  totalQuantity?: number;
+  physicalQuantity?: number;
+  availableQuantity?: number;
+  expirationDate?: string;
+  isExpired?: boolean;
+}): StockStatus {
   if (item.isExpired) {
-    return 'expired';
+    return 'EXPIRED';
   }
   if (item.expirationDate) {
     const exp = new Date(item.expirationDate);
     const time = exp.getTime();
     const isNan = Number.isNaN(time);
     if (!isNan) {
-      if (time < Date.now()) {
-        return 'expired';
+      const now = Date.now();
+      if (time < now) {
+        return 'EXPIRED';
+      }
+      const thirtyDaysMs = 30 * 24 * 60 * 60 * 1000;
+      if (time - now <= thirtyDaysMs) {
+        return 'CRITICAL_EXPIRATION';
       }
     }
   }
 
   let qty = 0;
-  if (item.totalQuantity !== null) {
-    if (item.totalQuantity !== undefined) {
-      qty = item.totalQuantity;
-    } else {
-      qty = 0;
-    }
+  if (item.totalQuantity !== null && item.totalQuantity !== undefined) {
+    qty = item.totalQuantity;
+  } else if (item.physicalQuantity !== null && item.physicalQuantity !== undefined) {
+    qty = item.physicalQuantity;
   } else {
     qty = 0;
   }
 
   if (qty <= 0) {
-    return 'critical';
+    return 'OUT_OF_STOCK';
   }
-  if (qty <= 10) {
-    return 'low';
-  }
-  return 'ok';
+  return 'IN_STOCK';
 }

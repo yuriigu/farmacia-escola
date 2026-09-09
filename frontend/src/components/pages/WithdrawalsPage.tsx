@@ -171,8 +171,32 @@ export function WithdrawalsPage() {
       return;
     }
     try {
-      await api.createWithdrawal(form);
-      toast.success('Retirada registrada com sucesso!');
+      const res: any = await api.createWithdrawal(form);
+      let successMsg = 'Retirada registrada com sucesso via FEFO!';
+      if (res) {
+        if (res.allocatedItems) {
+          if (Array.isArray(res.allocatedItems)) {
+            if (res.allocatedItems.length > 0) {
+              const allocatedList: string[] = [];
+              for (let i = 0; i < res.allocatedItems.length; i++) {
+                const item = res.allocatedItems[i];
+                let bName = 'Lote ' + item.batchId;
+                if (item.batchNumber) {
+                  bName = 'Lote ' + item.batchNumber;
+                }
+                allocatedList.push(bName + ' (' + item.quantity + ' un.)');
+              }
+              successMsg = 'Retirada confirmada com sucesso (FEFO)! Baixa automática: ' + allocatedList.join(', ');
+            }
+          }
+        }
+      }
+      if (successMsg === 'Retirada registrada com sucesso via FEFO!') {
+        if (selectedBatch) {
+          successMsg = 'Retirada realizada com sucesso (FEFO)! Baixa de ' + form.quantity + ' un. no Lote ' + selectedBatch.batchNumber + '.';
+        }
+      }
+      toast.success(successMsg);
       setForm({ patientName: '', patientCpf: '', batchId: 0, quantity: 0, notes: '' });
       setModalOpen(false);
       fetchAllData();

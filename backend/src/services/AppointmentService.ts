@@ -75,7 +75,7 @@ export class AppointmentService {
     patientName?: string;
     patientCpf?: string;
     notes?: string;
-    items: Array<{ medicineId: number; quantity: number }>;
+    items?: Array<{ medicineId: number; quantity: number }>;
   }) {
     const { scheduledDate, scheduledTime, slotId, patientId, patientName, patientCpf, notes, items } = data;
 
@@ -145,6 +145,14 @@ export class AppointmentService {
       const med = await this.medicineRepo.findById(medId);
       if (!med) {
         throw { statusCode: 404, message: `Medicamento #${medId} não encontrado` };
+      }
+
+      const stockInfo = await this.calculateRealAvailableStock(medId);
+      if (qty > stockInfo.realAvailableStock) {
+        throw {
+          statusCode: 400,
+          message: `Estoque insuficiente para o medicamento "${med.name}". Solicitado: ${qty}, Disponível real: ${stockInfo.realAvailableStock} (Físico: ${stockInfo.physicalStockTotal}, Reservado: ${stockInfo.reservedQuantity})`,
+        };
       }
     }
 
@@ -404,5 +412,106 @@ export class AppointmentService {
     );
 
     return { message: 'Agendamento cancelado/excluído com sucesso' };
+  }
+
+  async calculateRealAvailableStock(medicineId: number): Promise<{
+    physicalStockTotal: number;
+    reservedQuantity: number;
+    realAvailableStock: number;
+  }> {
+    const med = await this.medicineRepo.findById(medicineId);
+    if (!med) {
+      throw { statusCode: 404, message: `Medicamento #${medicineId} não encontrado` };
+    }
+
+    const now = new Date();
+    let physicalStockTotal = 0;
+
+    let activeBatches: any[] = [];
+    try {
+      activeBatches = await prisma.stockBatch.findMany({
+        where: {
+          medicineId: medicineId,
+          currentQuantity: { gt: 0 },
+          expirationDate: { gte: now },
+        },
+      });
+    } catch (dbErr) {
+      activeBatches = [];
+    }
+
+    if (activeBatches) {
+      if (Array.isArray(activeBatches)) {
+        if (activeBatches.length > 0) {
+          for (let b = 0; b < activeBatches.length; b++) {
+            physicalStockTotal = physicalStockTotal + activeBatches[b].currentQuantity;
+          }
+        }
+      }
+    }
+
+    if (physicalStockTotal === 0) {
+      if (med) {
+        let batchesFound = false;
+        if (med.batches) {
+          if (Array.isArray(med.batches)) {
+            if (med.batches.length > 0) {
+              batchesFound = true;
+              for (let b = 0; b < med.batches.length; b++) {
+                const bItem = med.batches[b];
+                const expTime = new Date(bItem.expirationDate).getTime();
+                if (expTime >= now.getTime()) {
+                  if (bItem.currentQuantity > 0) {
+                    physicalStockTotal = physicalStockTotal + bItem.currentQuantity;
+                  }
+                }
+              }
+            }
+          }
+        }
+        if (!batchesFound) {
+          if (typeof (med as any).totalQuantity === 'number') {
+            if ((med as any).totalQuantity > 0) {
+              physicalStockTotal = (med as any).totalQuantity;
+            }
+          }
+        }
+      }
+    }
+
+    let reservedQuantity = 0;
+    try {
+      const pendingItems = await prisma.appointmentItem.findMany({
+        where: {
+          medicineId: medicineId,
+          appointment: {
+            status: 'PENDING',
+          },
+        },
+        select: {
+          quantity: true,
+        },
+      });
+      if (pendingItems) {
+        if (Array.isArray(pendingItems)) {
+          for (let p = 0; p < pendingItems.length; p++) {
+            reservedQuantity = reservedQuantity + pendingItems[p].quantity;
+          }
+        }
+      }
+    } catch (dbErr) {
+      reservedQuantity = 0;
+    }
+
+    let realAvailableStock = physicalStockTotal - reservedQuantity;
+    if (realAvailableStock < 0) {
+      realAvailableStock = 0;
+    }
+
+    return {
+      physicalStockTotal: physicalStockTotal,
+      reservedQuantity: reservedQuantity,
+      realAvailableStock: realAvailableStock,
+    };
   }
 }

@@ -13,10 +13,6 @@ export class MedicineController {
 
   getAll = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      if (!req.user) {
-        res.status(401).json({ error: 'Não autenticado' });
-        return;
-      }
       const medicines = await this.medicineService.getAll();
       res.json(medicines);
       return;
@@ -33,10 +29,6 @@ export class MedicineController {
 
   getById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      if (!req.user) {
-        res.status(401).json({ error: 'Não autenticado' });
-        return;
-      }
       const id = Number(req.params.id);
       if (!id) {
         res.status(400).json({ error: 'ID de medicamento inválido' });

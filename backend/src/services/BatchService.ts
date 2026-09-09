@@ -1,16 +1,19 @@
 import { BatchRepository } from '../repositories/BatchRepository';
 import { MedicineRepository } from '../repositories/MedicineRepository';
 import { ActivityLogService } from './ActivityLogService';
+import { StockStatusService } from './StockStatusService';
 
 export class BatchService {
   private batchRepo: BatchRepository;
   private medicineRepo: MedicineRepository;
   private logService: ActivityLogService;
+  private stockStatusService: StockStatusService;
 
   constructor() {
     this.batchRepo = new BatchRepository();
     this.medicineRepo = new MedicineRepository();
     this.logService = new ActivityLogService();
+    this.stockStatusService = new StockStatusService();
   }
 
   async getAll(medicineId?: number) {

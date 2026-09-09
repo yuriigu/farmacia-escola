@@ -64,7 +64,8 @@ export class MedicineService {
         const batch = batchesList[j];
         const batchStatus = this.stockStatusService.calculateBatchStatus(
           batch.currentQuantity,
-          batch.expirationDate
+          batch.expirationDate,
+          batch.isBlocked
         );
         formattedBatches.push({
           ...batch,
@@ -118,7 +119,8 @@ export class MedicineService {
       const batch = batchesList[j];
       const batchStatus = this.stockStatusService.calculateBatchStatus(
         batch.currentQuantity,
-        batch.expirationDate
+        batch.expirationDate,
+        batch.isBlocked
       );
       formattedBatches.push({
         ...batch,

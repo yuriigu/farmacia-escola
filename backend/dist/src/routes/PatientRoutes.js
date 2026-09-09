@@ -1,0 +1,15 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const PatientController_1 = require("../controllers/PatientController");
+const AuthMiddleware_1 = require("../middlewares/AuthMiddleware");
+const RoleMiddleware_1 = require("../middlewares/RoleMiddleware");
+const router = (0, express_1.Router)();
+const controller = new PatientController_1.PatientController();
+router.use(AuthMiddleware_1.authMiddleware);
+router.get('/', controller.getAll);
+router.get('/:id', controller.getById);
+router.post('/', (0, RoleMiddleware_1.requirePermission)('patients'), (0, RoleMiddleware_1.authorizeRoles)('ADMIN', 'FARMACEUTICO', 'ALUNO', 'MEDICO'), controller.create);
+router.put('/:id', (0, RoleMiddleware_1.requirePermission)('patients'), (0, RoleMiddleware_1.authorizeRoles)('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.update);
+router.delete('/:id', (0, RoleMiddleware_1.authorizeRoles)('ADMIN', 'FARMACEUTICO'), controller.delete);
+exports.default = router;

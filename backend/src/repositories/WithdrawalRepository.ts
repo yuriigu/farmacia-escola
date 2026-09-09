@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from '../utils/Prisma';
 
 export class WithdrawalRepository {
@@ -76,13 +77,38 @@ export class WithdrawalRepository {
           throw { statusCode: 404, message: 'Lote não encontrado' };
         }
 
+        if ((batch as any).isBlocked) {
+          throw { statusCode: 400, message: 'O lote selecionado está bloqueado sanitariamente e não pode ser dispensado' };
+        }
+
+        if (batch.expirationDate) {
+          const now = new Date();
+          const expDate = new Date(batch.expirationDate);
+          if (expDate.getTime() < now.getTime()) {
+            throw { statusCode: 400, message: 'O lote selecionado está vencido e não pode ser dispensado' };
+          }
+        }
+
         if (batch.currentQuantity < item.quantity) {
           throw { statusCode: 400, message: 'Quantidade insuficiente em estoque para o lote informado' };
+        }
+
+        if (typeof (tx as any).$queryRawUnsafe === 'function') {
+          try {
+            await tx.$queryRawUnsafe(`SELECT id, currentQuantity FROM StockBatch WHERE id = ${item.batchId} FOR UPDATE`);
+          } catch {
+            try {
+              await tx.$queryRawUnsafe(`SELECT id, currentQuantity FROM StockBatch WHERE id = ${item.batchId}`);
+            } catch {
+              // Ignore if query fails
+            }
+          }
         }
 
         const updateResult = await tx.stockBatch.updateMany({
           where: {
             id: item.batchId,
+            isBlocked: false,
             currentQuantity: {
               gte: item.quantity,
             },
@@ -108,6 +134,8 @@ export class WithdrawalRepository {
       }
 
       return withdrawal;
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
   }
 
@@ -147,6 +175,14 @@ export class WithdrawalRepository {
             if (!specificBatch) {
               throw { statusCode: 404, message: 'Lote não encontrado' };
             } else {
+              if ((specificBatch as any).isBlocked) {
+                throw { statusCode: 400, message: 'O lote selecionado está bloqueado sanitariamente e não pode ser dispensado' };
+              }
+              const nowCheck = new Date();
+              const batchExp = new Date(specificBatch.expirationDate);
+              if (batchExp.getTime() < nowCheck.getTime()) {
+                throw { statusCode: 400, message: 'O lote selecionado está vencido e não pode ser dispensado' };
+              }
               targetMedicineId = specificBatch.medicineId;
             }
           }
@@ -160,6 +196,7 @@ export class WithdrawalRepository {
         const candidateBatches = await tx.stockBatch.findMany({
           where: {
             medicineId: targetMedicineId,
+            isBlocked: false,
             currentQuantity: { gt: 0 },
             expirationDate: { gte: now },
           },
@@ -191,9 +228,16 @@ export class WithdrawalRepository {
             deductQty = remainingNeeded;
           }
 
+          try {
+            await tx.$queryRawUnsafe(`SELECT id, currentQuantity FROM StockBatch WHERE id = ${batch.id} FOR UPDATE`);
+          } catch {
+            await tx.$queryRawUnsafe(`SELECT id, currentQuantity FROM StockBatch WHERE id = ${batch.id}`);
+          }
+
           const updateResult = await tx.stockBatch.updateMany({
             where: {
               id: batch.id,
+              isBlocked: false,
               currentQuantity: {
                 gte: deductQty,
               },
@@ -231,6 +275,8 @@ export class WithdrawalRepository {
         ...withdrawal,
         allocatedItems: allocatedBatches,
       };
+    }, {
+      isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
     });
   }
 

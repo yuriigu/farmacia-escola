@@ -11,6 +11,8 @@ router.use(authMiddleware);
 router.get('/', requirePermission('batches'), controller.getAll);
 router.get('/:id', requirePermission('batches'), controller.getById);
 router.post('/', requirePermission('batches'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.create);
+router.post('/:id/adjustments', requirePermission('batches'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.adjust);
+router.patch('/:id/block', requirePermission('batches'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.toggleBlock);
 router.put('/:id', requirePermission('batches'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.update);
 router.delete('/:id', authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.delete);
 

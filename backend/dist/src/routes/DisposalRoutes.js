@@ -1,0 +1,17 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const DisposalController_1 = require("../controllers/DisposalController");
+const AuthMiddleware_1 = require("../middlewares/AuthMiddleware");
+const RoleMiddleware_1 = require("../middlewares/RoleMiddleware");
+const ValidationMiddleware_1 = require("../middlewares/ValidationMiddleware");
+const router = (0, express_1.Router)();
+const controller = new DisposalController_1.DisposalController();
+router.use(AuthMiddleware_1.authMiddleware);
+router.get('/', (0, RoleMiddleware_1.requirePermission)('disposals'), controller.getAll);
+router.get('/:id', (0, RoleMiddleware_1.requirePermission)('disposals'), controller.getById);
+router.post('/', (0, RoleMiddleware_1.requirePermission)('disposals'), (0, RoleMiddleware_1.authorizeRoles)('ADMIN', 'FARMACEUTICO', 'ALUNO'), (0, ValidationMiddleware_1.validateBody)(ValidationMiddleware_1.disposalCreateSchema), controller.create);
+router.put('/:id', (0, RoleMiddleware_1.requirePermission)('disposals'), (0, RoleMiddleware_1.authorizeRoles)('ADMIN', 'FARMACEUTICO'), controller.update);
+router.delete('/:id', (0, RoleMiddleware_1.authorizeRoles)('ADMIN', 'FARMACEUTICO'), controller.delete);
+router.post('/:id/revert', (0, RoleMiddleware_1.authorizeRoles)('ADMIN', 'FARMACEUTICO'), controller.revert);
+exports.default = router;

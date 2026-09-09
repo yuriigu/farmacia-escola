@@ -107,11 +107,27 @@ export const batchCreateSchema = z.object({
   batchNumber: z.string().min(1, 'Número do lote é obrigatório'),
   currentQuantity: z.number().int().min(0, 'Quantidade inicial não pode ser negativa'),
   expirationDate: z.string().min(1, 'Data de validade é obrigatória'),
+  manufacturingDate: z.string().optional(),
+  supplier: z.string().min(1, 'Fornecedor/origem é obrigatório'),
+  isBlocked: z.boolean().optional(),
+  blockReason: z.string().optional(),
 }).strict();
 
 export const batchUpdateSchema = z.object({
-  currentQuantity: z.number().int().min(0).optional(),
+  batchNumber: z.string().min(1).optional(),
   expirationDate: z.string().optional(),
+  manufacturingDate: z.string().optional(),
+  supplier: z.string().min(1).optional(),
+}).strict();
+
+export const batchBlockSchema = z.object({
+  isBlocked: z.boolean(),
+  blockReason: z.string().optional(),
+}).strict();
+
+export const batchAdjustmentSchema = z.object({
+  newQuantity: z.number().int().min(0, 'A nova quantidade não pode ser negativa'),
+  reason: z.string().min(1, 'A justificativa do ajuste é obrigatória'),
 }).strict();
 
 export const patientCreateSchema = z.object({

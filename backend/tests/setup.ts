@@ -1,8 +1,8 @@
 import { vi, beforeEach } from 'vitest';
 
-process.env.JWT_SECRET = 'test-secret-key-12345';
-process.env.JWT_EXPIRES_IN = '1d';
-process.env.NODE_ENV = 'test';
+vi.stubEnv('JWT_SECRET', 'test-secret-key-12345');
+vi.stubEnv('JWT_EXPIRES_IN', '1d');
+vi.stubEnv('NODE_ENV', 'test');
 
 vi.mock('@prisma/client', () => {
   return {
@@ -38,8 +38,19 @@ vi.mock('@prisma/client', () => {
         findMany: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(),
         delete: vi.fn(),
       };
+      stockBatch = {
+        findUnique: vi.fn(),
+        findFirst: vi.fn(),
+        findMany: vi.fn(),
+        create: vi.fn(),
+        update: vi.fn(),
+        updateMany: vi.fn(),
+        delete: vi.fn(),
+      };
+      $queryRawUnsafe = vi.fn().mockResolvedValue([]);
       appointment = {
         findUnique: vi.fn(),
         findFirst: vi.fn(),
@@ -86,6 +97,11 @@ vi.mock('@prisma/client', () => {
       ALUNO: 'ALUNO',
       MEDICO: 'MEDICO',
       PACIENTE: 'PACIENTE',
+    },
+    Prisma: {
+      TransactionIsolationLevel: {
+        Serializable: 'Serializable',
+      },
     },
   };
 });

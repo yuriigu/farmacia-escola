@@ -4,10 +4,15 @@ export interface BatchItem {
   id?: number;
   currentQuantity: number;
   expirationDate: string | Date;
+  isBlocked?: boolean;
 }
 
 export class StockStatusService {
-  calculateBatchStatus(currentQuantity: number, expirationDate: string | Date): StockStatus {
+  calculateBatchStatus(currentQuantity: number, expirationDate: string | Date, isBlocked?: boolean): StockStatus {
+    if (isBlocked) {
+      return StockStatus.BLOCKED;
+    }
+
     const now = new Date();
     const nowTime = now.getTime();
     const expDate = new Date(expirationDate);
@@ -53,13 +58,15 @@ export class StockStatusService {
       const expDate = new Date(batch.expirationDate);
       const expTime = expDate.getTime();
 
-      if (expTime >= nowTime) {
-        allBatchesExpired = false;
-        if (batch.currentQuantity > 0) {
-          totalActiveQuantity = totalActiveQuantity + batch.currentQuantity;
-          const timeDifference = expTime - nowTime;
-          if (timeDifference <= thirtyDaysInMs) {
-            hasCriticalExpiration = true;
+      if (!batch.isBlocked) {
+        if (expTime >= nowTime) {
+          allBatchesExpired = false;
+          if (batch.currentQuantity > 0) {
+            totalActiveQuantity = totalActiveQuantity + batch.currentQuantity;
+            const timeDifference = expTime - nowTime;
+            if (timeDifference <= thirtyDaysInMs) {
+              hasCriticalExpiration = true;
+            }
           }
         }
       }
@@ -112,9 +119,11 @@ export class StockStatusService {
       const expDate = new Date(batch.expirationDate);
       const expTime = expDate.getTime();
 
-      if (expTime >= nowTime) {
-        if (batch.currentQuantity > 0) {
-          totalValidQuantity = totalValidQuantity + batch.currentQuantity;
+      if (!batch.isBlocked) {
+        if (expTime >= nowTime) {
+          if (batch.currentQuantity > 0) {
+            totalValidQuantity = totalValidQuantity + batch.currentQuantity;
+          }
         }
       }
       index = index + 1;

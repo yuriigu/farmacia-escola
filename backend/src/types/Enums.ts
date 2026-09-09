@@ -18,6 +18,7 @@ export const AppointmentStatus = {
 export type AppointmentStatus = typeof AppointmentStatus[keyof typeof AppointmentStatus];
 
 export const StockStatus = {
+  BLOCKED: 'BLOCKED',
   CRITICAL_EXPIRATION: 'CRITICAL_EXPIRATION',
   EXPIRED: 'EXPIRED',
   OUT_OF_STOCK: 'OUT_OF_STOCK',

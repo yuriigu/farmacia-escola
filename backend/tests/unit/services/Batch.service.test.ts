@@ -22,6 +22,8 @@ describe('BatchService', () => {
       findByBatchNumber: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
+      setQuantity: vi.fn(),
+      setBlockStatus: vi.fn(),
       delete: vi.fn(),
     };
     mockMedicineRepo = {
@@ -56,7 +58,7 @@ describe('BatchService', () => {
     expect(mockBatchRepo.findById).toHaveBeenCalledWith(1);
   });
 
-  it('deve criar novo lote com sucesso', async () => {
+  it('deve criar novo lote com sucesso incluindo fornecedor', async () => {
     mockMedicineRepo.findById.mockResolvedValue(mockMedicine);
     mockBatchRepo.create.mockResolvedValue(mockBatch);
 
@@ -65,9 +67,53 @@ describe('BatchService', () => {
       batchNumber: 'LOTE-2025-001',
       currentQuantity: 100,
       expirationDate: '2026-12-31',
+      supplier: 'Laboratório Farmacêutico Nacional',
     });
 
     expect(result).toEqual(mockBatch);
     expect(mockBatchRepo.create).toHaveBeenCalled();
+  });
+
+  it('deve realizar ajuste de estoque com justificativa e log', async () => {
+    mockBatchRepo.findById.mockResolvedValue(mockBatch);
+    const updatedBatch = { ...mockBatch, currentQuantity: 95 };
+    mockBatchRepo.setQuantity.mockResolvedValue(updatedBatch);
+
+    const result = await batchService.adjustStock(1, 'FARMACEUTICO', 1, {
+      newQuantity: 95,
+      reason: 'Inventário rotativo conferido',
+    });
+
+    expect(result.currentQuantity).toBe(95);
+    expect(mockBatchRepo.setQuantity).toHaveBeenCalledWith(1, 95);
+  });
+
+  it('deve bloquear lote com motivo sanitário', async () => {
+    mockBatchRepo.findById.mockResolvedValue(mockBatch);
+    const blockedBatch = { ...mockBatch, isBlocked: true, blockReason: 'Recall sanitário Anvisa' };
+    mockBatchRepo.setBlockStatus.mockResolvedValue(blockedBatch);
+
+    const result = await batchService.setBlockStatus(1, 'FARMACEUTICO', 1, {
+      isBlocked: true,
+      blockReason: 'Recall sanitário Anvisa',
+    });
+
+    expect((result as any).isBlocked).toBe(true);
+    expect((result as any).blockReason).toBe('Recall sanitário Anvisa');
+    expect(mockBatchRepo.setBlockStatus).toHaveBeenCalledWith(1, true, 'Recall sanitário Anvisa');
+  });
+
+  it('deve desbloquear lote sanitariamente', async () => {
+    const blockedBatch = { ...mockBatch, isBlocked: true, blockReason: 'Suspeita de avaria' };
+    mockBatchRepo.findById.mockResolvedValue(blockedBatch);
+    const unblockedBatch = { ...mockBatch, isBlocked: false, blockReason: null };
+    mockBatchRepo.setBlockStatus.mockResolvedValue(unblockedBatch);
+
+    const result = await batchService.setBlockStatus(1, 'FARMACEUTICO', 1, {
+      isBlocked: false,
+    });
+
+    expect((result as any).isBlocked).toBe(false);
+    expect(mockBatchRepo.setBlockStatus).toHaveBeenCalledWith(1, false, null);
   });
 });

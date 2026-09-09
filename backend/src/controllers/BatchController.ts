@@ -2,7 +2,12 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/AuthMiddleware';
 import { BatchService } from '../services/BatchService';
 import { prisma } from '../utils/Prisma';
-import { batchCreateSchema, batchUpdateSchema } from '../middlewares/ValidationMiddleware';
+import {
+  batchCreateSchema,
+  batchUpdateSchema,
+  batchBlockSchema,
+  batchAdjustmentSchema,
+} from '../middlewares/ValidationMiddleware';
 
 export class BatchController {
   private batchService: BatchService;
@@ -197,6 +202,13 @@ export class BatchController {
         return;
       }
 
+      if (req.body.currentQuantity !== undefined) {
+        res.status(400).json({
+          error: 'Alteração direta de saldo não é permitida. Para correções de estoque, utilize o endpoint auditado /api/batches/:id/adjustments',
+        });
+        return;
+      }
+
       const validationResult = batchUpdateSchema.safeParse(req.body);
       if (!validationResult.success) {
         let errorMsg = 'Dados inválidos na requisição';
@@ -225,6 +237,162 @@ export class BatchController {
         return;
       } else {
         res.status(500).json({ error: 'Erro ao atualizar lote' });
+        return;
+      }
+    }
+  };
+
+  adjust = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Não autenticado' });
+        return;
+      }
+      const userId = req.user.userId;
+      const role = req.user.role;
+      const id = Number(req.params.id);
+
+      if (!id) {
+        res.status(400).json({ error: 'ID de lote inválido' });
+        return;
+      } else {
+        if (isNaN(id)) {
+          res.status(400).json({ error: 'ID de lote inválido' });
+          return;
+        }
+      }
+
+      let isAllowed = false;
+      if (role === 'ADMIN') {
+        isAllowed = true;
+      } else {
+        if (role === 'FARMACEUTICO') {
+          isAllowed = true;
+        } else {
+          isAllowed = false;
+        }
+      }
+
+      if (!isAllowed) {
+        res.status(403).json({ error: 'Apenas administradores e farmacêuticos podem realizar ajustes de estoque' });
+        return;
+      }
+
+      const batchRecord = await prisma.stockBatch.findUnique({
+        where: { id: id },
+      });
+
+      if (!batchRecord) {
+        res.status(404).json({ error: 'Lote não encontrado' });
+        return;
+      }
+
+      const validationResult = batchAdjustmentSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        let errorMsg = 'Dados inválidos na requisição';
+        if (validationResult.error) {
+          if (validationResult.error.issues) {
+            if (validationResult.error.issues.length > 0) {
+              const firstIssue = validationResult.error.issues[0];
+              if (firstIssue) {
+                if (firstIssue.message) {
+                  errorMsg = firstIssue.message;
+                }
+              }
+            }
+          }
+        }
+        res.status(400).json({ error: errorMsg, details: validationResult.error.issues });
+        return;
+      }
+
+      const updated = await this.batchService.adjustStock(userId, role, id, validationResult.data);
+      res.json(updated);
+      return;
+    } catch (err: any) {
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao ajustar estoque do lote' });
+        return;
+      }
+    }
+  };
+
+  toggleBlock = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Não autenticado' });
+        return;
+      }
+      const userId = req.user.userId;
+      const role = req.user.role;
+      const id = Number(req.params.id);
+
+      if (!id) {
+        res.status(400).json({ error: 'ID de lote inválido' });
+        return;
+      } else {
+        if (isNaN(id)) {
+          res.status(400).json({ error: 'ID de lote inválido' });
+          return;
+        }
+      }
+
+      let isAllowed = false;
+      if (role === 'ADMIN') {
+        isAllowed = true;
+      } else {
+        if (role === 'FARMACEUTICO') {
+          isAllowed = true;
+        } else {
+          isAllowed = false;
+        }
+      }
+
+      if (!isAllowed) {
+        res.status(403).json({ error: 'Apenas administradores e farmacêuticos podem alterar o bloqueio sanitário' });
+        return;
+      }
+
+      const batchRecord = await prisma.stockBatch.findUnique({
+        where: { id: id },
+      });
+
+      if (!batchRecord) {
+        res.status(404).json({ error: 'Lote não encontrado' });
+        return;
+      }
+
+      const validationResult = batchBlockSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        let errorMsg = 'Dados inválidos na requisição';
+        if (validationResult.error) {
+          if (validationResult.error.issues) {
+            if (validationResult.error.issues.length > 0) {
+              const firstIssue = validationResult.error.issues[0];
+              if (firstIssue) {
+                if (firstIssue.message) {
+                  errorMsg = firstIssue.message;
+                }
+              }
+            }
+          }
+        }
+        res.status(400).json({ error: errorMsg, details: validationResult.error.issues });
+        return;
+      }
+
+      const updated = await this.batchService.setBlockStatus(userId, role, id, validationResult.data);
+      res.json(updated);
+      return;
+    } catch (err: any) {
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao alterar bloqueio sanitário do lote' });
         return;
       }
     }

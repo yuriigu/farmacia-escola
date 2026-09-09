@@ -71,12 +71,16 @@ model Medicine {
 }
 
 model StockBatch {
-  id              Int      @id @default(autoincrement())
-  medicineId      Int
-  batchNumber     String
-  currentQuantity Int      @default(0)
-  expirationDate  DateTime
-  receivedAt      DateTime @default(now())
+  id                Int       @id @default(autoincrement())
+  medicineId        Int
+  batchNumber       String
+  currentQuantity   Int       @default(0)
+  expirationDate    DateTime
+  manufacturingDate DateTime?
+  supplier          String    @default("Não informado")
+  isBlocked         Boolean   @default(false)
+  blockReason       String?
+  receivedAt        DateTime  @default(now())
 
   medicine          Medicine        @relation(fields: [medicineId], references: [id])
   withdrawalItems   WithdrawalItem[]

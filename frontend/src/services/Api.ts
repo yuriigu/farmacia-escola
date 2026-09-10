@@ -59,6 +59,17 @@ export const api = {
     const result = response.data;
     return result;
   },
+  patch: async <T>(url: string, data?: any, config?: any) => {
+    let finalUrl = `/api${url}`;
+    if (url.startsWith('/api')) {
+      finalUrl = url;
+    } else {
+      finalUrl = `/api${url}`;
+    }
+    const response = await apiClient.patch<T>(finalUrl, data, config);
+    const result = response.data;
+    return result;
+  },
   delete: async <T>(url: string, config?: any) => {
     let finalUrl = `/api${url}`;
     if (url.startsWith('/api')) {
@@ -163,14 +174,28 @@ export const api = {
       batchNumber: string;
       currentQuantity: number;
       expirationDate: string;
+      manufacturingDate?: string | null;
+      supplier: string;
+      isBlocked?: boolean;
+      blockReason?: string | null;
     }) => {
       const response = await apiClient.post<Batch>('/api/batches', data);
       const result = response.data;
       return result;
     },
+    block: async (id: number, data: { isBlocked: boolean; blockReason?: string | null }) => {
+      const response = await apiClient.patch<Batch>('/api/batches/' + id + '/block', data);
+      const result = response.data;
+      return result;
+    },
+    adjust: async (id: number, data: { newQuantity: number; reason: string }) => {
+      const response = await apiClient.post<Batch>('/api/batches/' + id + '/adjustments', data);
+      const result = response.data;
+      return result;
+    },
     update: async (
       id: number,
-      data: { batchNumber?: string; currentQuantity?: number; expirationDate?: string }
+      data: { batchNumber?: string; currentQuantity?: number; expirationDate?: string; supplier?: string; manufacturingDate?: string | null }
     ) => {
       const response = await apiClient.put<Batch>(`/api/batches/${id}`, data);
       const result = response.data;

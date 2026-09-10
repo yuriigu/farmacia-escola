@@ -400,6 +400,38 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
         </div>
       </div>
 
+      {/* Sanitary Block Alert Banner */}
+      {(() => {
+        const blockedBatches = batches.filter((b) => b.isBlocked);
+        if (blockedBatches.length > 0) {
+          let pluralText = 'lotes com bloqueio ativo';
+          if (blockedBatches.length === 1) {
+            pluralText = 'lote com bloqueio ativo';
+          }
+          return (
+            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-rose-100 dark:bg-rose-900/50 text-rose-600 rounded-xl">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-rose-800 dark:text-rose-200">
+                    Atenção Sanitária: {blockedBatches.length} {pluralText}
+                  </p>
+                  <p className="text-xs text-rose-600 dark:text-rose-300">
+                    Estes lotes estão retidos e impedidos de dispensação pelo algoritmo FEFO.
+                  </p>
+                </div>
+              </div>
+              <Button asChild variant="outline" size="sm" className="border-rose-300 text-rose-700 hover:bg-rose-100 rounded-xl text-xs">
+                <Link href="/estoque">Gerenciar Lotes</Link>
+              </Button>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
       {/* Unified Stock Taxonomy KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Stock */}

@@ -7,6 +7,10 @@ export const estoqueService = {
   
   getBatches: () => api.get<Batch[]>('/batches'),
   createBatch: (data: Partial<Batch>) => api.post<Batch>('/batches', data),
+  blockBatch: (id: number, data: { isBlocked: boolean; blockReason?: string | null }) =>
+    api.patch<Batch>('/batches/' + id + '/block', data),
+  adjustBatch: (id: number, data: { newQuantity: number; reason: string }) =>
+    api.post<Batch>('/batches/' + id + '/adjustments', data),
   
   getWithdrawals: () => api.get<Withdrawal[]>('/withdrawals'),
   createWithdrawal: (data: Partial<Withdrawal>) => api.post<Withdrawal>('/withdrawals', data),

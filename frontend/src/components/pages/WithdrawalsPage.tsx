@@ -164,6 +164,10 @@ export function WithdrawalsPage() {
     if (!selectedBatch) {
       return;
     }
+    if (selectedBatch.isBlocked) {
+      toast.error('Este lote possui bloqueio sanitário ativo e não pode ser dispensado.');
+      return;
+    }
     if (overBalance) {
       return;
     }
@@ -545,7 +549,15 @@ export function WithdrawalsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {batches
-                    .filter((b) => b.currentQuantity > 0)
+                    .filter((b) => {
+                      if (b.isBlocked) {
+                        return false;
+                      }
+                      if (b.currentQuantity <= 0) {
+                        return false;
+                      }
+                      return true;
+                    })
                     .map((b) => {
                       let mName = '';
                       let mDosage = '';

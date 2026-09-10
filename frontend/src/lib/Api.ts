@@ -22,10 +22,22 @@ export const api = {
 
   // Batches
   getBatches: (medicineId?: number) => serviceApi.batches.getAll(medicineId),
-  createBatch: (data: { medicineId: number; batchNumber: string; currentQuantity: number; expirationDate: string }) =>
-    serviceApi.batches.create(data),
-  updateBatch: (id: number, data: { batchNumber?: string; currentQuantity?: number; expirationDate?: string }) =>
+  createBatch: (data: {
+    medicineId: number;
+    batchNumber: string;
+    currentQuantity: number;
+    expirationDate: string;
+    manufacturingDate?: string | null;
+    supplier: string;
+    isBlocked?: boolean;
+    blockReason?: string | null;
+  }) => serviceApi.batches.create(data),
+  updateBatch: (id: number, data: { batchNumber?: string; currentQuantity?: number; expirationDate?: string; supplier?: string; manufacturingDate?: string | null }) =>
     serviceApi.batches.update(id, data),
+  blockBatch: (id: number, data: { isBlocked: boolean; blockReason?: string | null }) =>
+    serviceApi.batches.block(id, data),
+  adjustBatch: (id: number, data: { newQuantity: number; reason: string }) =>
+    serviceApi.batches.adjust(id, data),
   deleteBatch: (id: number) => serviceApi.batches.delete(id),
 
   // Withdrawals

@@ -7,6 +7,13 @@ export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
+      '@/services/api': path.resolve(__dirname, './src/services/Api.ts'),
+      '@/services/estoqueService': path.resolve(__dirname, './src/services/EstoqueService.ts'),
+      '@/services/agendamentoService': path.resolve(__dirname, './src/services/AgendamentoService.ts'),
+      '@/hooks/useEstoque': path.resolve(__dirname, './src/hooks/UseEstoque.ts'),
+      '@/hooks/useAgendamento': path.resolve(__dirname, './src/hooks/UseAgendamento.ts'),
+      '@/lib/api': path.resolve(__dirname, './src/lib/Api.ts'),
+      '@/lib/axios': path.resolve(__dirname, './src/lib/Axios.ts'),
       '@': path.resolve(__dirname, './src'),
     },
   },

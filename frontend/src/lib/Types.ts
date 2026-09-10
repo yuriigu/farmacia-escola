@@ -7,6 +7,11 @@ export type StockStatus =
   | 'CRITICAL_EXPIRATION'
   | 'EXPIRED'
   | 'OUT_OF_STOCK'
+  | 'BLOCKED'
+  | 'Ativo'
+  | 'Vencido'
+  | 'Esgotado'
+  | 'Bloqueado'
   | 'ok'
   | 'low'
   | 'critical'
@@ -35,7 +40,11 @@ export interface Batch {
   batchNumber: string;
   currentQuantity: number;
   expirationDate: string;
-  receivedAt: string;
+  manufacturingDate?: string | null;
+  supplier?: string;
+  isBlocked?: boolean;
+  blockReason?: string | null;
+  receivedAt?: string;
   status?: StockStatus;
   medicine?: {
     id: number;
@@ -203,6 +212,8 @@ export interface BatchEntryDraft {
   batchNumber: string;
   currentQuantity: number;
   expirationDate: string;
+  manufacturingDate?: string;
+  supplier: string;
 }
 
 export interface WithdrawalDraft {
@@ -240,7 +251,11 @@ export function computeStockStatus(item: {
   availableQuantity?: number;
   expirationDate?: string;
   isExpired?: boolean;
+  isBlocked?: boolean;
 }): StockStatus {
+  if (item.isBlocked) {
+    return 'BLOCKED';
+  }
   if (item.isExpired) {
     return 'EXPIRED';
   }

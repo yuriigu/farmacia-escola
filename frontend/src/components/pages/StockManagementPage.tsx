@@ -2,8 +2,10 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
+import { z } from 'zod';
 import {
-  Boxes, Plus, Search, Pencil, Trash2, Eye, X, Calendar, Download
+  Boxes, Plus, Search, Pencil, Trash2, Eye, X, Calendar, Download,
+  ShieldAlert, ShieldCheck, SlidersHorizontal, AlertTriangle
 } from 'lucide-react';
 import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/PharmacyStore';
 import { computeStockStatus, type BatchEntryDraft, type Batch, type StockStatus } from '@/lib/Types';
@@ -21,14 +23,40 @@ import { Badge } from '@/components/ui/Badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
 
+const batchDraftSchema = z.object({
+  medicineId: z.number().min(1, 'Selecione um medicamento'),
+  batchNumber: z.string().min(2, 'Informe o número do lote'),
+  currentQuantity: z.number().min(1, 'A quantidade deve ser maior que zero'),
+  expirationDate: z.string().min(1, 'Informe a data de validade'),
+  manufacturingDate: z.string().optional(),
+  supplier: z.string().min(2, 'Informe o fornecedor/origem'),
+});
+
 export function StockManagementPage() {
   const { medicines, batches, withdrawals, disposals, loading } = usePharmacyStore();
   const { user } = useAuthStore();
-  const userRole = user?.role;
-  const userPerms = user?.permissions;
+  let userRole: string | undefined = undefined;
+  if (user) {
+    if (user.role) {
+      userRole = user.role;
+    }
+  }
+  let userPerms: Record<string, boolean> | undefined = undefined;
+  if (user) {
+    if (user.permissions) {
+      userPerms = user.permissions;
+    }
+  }
   const canWrite = canWriteClient(userRole, userPerms, 'batches');
   const [createOpen, setCreateOpen] = useState(false);
-  const [form, setForm] = useState<BatchEntryDraft>({ medicineId: 0, batchNumber: '', currentQuantity: 0, expirationDate: '' });
+  const [form, setForm] = useState<BatchEntryDraft>({
+    medicineId: 0,
+    batchNumber: '',
+    currentQuantity: 0,
+    expirationDate: '',
+    manufacturingDate: '',
+    supplier: '',
+  });
   const [batchSearch, setBatchSearch] = useState('');
   const [batchStatusFilter, setBatchStatusFilter] = useState<string>('all');
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
@@ -38,15 +66,34 @@ export function StockManagementPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [batchToBlock, setBatchToBlock] = useState<Batch | null>(null);
+  const [blockReason, setBlockReason] = useState('');
+  const [blockLoading, setBlockLoading] = useState(false);
+
+  const [adjustOpen, setAdjustOpen] = useState(false);
+  const [batchToAdjust, setBatchToAdjust] = useState<Batch | null>(null);
+  const [adjustNewQuantity, setAdjustNewQuantity] = useState<number>(0);
+  const [adjustReason, setAdjustReason] = useState('');
+  const [adjustLoading, setAdjustLoading] = useState(false);
+
   useEffect(() => {
     fetchBatchesData();
   }, []);
 
   const getBatchStatus = (batch: Batch): StockStatus => {
-    return computeStockStatus({
-      expirationDate: batch.expirationDate,
-      totalQuantity: batch.currentQuantity,
-    });
+    if (batch.isBlocked) {
+      return 'Bloqueado';
+    }
+    const exp = new Date(batch.expirationDate);
+    const now = new Date();
+    if (exp.getTime() < now.getTime()) {
+      return 'Vencido';
+    }
+    if (batch.currentQuantity <= 0) {
+      return 'Esgotado';
+    }
+    return 'Ativo';
   };
 
   const filteredBatches = useMemo(() => {
@@ -190,26 +237,30 @@ export function StockManagementPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.medicineId) {
-      toast.error('Preencha todos os campos obrigatórios.');
-      return;
-    }
-    if (!form.batchNumber) {
-      toast.error('Preencha todos os campos obrigatórios.');
-      return;
-    }
-    if (!form.currentQuantity) {
-      toast.error('Preencha todos os campos obrigatórios.');
-      return;
-    }
-    if (!form.expirationDate) {
-      toast.error('Preencha todos os campos obrigatórios.');
+    const validation = batchDraftSchema.safeParse(form);
+    if (!validation.success) {
+      let errorMsg = 'Preencha todos os campos obrigatórios.';
+      if (validation.error.issues) {
+        if (validation.error.issues.length > 0) {
+          if (validation.error.issues[0].message) {
+            errorMsg = validation.error.issues[0].message;
+          }
+        }
+      }
+      toast.error(errorMsg);
       return;
     }
     try {
       await api.createBatch(form);
       toast.success('Lote registrado com sucesso no estoque!');
-      setForm({ medicineId: 0, batchNumber: '', currentQuantity: 0, expirationDate: '' });
+      setForm({
+        medicineId: 0,
+        batchNumber: '',
+        currentQuantity: 0,
+        expirationDate: '',
+        manufacturingDate: '',
+        supplier: '',
+      });
       setCreateOpen(false);
       fetchAllData();
       fetchBatchesData();
@@ -222,6 +273,111 @@ export function StockManagementPage() {
         }
       }
       toast.error(errorMsg);
+    }
+  };
+
+  const openBlockDialog = (batch: Batch) => {
+    setBatchToBlock(batch);
+    let reason = '';
+    if (batch.blockReason) {
+      reason = batch.blockReason;
+    }
+    setBlockReason(reason);
+    setBlockOpen(true);
+  };
+
+  const handleBlockConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!batchToBlock) return;
+    let targetBlocked = true;
+    if (batchToBlock.isBlocked) {
+      targetBlocked = false;
+    } else {
+      targetBlocked = true;
+    }
+    if (targetBlocked) {
+      if (!blockReason.trim()) {
+        toast.error('Informe o motivo do bloqueio sanitário.');
+        return;
+      }
+    }
+    setBlockLoading(true);
+    try {
+      let reasonToSend: string | null = null;
+      if (targetBlocked) {
+        reasonToSend = blockReason.trim();
+      } else {
+        reasonToSend = null;
+      }
+      await api.blockBatch(batchToBlock.id, {
+        isBlocked: targetBlocked,
+        blockReason: reasonToSend,
+      });
+      if (targetBlocked) {
+        toast.success('Lote bloqueado com sucesso!');
+      } else {
+        toast.success('Lote desbloqueado com sucesso!');
+      }
+      setBlockOpen(false);
+      setBatchToBlock(null);
+      setBlockReason('');
+      fetchAllData();
+      fetchBatchesData();
+    } catch (err: unknown) {
+      const error = err as { error?: string };
+      let errorMsg = 'Erro ao alterar status de bloqueio do lote.';
+      if (error) {
+        if (error.error) {
+          errorMsg = error.error;
+        }
+      }
+      toast.error(errorMsg);
+    } finally {
+      setBlockLoading(false);
+    }
+  };
+
+  const openAdjustDialog = (batch: Batch) => {
+    setBatchToAdjust(batch);
+    setAdjustNewQuantity(batch.currentQuantity);
+    setAdjustReason('');
+    setAdjustOpen(true);
+  };
+
+  const handleAdjustConfirm = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!batchToAdjust) return;
+    if (adjustNewQuantity < 0) {
+      toast.error('A nova quantidade não pode ser negativa.');
+      return;
+    }
+    if (!adjustReason.trim()) {
+      toast.error('A justificativa do ajuste é obrigatória.');
+      return;
+    }
+    setAdjustLoading(true);
+    try {
+      await api.adjustBatch(batchToAdjust.id, {
+        newQuantity: adjustNewQuantity,
+        reason: adjustReason.trim(),
+      });
+      toast.success('Ajuste de estoque registrado com sucesso!');
+      setAdjustOpen(false);
+      setBatchToAdjust(null);
+      setAdjustReason('');
+      fetchAllData();
+      fetchBatchesData();
+    } catch (err: unknown) {
+      const error = err as { error?: string };
+      let errorMsg = 'Erro ao realizar ajuste de estoque.';
+      if (error) {
+        if (error.error) {
+          errorMsg = error.error;
+        }
+      }
+      toast.error(errorMsg);
+    } finally {
+      setAdjustLoading(false);
     }
   };
 
@@ -286,7 +442,7 @@ export function StockManagementPage() {
 
   const columns: Column<Batch>[] = [
     {
-      header: 'Número do Lote',
+      header: 'Lote',
       width: '180px',
       cell: (batch) => (
         <div className="flex items-center gap-2.5">
@@ -294,9 +450,21 @@ export function StockManagementPage() {
             <Boxes className="w-4 h-4" />
           </div>
           <div>
-            <p className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-mono leading-tight">
-              {batch.batchNumber}
-            </p>
+            <div className="flex items-center gap-1.5">
+              <p className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm font-mono leading-tight">
+                {batch.batchNumber}
+              </p>
+              {(() => {
+                if (batch.isBlocked) {
+                  return (
+                    <span className="inline-flex items-center px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-700 border border-rose-300 dark:bg-rose-950 dark:text-rose-300">
+                      BLOQUEADO
+                    </span>
+                  );
+                }
+                return null;
+              })()}
+            </div>
             <p className="text-[10px] text-slate-400">ID #{batch.id}</p>
           </div>
         </div>
@@ -330,17 +498,8 @@ export function StockManagementPage() {
       ),
     },
     {
-      header: 'Quantidade',
-      width: '130px',
-      cell: (batch) => (
-        <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200">
-          {batch.currentQuantity} un.
-        </span>
-      ),
-    },
-    {
       header: 'Validade',
-      width: '140px',
+      width: '130px',
       cell: (batch) => {
         const exp = new Date(batch.expirationDate);
         return (
@@ -359,7 +518,30 @@ export function StockManagementPage() {
       },
     },
     {
-      header: 'Status',
+      header: 'Saldo',
+      width: '110px',
+      cell: (batch) => (
+        <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200">
+          {batch.currentQuantity} un.
+        </span>
+      ),
+    },
+    {
+      header: 'Fornecedor',
+      width: '160px',
+      cell: (batch) => (
+        <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
+          {(() => {
+            if (batch.supplier) {
+              return batch.supplier;
+            }
+            return 'Não informado';
+          })()}
+        </span>
+      ),
+    },
+    {
+      header: 'Status do Lote',
       width: '140px',
       cell: (batch) => {
         const status = getBatchStatus(batch);
@@ -368,7 +550,7 @@ export function StockManagementPage() {
     },
     {
       header: 'Ações',
-      width: '120px',
+      width: '160px',
       align: 'right',
       cell: (batch) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
@@ -388,11 +570,35 @@ export function StockManagementPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => openEditDialog(batch)}
-                    className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-                    title="Editar lote"
+                    onClick={() => openBlockDialog(batch)}
+                    className={(() => {
+                      if (batch.isBlocked) {
+                        return 'h-8 w-8 p-0 rounded-lg text-rose-600 hover:text-rose-700 hover:bg-rose-100 dark:hover:bg-rose-950/40 bg-rose-50 dark:bg-rose-950/20';
+                      }
+                      return 'h-8 w-8 p-0 rounded-lg text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:hover:bg-amber-950/30';
+                    })()}
+                    title={(() => {
+                      if (batch.isBlocked) {
+                        return 'Desbloquear lote sanitário';
+                      }
+                      return 'Bloquear lote sanitário';
+                    })()}
                   >
-                    <Pencil className="w-3.5 h-3.5" />
+                    {(() => {
+                      if (batch.isBlocked) {
+                        return <ShieldCheck className="w-4 h-4" />;
+                      }
+                      return <ShieldAlert className="w-4 h-4" />;
+                    })()}
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => openAdjustDialog(batch)}
+                    className="h-8 w-8 p-0 rounded-lg text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/30"
+                    title="Ajuste auditado de estoque"
+                  >
+                    <SlidersHorizontal className="w-3.5 h-3.5" />
                   </Button>
                   <Button
                     size="sm"
@@ -611,15 +817,47 @@ export function StockManagementPage() {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                  Data de Validade *
+                </Label>
+                <Input
+                  type="date"
+                  required
+                  value={form.expirationDate}
+                  onChange={(e) => setForm({ ...form, expirationDate: e.target.value })}
+                  className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+                />
+              </div>
+
+              <div>
+                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                  Data de Fabricação
+                </Label>
+                <Input
+                  type="date"
+                  value={(() => {
+                    if (form.manufacturingDate) {
+                      return form.manufacturingDate;
+                    }
+                    return '';
+                  })()}
+                  onChange={(e) => setForm({ ...form, manufacturingDate: e.target.value })}
+                  className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+                />
+              </div>
+            </div>
+
             <div>
               <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
-                Data de Validade *
+                Fornecedor / Origem *
               </Label>
               <Input
-                type="date"
                 required
-                value={form.expirationDate}
-                onChange={(e) => setForm({ ...form, expirationDate: e.target.value })}
+                placeholder="Ex: Laboratório EMS / Distribuidora Santa Cruz"
+                value={form.supplier}
+                onChange={(e) => setForm({ ...form, supplier: e.target.value })}
                 className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
               />
             </div>
@@ -737,7 +975,53 @@ export function StockManagementPage() {
                         <StockStatusBadge status={getBatchStatus(selectedBatch)} />
                       </div>
                     </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Fornecedor / Origem</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">
+                        {(() => {
+                          if (selectedBatch.supplier) {
+                            return selectedBatch.supplier;
+                          }
+                          return 'Não informado';
+                        })()}
+                      </p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
+                      <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Data de Fabricação</p>
+                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">
+                        {(() => {
+                          if (selectedBatch.manufacturingDate) {
+                            return new Date(selectedBatch.manufacturingDate).toLocaleDateString('pt-BR');
+                          }
+                          return 'Não informada';
+                        })()}
+                      </p>
+                    </div>
                   </div>
+
+                  {(() => {
+                    if (selectedBatch.isBlocked) {
+                      return (
+                        <div className="p-3.5 rounded-xl border border-rose-200 dark:border-rose-900/60 bg-rose-50 dark:bg-rose-950/30 flex items-start gap-3">
+                          <AlertTriangle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs font-bold text-rose-800 dark:text-rose-300">
+                              Bloqueio Sanitário Ativo
+                            </p>
+                            <p className="text-xs text-rose-700 dark:text-rose-400 mt-0.5">
+                              Motivo: {(() => {
+                                if (selectedBatch.blockReason) {
+                                  return selectedBatch.blockReason;
+                                }
+                                return 'Não especificado';
+                              })()}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
 
                   {/* History */}
                   <div>
@@ -845,6 +1129,166 @@ export function StockManagementPage() {
                     return 'Salvando...';
                   }
                   return 'Salvar Alterações';
+                })()}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Sanitary Block / Unblock Dialog */}
+      <Dialog open={blockOpen} onOpenChange={setBlockOpen}>
+        <DialogContent className="rounded-2xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+              {(() => {
+                if (batchToBlock) {
+                  if (batchToBlock.isBlocked) {
+                    return (
+                      <>
+                        <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                        Desbloquear Lote Sanitário
+                      </>
+                    );
+                  }
+                }
+                return (
+                  <>
+                    <ShieldAlert className="w-5 h-5 text-rose-600" />
+                    Bloquear Lote Sanitário
+                  </>
+                );
+              })()}
+            </DialogTitle>
+            <DialogDescription>
+              {(() => {
+                if (batchToBlock) {
+                  if (batchToBlock.isBlocked) {
+                    return `Confirma a liberação do lote ${batchToBlock.batchNumber} para novas dispensações e retiradas?`;
+                  }
+                  return `Ao bloquear o lote ${batchToBlock.batchNumber}, ele será imediatamente ignorado no FEFO e impedido de ser dispensado.`;
+                }
+                return 'Gerencie o bloqueio sanitário deste lote.';
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleBlockConfirm} className="space-y-4 pt-1">
+            {(() => {
+              if (batchToBlock) {
+                if (!batchToBlock.isBlocked) {
+                  return (
+                    <div>
+                      <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                        Motivo do Bloqueio Sanitário *
+                      </Label>
+                      <Input
+                        required
+                        placeholder="Ex: Recall Anvisa comunicado #123, suspeita de contaminação..."
+                        value={blockReason}
+                        onChange={(e) => setBlockReason(e.target.value)}
+                        className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+                      />
+                    </div>
+                  );
+                }
+              }
+              return null;
+            })()}
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setBlockOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={blockLoading}
+                className={(() => {
+                  if (batchToBlock) {
+                    if (batchToBlock.isBlocked) {
+                      return 'rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold';
+                    }
+                  }
+                  return 'rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold';
+                })()}
+              >
+                {(() => {
+                  if (blockLoading) {
+                    return 'Salvando...';
+                  }
+                  if (batchToBlock) {
+                    if (batchToBlock.isBlocked) {
+                      return 'Liberar / Desbloquear';
+                    }
+                  }
+                  return 'Confirmar Bloqueio';
+                })()}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Audited Stock Adjustment Dialog */}
+      <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+        <DialogContent className="rounded-2xl sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+              <SlidersHorizontal className="w-5 h-5 text-indigo-600" />
+              Ajuste Auditado de Estoque
+            </DialogTitle>
+            <DialogDescription>
+              {(() => {
+                if (batchToAdjust) {
+                  return `Ajuste manual com registro de auditoria para o lote ${batchToAdjust.batchNumber} (Saldo atual: ${batchToAdjust.currentQuantity} un.).`;
+                }
+                return 'Ajuste manual de quantidade em estoque com registro de auditoria.';
+              })()}
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAdjustConfirm} className="space-y-4 pt-1">
+            <div>
+              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                Nova Quantidade em Estoque *
+              </Label>
+              <Input
+                type="number"
+                min={0}
+                required
+                value={adjustNewQuantity}
+                onChange={(e) => setAdjustNewQuantity(Number(e.target.value))}
+                className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+              />
+            </div>
+
+            <div>
+              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                Justificativa Obrigatória *
+              </Label>
+              <Input
+                required
+                placeholder="Ex: Contagem física mensal, avaria de frasco, reconciliação..."
+                value={adjustReason}
+                onChange={(e) => setAdjustReason(e.target.value)}
+                className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+              />
+            </div>
+
+            <DialogFooter className="pt-2">
+              <Button type="button" variant="outline" onClick={() => setAdjustOpen(false)} className="rounded-xl">
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                disabled={adjustLoading}
+                className="rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold"
+              >
+                {(() => {
+                  if (adjustLoading) {
+                    return 'Salvando...';
+                  }
+                  return 'Confirmar Ajuste';
                 })()}
               </Button>
             </DialogFooter>

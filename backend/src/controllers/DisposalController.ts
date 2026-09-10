@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/AuthMiddleware';
 import { DisposalService } from '../services/DisposalService';
 import { prisma } from '../utils/Prisma';
-import { disposalCreateSchema, disposalUpdateSchema } from '../middlewares/ValidationMiddleware';
+import { disposalCreateSchema, disposalReversalSchema, disposalUpdateSchema } from '../middlewares/ValidationMiddleware';
 
 export class DisposalController {
   private disposalService: DisposalService;
@@ -112,20 +112,6 @@ export class DisposalController {
           }
         }
         res.status(400).json({ error: errorMsg, details: validationResult.error.issues });
-        return;
-      }
-
-      const batchRecord = await prisma.stockBatch.findUnique({
-        where: { id: validationResult.data.batchId },
-      });
-
-      if (!batchRecord) {
-        res.status(404).json({ error: 'Lote não encontrado' });
-        return;
-      }
-
-      if (batchRecord.currentQuantity < validationResult.data.quantity) {
-        res.status(400).json({ error: 'Estoque insuficiente no lote para realizar o descarte' });
         return;
       }
 
@@ -325,7 +311,13 @@ export class DisposalController {
         return;
       }
 
-      const reverted = await this.disposalService.revert(userId, role, id);
+      const validationResult = disposalReversalSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        res.status(400).json({ error: 'O motivo da reversão é obrigatório', details: validationResult.error.issues });
+        return;
+      }
+
+      const reverted = await this.disposalService.revert(userId, role, id, validationResult.data.revertReason);
       res.json(reverted);
       return;
     } catch (err: any) {

@@ -2,38 +2,60 @@ import { prisma } from '../utils/Prisma';
 
 export class DisposalRepository {
   async findAll() {
-    return prisma.disposal.findMany({
+    const disposals = await prisma.disposal.findMany({
       include: {
         user: { select: { name: true } },
         batch: {
           include: {
-            medicine: { select: { name: true, dosage: true } },
+            medicine: { select: { id: true, name: true, dosage: true } },
           },
         },
       },
       orderBy: { date: 'desc' },
     });
+    return disposals.map((disposal) => ({
+      ...disposal,
+      createdAt: disposal.date,
+      batch: {
+        ...disposal.batch,
+        code: disposal.batch.batchNumber,
+        expiresAt: disposal.batch.expirationDate,
+      },
+    }));
   }
 
   async findById(id: number) {
-    return prisma.disposal.findUnique({
+    const disposal = await prisma.disposal.findUnique({
       where: { id },
       include: {
         user: { select: { name: true } },
         batch: {
           include: {
-            medicine: { select: { name: true, dosage: true } },
+            medicine: { select: { id: true, name: true, dosage: true } },
           },
         },
       },
     });
+    if (!disposal) {
+      return null;
+    }
+    return {
+      ...disposal,
+      createdAt: disposal.date,
+      batch: {
+        ...disposal.batch,
+        code: disposal.batch.batchNumber,
+        expiresAt: disposal.batch.expirationDate,
+      },
+    };
   }
 
   async create(data: {
     batchId: number;
     userId: number;
     quantity: number;
-    reason?: string | null;
+    reason: string;
+    notes?: string | null;
   }) {
     return prisma.$transaction(async (tx) => {
       const batch = await tx.stockBatch.findUnique({
@@ -72,12 +94,14 @@ export class DisposalRepository {
           userId: data.userId,
           quantity: data.quantity,
           reason: data.reason,
+          notes: data.notes,
+          status: 'DISPOSED',
         },
         include: {
           user: { select: { name: true } },
           batch: {
             include: {
-              medicine: { select: { name: true, dosage: true } },
+              medicine: { select: { id: true, name: true, dosage: true } },
             },
           },
         },
@@ -87,24 +111,26 @@ export class DisposalRepository {
     });
   }
 
-  async revert(id: number) {
+  async revert(id: number, userId: number, revertReason: string) {
     return prisma.$transaction(async (tx) => {
       const disposal = await tx.disposal.findUnique({ where: { id } });
       if (!disposal) {
-        throw new Error('Descarte não encontrado ou já revertido');
-      } else {
-        if (disposal.reverted) {
-          throw new Error('Descarte não encontrado ou já revertido');
-        }
+        throw { statusCode: 404, message: 'Descarte não encontrado' };
+      }
+      if (disposal.status === 'REVERTED' || disposal.reverted) {
+        throw { statusCode: 400, message: 'O descarte já foi revertido' };
       }
 
       const updateDisposalResult = await tx.disposal.updateMany({
         where: {
           id: id,
+          status: 'DISPOSED',
           reverted: false,
         },
         data: {
+          status: 'REVERTED',
           reverted: true,
+          revertReason,
         },
       });
 
@@ -118,7 +144,7 @@ export class DisposalRepository {
           user: { select: { name: true } },
           batch: {
             include: {
-              medicine: { select: { name: true, dosage: true } },
+              medicine: { select: { id: true, name: true, dosage: true } },
             },
           },
         },
@@ -129,11 +155,32 @@ export class DisposalRepository {
         data: { currentQuantity: { increment: disposal.quantity } },
       });
 
-      return updated!;
+      await tx.activityLog.create({
+        data: {
+          userId,
+          action: 'revert',
+          entity: 'disposals',
+          entityId: id,
+          details: `Reverteu o descarte #${id}. Motivo: ${revertReason}`,
+        },
+      });
+
+      if (!updated) {
+        throw { statusCode: 404, message: 'Descarte não encontrado' };
+      }
+      return {
+        ...updated,
+        createdAt: updated.date,
+        batch: {
+          ...updated.batch,
+          code: updated.batch.batchNumber,
+          expiresAt: updated.batch.expirationDate,
+        },
+      };
     });
   }
 
-  async update(id: number, data: { reason?: string | null }) {
+  async update(id: number, data: { reason?: string; notes?: string }) {
     return prisma.disposal.update({
       where: { id },
       data,
@@ -141,7 +188,7 @@ export class DisposalRepository {
         user: { select: { name: true } },
         batch: {
           include: {
-            medicine: { select: { name: true, dosage: true } },
+            medicine: { select: { id: true, name: true, dosage: true } },
           },
         },
       },

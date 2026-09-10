@@ -13,7 +13,6 @@ router.get('/', requirePermission('disposals'), controller.getAll);
 router.get('/:id', requirePermission('disposals'), controller.getById);
 router.post('/', requirePermission('disposals'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), validateBody(disposalCreateSchema), controller.create);
 router.put('/:id', requirePermission('disposals'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.update);
-router.delete('/:id', authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.delete);
 router.post('/:id/revert', authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.revert);
 
 export default router;

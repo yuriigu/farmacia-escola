@@ -146,36 +146,23 @@ export class WithdrawalService {
       });
     }
 
-    let targetPatientId = undefined;
-    if (data.patientId) {
-      targetPatientId = Number(data.patientId);
+    if (!cleanCpf) {
+      throw { statusCode: 400, message: 'CPF do paciente, lote e quantidade são obrigatórios' };
     }
 
-    let patientRecord: any = null;
-    if (targetPatientId) {
-      patientRecord = await this.patientRepo.findById(targetPatientId);
-      if (!patientRecord) {
-        throw { statusCode: 404, message: 'Paciente não encontrado' };
-      }
-    } else {
-      if (!cleanName) {
-        throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
-      } else {
-        if (!cleanCpf) {
-          throw { statusCode: 400, message: 'Nome do paciente, CPF, Lote e Quantidade são obrigatórios' };
-        }
-      }
+    if (cleanCpf.length !== 11) {
+      throw { statusCode: 400, message: 'CPF inválido' };
+    }
 
-      if (cleanCpf.length !== 11) {
-        throw { statusCode: 400, message: 'CPF inválido' };
-      }
+    const patientRecord = await this.patientRepo.findByCpf(cleanCpf);
+    if (!patientRecord) {
+      throw { statusCode: 404, message: 'Paciente não encontrado no cadastro' };
+    }
 
-      patientRecord = await this.patientRepo.findByCpf(cleanCpf);
-      if (!patientRecord) {
-        patientRecord = await this.patientRepo.create({
-          name: cleanName,
-          cpf: cleanCpf,
-        });
+    if (data.patientId) {
+      const requestedPatientId = Number(data.patientId);
+      if (requestedPatientId !== patientRecord.id) {
+        throw { statusCode: 400, message: 'O paciente informado não corresponde ao CPF cadastrado' };
       }
     }
 
@@ -295,5 +282,30 @@ export class WithdrawalService {
     }
 
     return { message: 'Dispensação cancelada e estoque restaurado com sucesso' };
+  }
+
+  async cancel(userId: number, role: string, id: number, cancelReason: string) {
+    const withdrawal = await this.withdrawalRepo.findById(id);
+    if (!withdrawal) {
+      throw { statusCode: 404, message: 'Dispensação não encontrada' };
+    }
+
+    const cleanReason = cancelReason.trim();
+    if (!cleanReason) {
+      throw { statusCode: 400, message: 'O motivo do cancelamento é obrigatório' };
+    }
+
+    const cancelled = await this.withdrawalRepo.cancel(id, cleanReason);
+    if (this.isAuthorizedRole(role)) {
+      await this.logService.log(
+        userId,
+        'cancel',
+        'withdrawals',
+        id,
+        `Cancelou a dispensação #${id}. Motivo: ${cleanReason}`
+      );
+    }
+
+    return cancelled;
   }
 }

@@ -1,15 +1,12 @@
 import { DisposalRepository } from '../repositories/DisposalRepository';
-import { BatchRepository } from '../repositories/BatchRepository';
 import { ActivityLogService } from './ActivityLogService';
 
 export class DisposalService {
   private disposalRepo: DisposalRepository;
-  private batchRepo: BatchRepository;
   private logService: ActivityLogService;
 
   constructor() {
     this.disposalRepo = new DisposalRepository();
-    this.batchRepo = new BatchRepository();
     this.logService = new ActivityLogService();
   }
 
@@ -28,9 +25,10 @@ export class DisposalService {
   async create(userId: number, role: string, data: {
     batchId: number;
     quantity: number;
-    reason?: string;
+    reason: string;
+    notes?: string;
   }) {
-    const { batchId, quantity, reason } = data;
+    const { batchId, quantity, reason, notes } = data;
 
     if (!batchId) {
       throw { statusCode: 400, message: 'Lote e Quantidade são obrigatórios' };
@@ -44,27 +42,17 @@ export class DisposalService {
       throw { statusCode: 400, message: 'Quantidade deve ser maior que zero' };
     }
 
-    const batch = await this.batchRepo.findById(batchId);
-    if (!batch) {
-      throw { statusCode: 404, message: 'Lote não encontrado' };
-    }
-
-    if (batch.currentQuantity < quantity) {
-      throw { statusCode: 400, message: 'Quantidade de descarte maior que o saldo em estoque' };
-    }
-
     const disposal = await this.disposalRepo.create({
       batchId,
       userId,
       quantity,
       reason,
+      notes,
     });
 
-    let reasonText = 'Não informado';
-    if (reason) {
-      reasonText = reason;
-    } else {
-      reasonText = 'Não informado';
+    let notesText = 'Não informado';
+    if (notes) {
+      notesText = notes;
     }
 
     await this.logService.log(
@@ -72,13 +60,13 @@ export class DisposalService {
       'create',
       'disposals',
       disposal.id,
-      `Registrou descarte de ${quantity} un. do lote ${batch.batchNumber}. Motivo: ${reasonText}`
+      `Registrou descarte de ${quantity} un. no lote ${disposal.batch.batchNumber}. Motivo: ${reason}. Detalhes: ${notesText}`
     );
 
     return disposal;
   }
 
-  async update(userId: number, role: string, id: number, data: { reason?: string }) {
+  async update(userId: number, role: string, id: number, data: { reason?: string; notes?: string }) {
     const disposal = await this.disposalRepo.findById(id);
     if (!disposal) {
       throw { statusCode: 404, message: 'Descarte não encontrado' };
@@ -116,21 +104,13 @@ export class DisposalService {
     return { message: 'Descarte excluído com sucesso' };
   }
 
-  async revert(userId: number, role: string, disposalId: number) {
+  async revert(userId: number, role: string, disposalId: number, revertReason: string) {
     const disposal = await this.disposalRepo.findById(disposalId);
     if (!disposal) {
       throw { statusCode: 404, message: 'Descarte não encontrado' };
     }
 
-    const reverted = await this.disposalRepo.revert(disposalId);
-
-    await this.logService.log(
-      userId,
-      'revert',
-      'disposals',
-      disposalId,
-      `Reverteu o descarte #${disposalId}`
-    );
+    const reverted = await this.disposalRepo.revert(disposalId, userId, revertReason);
 
     return reverted;
   }

@@ -46,7 +46,7 @@ export class ScheduleSlotService {
     date: string | Date;
     timeSlot: string;
     maxCapacity?: number;
-    assignedToId?: number | null;
+    assignedToId: number;
   }) {
     const { date, timeSlot, maxCapacity, assignedToId } = data;
 
@@ -85,17 +85,9 @@ export class ScheduleSlotService {
       }
     }
 
-    let parsedAssignedTo = null;
-    if (assignedToId) {
-      parsedAssignedTo = Number(assignedToId);
-    } else {
-      parsedAssignedTo = null;
-    }
-
-    if (assignedToId) {
-      if (isNaN(parsedAssignedTo!)) {
-        throw { statusCode: 400, message: 'ID de responsável inválido' };
-      }
+    const parsedAssignedTo = Number(assignedToId);
+    if (isNaN(parsedAssignedTo) || parsedAssignedTo <= 0) {
+      throw { statusCode: 400, message: 'Farmacêutico responsável é obrigatório' };
     }
 
     try {
@@ -156,6 +148,11 @@ export class ScheduleSlotService {
       throw { statusCode: 404, message: 'Horário de escala não encontrado' };
     }
 
+    const activeAppointments = slot.appointments.filter((appointment) => appointment.status === 'PENDING' || appointment.status === 'CONFIRMED');
+    if (activeAppointments.length > 0) {
+      throw { statusCode: 409, message: 'Não é possível alterar uma escala com agendamentos ativos' };
+    }
+
     const updateData: any = {};
 
     if (data.date) {
@@ -188,7 +185,7 @@ export class ScheduleSlotService {
 
     if (data.assignedToId !== undefined) {
       if (data.assignedToId === null) {
-        updateData.assignedToId = null;
+        throw { statusCode: 400, message: 'Farmacêutico responsável é obrigatório' };
       } else {
         const parsedAssignedTo = Number(data.assignedToId);
         if (isNaN(parsedAssignedTo)) {
@@ -244,6 +241,11 @@ export class ScheduleSlotService {
     const slot = await this.slotRepo.findById(id);
     if (!slot) {
       throw { statusCode: 404, message: 'Horário de escala não encontrado' };
+    }
+
+    const activeAppointments = slot.appointments.filter((appointment) => appointment.status === 'PENDING' || appointment.status === 'CONFIRMED');
+    if (activeAppointments.length > 0) {
+      throw { statusCode: 409, message: 'Não é possível remover uma escala com agendamentos ativos' };
     }
 
     await this.slotRepo.delete(id);

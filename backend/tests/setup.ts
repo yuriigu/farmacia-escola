@@ -55,6 +55,7 @@ vi.mock('@prisma/client', () => {
         findUnique: vi.fn(),
         findFirst: vi.fn(),
         findMany: vi.fn(),
+        count: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
         delete: vi.fn(),
@@ -84,6 +85,7 @@ vi.mock('@prisma/client', () => {
         findMany: vi.fn(),
         create: vi.fn(),
         update: vi.fn(),
+        updateMany: vi.fn(),
         delete: vi.fn(),
       };
       activityLog = {

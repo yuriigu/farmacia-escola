@@ -93,6 +93,8 @@ model Withdrawal {
   patientId      Int
   userId         Int
   date           DateTime @default(now())
+  status         String   @default("COMPLETED")
+  cancelReason   String?
   notes          String?
   appointmentId  Int?
 
@@ -113,13 +115,16 @@ model WithdrawalItem {
 }
 
 model Disposal {
-  id        Int      @id @default(autoincrement())
-  batchId   Int
-  userId    Int
-  quantity  Int
-  reason    String?
-  date      DateTime @default(now())
-  reverted  Boolean  @default(false)
+  id              Int      @id @default(autoincrement())
+  batchId         Int
+  userId          Int
+  quantity        Int
+  reason          String
+  notes           String?
+  date            DateTime @default(now())
+  status          String   @default("DISPOSED")
+  revertReason    String?
+  reverted        Boolean  @default(false)
 
   batch StockBatch @relation(fields: [batchId], references: [id])
   user  User       @relation(fields: [userId], references: [id])

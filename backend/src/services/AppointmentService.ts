@@ -4,6 +4,7 @@ import { MedicineRepository } from '../repositories/MedicineRepository';
 import { PatientRepository } from '../repositories/PatientRepository';
 import { ActivityLogService } from './ActivityLogService';
 import { prisma } from '../utils/Prisma';
+import { WithdrawalService } from './WithdrawalService';
 
 export class AppointmentService {
   private appointmentRepo: AppointmentRepository;
@@ -11,6 +12,7 @@ export class AppointmentService {
   private medicineRepo: MedicineRepository;
   private patientRepo: PatientRepository;
   private logService: ActivityLogService;
+  private withdrawalService: WithdrawalService;
 
   constructor() {
     this.appointmentRepo = new AppointmentRepository();
@@ -18,6 +20,7 @@ export class AppointmentService {
     this.medicineRepo = new MedicineRepository();
     this.patientRepo = new PatientRepository();
     this.logService = new ActivityLogService();
+    this.withdrawalService = new WithdrawalService();
   }
 
   async getAll(role: string, userId: number, patientId?: number | null) {
@@ -88,6 +91,10 @@ export class AppointmentService {
       throw { statusCode: 400, message: 'Data de agendamento inválida' };
     }
 
+    if (!slotId) {
+      throw { statusCode: 400, message: 'Uma escala de atendimento é obrigatória' };
+    }
+
     if (!items) {
       throw { statusCode: 400, message: 'Ao menos um medicamento deve ser adicionado ao agendamento' };
     } else {
@@ -112,9 +119,16 @@ export class AppointmentService {
       if (!slot) {
         throw { statusCode: 404, message: 'Horário de escala não encontrado' };
       }
-      const currentCount = await prisma.appointment.count({ where: { slotId: numericSlotId } });
+      const currentCount = await prisma.appointment.count({ where: { slotId: numericSlotId, status: { in: ['PENDING', 'CONFIRMED'] } } });
       if (currentCount >= slot.maxCapacity) {
         throw { statusCode: 400, message: 'Este horário de atendimento já atingiu a capacidade máxima' };
+      }
+      if (!slot.active) {
+        throw { statusCode: 400, message: 'Esta escala não está ativa' };
+      }
+      const slotDate = new Date(slot.date).toISOString().slice(0, 10);
+      if (slotDate !== parsedDate.toISOString().slice(0, 10)) {
+        throw { statusCode: 400, message: 'A data não corresponde à escala selecionada' };
       }
     }
 
@@ -275,6 +289,13 @@ export class AppointmentService {
       if (normalizedStatus !== 'CANCELLED') {
         throw { statusCode: 403, message: 'Pacientes só têm permissão para cancelar seus próprios agendamentos' };
       }
+      if (normalizedStatus === 'CANCELLED' && (!notes || !notes.trim())) {
+        throw { statusCode: 400, message: 'A justificativa do cancelamento é obrigatória' };
+      }
+    }
+
+    if (normalizedStatus === 'CANCELLED' && (!notes || !notes.trim())) {
+      throw { statusCode: 400, message: 'A justificativa do cancelamento é obrigatória' };
     }
 
     let cleanNotes = undefined;
@@ -282,6 +303,24 @@ export class AppointmentService {
       cleanNotes = notes.trim();
     } else {
       cleanNotes = undefined;
+    }
+
+    if (normalizedStatus === 'COMPLETED') {
+      if (!appt.patient) {
+        throw { statusCode: 400, message: 'O paciente do agendamento não foi encontrado' };
+      }
+      if (!appt.items || appt.items.length === 0) {
+        throw { statusCode: 400, message: 'O agendamento não possui medicamentos para dispensação' };
+      }
+      const withdrawal = await this.withdrawalService.create(userId, role, {
+        patientId: appt.patientId,
+        patientCpf: appt.patient.cpf,
+        patientName: appt.patient.name,
+        appointmentId: numericId,
+        notes: cleanNotes,
+        items: appt.items.map((item) => ({ medicineId: item.medicineId, quantity: item.quantity })),
+      });
+      return withdrawal;
     }
 
     const updated = await this.appointmentRepo.updateStatus(numericId, normalizedStatus, cleanNotes);

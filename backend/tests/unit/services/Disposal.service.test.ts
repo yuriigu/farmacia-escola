@@ -52,13 +52,16 @@ describe('DisposalService', () => {
       id: 1,
       batchId: 1,
       quantity: 10,
-      reason: 'Vencimento',
+      reason: 'EXPIRED',
+      batch: {
+        batchNumber: 'LOTE-001',
+      },
     });
 
     const result = await disposalService.create(1, 'FARMACEUTICO', {
       batchId: 1,
       quantity: 10,
-      reason: 'Vencimento',
+      reason: 'EXPIRED',
     });
 
     expect(result.id).toBe(1);

@@ -13,7 +13,7 @@ export class ScheduleSlotRepository {
       where,
       include: {
         assignedTo: { select: { id: true, name: true, role: true } },
-        appointments: { where: { status: 'PENDING' } },
+        appointments: { where: { status: { in: ['PENDING', 'CONFIRMED'] } } },
       },
       orderBy: [{ date: 'asc' }, { timeSlot: 'asc' }],
     });

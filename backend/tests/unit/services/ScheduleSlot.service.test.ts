@@ -44,6 +44,8 @@ describe('ScheduleSlotService', () => {
       maxCapacity: 4,
       bookedCount: 0,
       isActive: true,
+      active: true,
+      appointments: [],
     };
     mockSlotRepo.create.mockResolvedValue(mockSlot);
 
@@ -51,6 +53,7 @@ describe('ScheduleSlotService', () => {
       date: '2025-10-15',
       timeSlot: '09:00',
       maxCapacity: 4,
+      assignedToId: 2,
     });
 
     expect(result.id).toBe(1);
@@ -64,5 +67,14 @@ describe('ScheduleSlotService', () => {
     const result = await slotService.getById(1);
 
     expect(result).toEqual(mockSlot);
+  });
+
+  it('deve bloquear exclusão de escala com agendamento ativo', async () => {
+    mockSlotRepo.findById.mockResolvedValue({
+      id: 1,
+      appointments: [{ status: 'PENDING' }],
+    });
+
+    await expect(slotService.delete(1, 'ADMIN', 1)).rejects.toMatchObject({ statusCode: 409 });
   });
 });

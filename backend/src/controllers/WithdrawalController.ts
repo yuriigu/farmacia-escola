@@ -2,7 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/AuthMiddleware';
 import { WithdrawalService } from '../services/WithdrawalService';
 import { prisma } from '../utils/Prisma';
-import { withdrawalCreateSchema, withdrawalUpdateSchema } from '../middlewares/ValidationMiddleware';
+import { withdrawalCancelSchema, withdrawalCreateSchema, withdrawalUpdateSchema } from '../middlewares/ValidationMiddleware';
 
 export class WithdrawalController {
   private withdrawalService: WithdrawalService;
@@ -313,6 +313,56 @@ export class WithdrawalController {
       const result = await this.withdrawalService.delete(userId, role, id);
       res.json(result);
       return;
+    } catch (err: any) {
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao estornar dispensação' });
+        return;
+      }
+    }
+  };
+
+  cancel = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Não autenticado' });
+        return;
+      }
+      const id = Number(req.params.id);
+      if (!id) {
+        res.status(400).json({ error: 'ID de dispensação inválido' });
+        return;
+      } else {
+        if (isNaN(id)) {
+          res.status(400).json({ error: 'ID de dispensação inválido' });
+          return;
+        }
+      }
+
+      const role = req.user.role;
+      let isAllowedRole = false;
+      if (role === 'ADMIN') {
+        isAllowedRole = true;
+      } else {
+        if (role === 'FARMACEUTICO') {
+          isAllowedRole = true;
+        }
+      }
+      if (!isAllowedRole) {
+        res.status(403).json({ error: 'Apenas administradores e farmacêuticos podem estornar dispensações' });
+        return;
+      }
+
+      const validationResult = withdrawalCancelSchema.safeParse(req.body);
+      if (!validationResult.success) {
+        res.status(400).json({ error: 'O motivo do cancelamento é obrigatório', details: validationResult.error.issues });
+        return;
+      }
+
+      const result = await this.withdrawalService.cancel(req.user.userId, role, id, validationResult.data.cancelReason);
+      res.json(result);
     } catch (err: any) {
       if (err.statusCode) {
         res.status(err.statusCode).json({ error: err.message });

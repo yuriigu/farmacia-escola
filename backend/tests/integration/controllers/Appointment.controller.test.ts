@@ -44,7 +44,7 @@ describe('AppointmentController Integration', () => {
   it('deve criar agendamento via controller', async () => {
     const mockReq = {
       user: { userId: 1, role: 'ADMIN' },
-      body: { patientId: 1, scheduledDate: '2025-10-15', scheduledTime: '10:00' },
+      body: { patientId: 1, scheduledDate: '2025-10-15', scheduledTime: '10:00', slotId: 1, items: [{ medicineId: 1, quantity: 1 }] },
     } as any;
     const mockRes = {
       json: vi.fn(),

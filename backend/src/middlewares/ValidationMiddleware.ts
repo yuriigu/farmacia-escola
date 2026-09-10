@@ -59,7 +59,7 @@ export const dosageSchema = z.union([
 export const withdrawalCreateSchema = z.object({
   patientId: z.number().int().positive().optional(),
   patientName: z.string().optional(),
-  patientCpf: z.string().optional(),
+  patientCpf: z.string().min(1, 'CPF do paciente é obrigatório'),
   medicineId: z.number().int().positive().optional(),
   batchId: z.number().int().positive().optional(),
   quantity: z.number().int().positive().optional(),
@@ -76,14 +76,33 @@ export const withdrawalUpdateSchema = z.object({
   notes: z.string().optional(),
 }).strict();
 
+export const withdrawalCancelSchema = z.object({
+  cancelReason: z.string().trim().min(1, 'O motivo do cancelamento é obrigatório'),
+}).strict();
+
+const disposalReasonSchema = z.enum([
+  'EXPIRED',
+  'DAMAGED_PACKAGING',
+  'CONTAMINATION',
+  'RECALL',
+  'STORAGE_ERROR',
+  'OTHER',
+], 'Motivo de descarte inválido');
+
 export const disposalCreateSchema = z.object({
   batchId: z.number().int().positive('ID do lote deve ser um número positivo'),
   quantity: z.number().int().positive('Quantidade deve ser maior que zero'),
-  reason: z.string().min(1, 'Motivo do descarte é obrigatório'),
+  reason: disposalReasonSchema,
+  notes: z.string().trim().optional(),
 }).strict();
 
 export const disposalUpdateSchema = z.object({
-  reason: z.string().optional(),
+  reason: disposalReasonSchema.optional(),
+  notes: z.string().trim().optional(),
+}).strict();
+
+export const disposalReversalSchema = z.object({
+  revertReason: z.string().trim().min(1, 'O motivo da reversão é obrigatório'),
 }).strict();
 
 export const medicineCreateSchema = z.object({
@@ -149,7 +168,7 @@ export const patientUpdateSchema = z.object({
 export const appointmentCreateSchema = z.object({
   scheduledDate: z.string().min(1, 'Data do agendamento é obrigatória'),
   scheduledTime: z.string().optional(),
-  slotId: z.number().int().positive().optional(),
+  slotId: z.number().int().positive('Escala de atendimento é obrigatória'),
   patientId: z.number().int().positive().optional(),
   patientName: z.string().optional(),
   patientCpf: z.string().optional(),
@@ -201,7 +220,7 @@ export const scheduleSlotCreateSchema = z.object({
   date: z.string().min(1, 'Data da escala é obrigatória'),
   timeSlot: z.string().min(1, 'Horário do slot é obrigatório'),
   maxCapacity: z.number().int().positive('Capacidade deve ser positiva').optional(),
-  assignedToId: z.number().int().positive().nullable().optional(),
+  assignedToId: z.number().int().positive('Farmacêutico responsável é obrigatório'),
 }).strict();
 
 export const scheduleSlotUpdateSchema = z.object({

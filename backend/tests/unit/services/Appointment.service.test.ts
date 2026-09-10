@@ -43,6 +43,14 @@ describe('AppointmentService', () => {
       findById: vi.fn().mockResolvedValue(mockPatient),
       findByUserId: vi.fn().mockResolvedValue(mockPatient),
     };
+    mockSlotRepo.findById.mockResolvedValue({
+      id: 3,
+      date: new Date('2025-10-15T00:00:00.000Z'),
+      timeSlot: '10:00',
+      maxCapacity: 4,
+      active: true,
+      appointments: [],
+    });
 
     (AppointmentRepository as any).mockImplementation(function () {
       return mockAppRepo;
@@ -78,6 +86,7 @@ describe('AppointmentService', () => {
         patientId: 1,
         scheduledDate: '2025-10-15',
         scheduledTime: '10:00',
+        slotId: 3,
         items: [{ medicineId: 1, quantity: 1 }],
       }
     );
@@ -97,5 +106,12 @@ describe('AppointmentService', () => {
 
     expect(result.status).toBe('CONFIRMADO');
     expect(mockAppRepo.updateStatus).toHaveBeenCalledWith(1, 'CONFIRMADO', undefined);
+  });
+
+  it('deve rejeitar agendamento sem escala', async () => {
+    await expect(appointmentService.create(
+      { userId: 1, role: 'ADMIN' },
+      { patientId: 1, scheduledDate: '2025-10-15', items: [{ medicineId: 1, quantity: 1 }] },
+    )).rejects.toMatchObject({ statusCode: 400 });
   });
 });

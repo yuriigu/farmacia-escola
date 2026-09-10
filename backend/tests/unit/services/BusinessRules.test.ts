@@ -158,6 +158,20 @@ describe('Regras de Negócio Farmacêuticas Estritas', () => {
       (AppointmentRepository as any).mockImplementation(function () {
         return mockAppRepo;
       });
+      (ScheduleSlotRepository as any).mockImplementation(function () {
+        return {
+          findById: vi.fn().mockResolvedValue({
+            id: 1,
+            date: new Date('2026-10-15T00:00:00.000Z'),
+            maxCapacity: 5,
+            active: true,
+            appointments: [],
+          }),
+        };
+      });
+      (prisma as any).appointment = {
+        count: vi.fn().mockResolvedValue(0),
+      };
 
       (prisma as any).appointmentItem = {
         findMany: vi.fn().mockResolvedValue([]),
@@ -219,6 +233,7 @@ describe('Regras de Negócio Farmacêuticas Estritas', () => {
           {
             patientId: 1,
             scheduledDate: '2026-10-15',
+            slotId: 1,
             items: [{ medicineId: 1, quantity: 15 }],
           }
         )
@@ -256,6 +271,7 @@ describe('Regras de Negócio Farmacêuticas Estritas', () => {
         {
           patientId: 1,
           scheduledDate: '2026-10-15',
+          slotId: 1,
           items: [{ medicineId: 1, quantity: 10 }],
         }
       );

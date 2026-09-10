@@ -13,7 +13,7 @@ import type { ModuleConfig } from '@/lib/Constants';
 import { AppointmentsOverviewPage } from '@/components/pages/AppointmentsOverviewPage';
 import { AppointmentsPage } from '@/components/pages/AppointmentsPage';
 import { ScheduleSlotsPage } from '@/components/pages/ScheduleSlotsPage';
-import { useAuthStore } from '@/lib/AuthStore';
+import { usePermission } from '@/hooks/usePermission';
 import { Button } from '@/components/ui/Button';
 
 // INTERFACE DAS PROPRIEDADES DO MODULO DE CALENDARIO
@@ -25,23 +25,7 @@ interface CalendarModuleProps {
 
 // COMPONENTE DO MODULO DE CALENDARIO
 export function CalendarModule({ module, activeTab, onTabChange }: CalendarModuleProps) {
-  const user = useAuthStore((s) => {
-    return s.user;
-  });
-
-  // VERIFICANDO SE O USUARIO E ADMIN OU FARMACEUTICO
-  let isAdminOrFarm = false;
-  if (user) {
-    if (user.role === 'ADMIN') {
-      isAdminOrFarm = true;
-    } else if (user.role === 'FARMACEUTICO') {
-      isAdminOrFarm = true;
-    } else {
-      isAdminOrFarm = false;
-    }
-  } else {
-    isAdminOrFarm = false;
-  }
+  const isAdminOrFarm = usePermission('SCHEDULES_CREATE');
 
   const [showSchedule, setShowSchedule] = useState(false);
 

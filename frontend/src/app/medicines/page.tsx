@@ -78,6 +78,9 @@ export default function MedicinesPage() {
     canCreateMedicine = false;
   }
 
+  const normalizedRole = user?.role?.toUpperCase();
+  const canExport = normalizedRole === 'ADMIN' || normalizedRole === 'FARMACEUTICO';
+
   const { data: rawMedicines, isLoading } = useMedicines();
   let medicines: Medicine[] = [];
   if (rawMedicines) {
@@ -841,14 +844,14 @@ export default function MedicinesPage() {
           }
           actions={
             <div className="flex items-center gap-2">
-              <Button
+              {canExport && <Button
                 variant="outline"
                 onClick={handleExportCSV}
                 className="rounded-xl border-slate-200 dark:border-slate-700 text-xs font-semibold gap-1.5 h-9"
               >
                 <Download className="w-3.5 h-3.5" />
                 <span className="hidden sm:inline">Exportar CSV</span>
-              </Button>
+              </Button>}
               {(() => {
                 if (canCreateMedicine) {
                   return (

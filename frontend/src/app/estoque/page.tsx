@@ -7,7 +7,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 function EstoqueContent() {
   return (
-    <ProtectedRoute allowedRoles={['ADMIN', 'FARMACEUTICO', 'ALUNO']}>
+    <ProtectedRoute routeKey="estoque">
       <AppShell activeModuleId="estoque" pageTitle="Estoque de Lotes">
         <StockManagementPage />
       </AppShell>

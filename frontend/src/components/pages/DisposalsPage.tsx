@@ -7,6 +7,7 @@ import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/Pharmacy
 import type { DisposalDraft, Disposal } from '@/lib/Types';
 import { api } from '@/lib/Api';
 import { downloadCSV } from '@/lib/Constants';
+import { usePermission } from '@/hooks/usePermission';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import { Button } from '@/components/ui/Button';
@@ -19,6 +20,7 @@ import { Textarea } from '@/components/ui/Textarea';
 
 export function DisposalsPage() {
   const { disposals, batches, loading } = usePharmacyStore();
+  const canWrite = usePermission('DISPOSALS_CREATE');
   const [modalOpen, setModalOpen] = useState(false);
   const [reverting, setReverting] = useState<number | null>(null);
   const [selectedDisposal, setSelectedDisposal] = useState<Disposal | null>(null);
@@ -295,7 +297,7 @@ export function DisposalsPage() {
       width: '100px',
       align: 'right',
       cell: (d) => {
-        if (d.status !== 'REVERTED') {
+        if (canWrite && d.status !== 'REVERTED') {
           return (
             <Button
               size="sm"
@@ -326,7 +328,7 @@ export function DisposalsPage() {
         icon={Trash2}
         actions={
           <>
-            <Button
+            {canWrite && <Button
               variant="outline"
               onClick={handleExportCSV}
               disabled={filteredDisposals.length === 0}
@@ -334,8 +336,8 @@ export function DisposalsPage() {
             >
               <Download className="w-4 h-4" />
               <span>Exportar CSV</span>
-            </Button>
-            <Button
+            </Button>}
+            {canWrite && <Button
               onClick={() => {
                 setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
                 setModalOpen(true);
@@ -344,7 +346,7 @@ export function DisposalsPage() {
             >
               <Plus className="w-4 h-4" />
               <span>Novo Descarte</span>
-            </Button>
+            </Button>}
           </>
         }
       />
@@ -384,7 +386,7 @@ export function DisposalsPage() {
         emptyIcon={Trash2}
         emptyTitle="Nenhum descarte registrado"
         emptyDescription="Não há registros de descarte correspondentes aos filtros aplicados."
-        emptyAction={
+        emptyAction={canWrite ? (
           <Button
             onClick={() => {
               setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
@@ -395,7 +397,7 @@ export function DisposalsPage() {
             <Plus className="w-3.5 h-3.5" />
             Novo Descarte
           </Button>
-        }
+        ) : undefined}
         onRowClick={(disposal) => setSelectedDisposal(disposal)}
       />
 

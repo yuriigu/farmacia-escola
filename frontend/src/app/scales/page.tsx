@@ -7,7 +7,7 @@ import { ScheduleSlotsPage } from '@/components/pages/ScheduleSlotsPage';
 
 function ScalesContent() {
   return (
-    <ProtectedRoute allowedRoles={['ADMIN', 'FARMACEUTICO']}>
+    <ProtectedRoute routeKey="scales">
       <AppShell activeModuleId="scales" pageTitle="Escala">
         <ScheduleSlotsPage />
       </AppShell>

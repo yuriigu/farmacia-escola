@@ -7,7 +7,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 function DescartesContent() {
   return (
-    <ProtectedRoute allowedRoles={['ADMIN', 'FARMACEUTICO', 'ALUNO']}>
+    <ProtectedRoute routeKey="descartes">
       <AppShell activeModuleId="descartes" pageTitle="Descartes">
         <DisposalsPage />
       </AppShell>

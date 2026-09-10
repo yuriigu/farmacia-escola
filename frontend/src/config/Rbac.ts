@@ -18,8 +18,8 @@ export const rolePermissions: Record<AppRole, string[]> = {
     'pacientes',
     'administracao',
     'admin',
-    'configuracoes',
     'profile',
+    'settings',
     'usuarios',
   ],
   FARMACEUTICO: [
@@ -33,7 +33,6 @@ export const rolePermissions: Record<AppRole, string[]> = {
     'calendario',
     'scales',
     'pacientes',
-    'configuracoes',
     'profile',
   ],
   MEDICO: [
@@ -42,7 +41,6 @@ export const rolePermissions: Record<AppRole, string[]> = {
     'agendamentos',
     'appointments',
     'calendario',
-    'configuracoes',
     'profile',
   ],
   ALUNO: [
@@ -55,7 +53,6 @@ export const rolePermissions: Record<AppRole, string[]> = {
     'appointments',
     'calendario',
     'pacientes',
-    'configuracoes',
     'profile',
   ],
   PACIENTE: [
@@ -63,8 +60,9 @@ export const rolePermissions: Record<AppRole, string[]> = {
     'medicines',
     'agendamentos',
     'appointments',
-    'configuracoes',
     'profile',
+    'my-appointments',
+    'my-withdrawals',
   ],
 };
 
@@ -87,12 +85,16 @@ export function hasRouteAccess(role: string | undefined | null, routeOrModule: s
   const segments = routeOrModule.replace(/^\//, '').split('?')[0].split('/');
 
   // OBTENDO O MODULO PRINCIPAL COM FALLBACK PARA DASHBOARD
-  let primaryKey = 'dashboard';
-  if (segments[0]) {
-    primaryKey = segments[0];
-  } else {
-    primaryKey = 'dashboard';
-  }
+  const routeAliases: Record<string, string> = {
+    admin: 'administracao',
+    calendario: 'calendario',
+    profile: 'configuracoes',
+    configuracoes: 'profile',
+    appointments: 'appointments',
+    agendamentos: 'agendamentos',
+  };
+  const primarySegment = segments[0] || 'dashboard';
+  const primaryKey = routeAliases[primarySegment] || primarySegment;
 
   // RETORNANDO SE O PAPEL POSSUI ACESSO
   const hasAccess = permissions.includes(primaryKey);

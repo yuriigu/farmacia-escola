@@ -8,7 +8,8 @@ import {
 import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/PharmacyStore';
 import type { WithdrawalDraft, Withdrawal } from '@/lib/Types';
 import { api } from '@/lib/Api';
-import { downloadCSV, getAvatarColor, canWriteClient } from '@/lib/Constants';
+import { downloadCSV, getAvatarColor } from '@/lib/Constants';
+import { usePermission } from '@/hooks/usePermission';
 import { useAuthStore } from '@/lib/AuthStore';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
@@ -22,18 +23,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 export function WithdrawalsPage() {
   const { withdrawals, batches, appointments, patients, loading } = usePharmacyStore();
   const { user } = useAuthStore();
-  let userRole: string | undefined = undefined;
-  let userPerms: Record<string, boolean> | null | undefined = undefined;
-  if (user) {
-    userRole = user.role;
-    userPerms = user.permissions;
-  }
-  const canWrite = canWriteClient(userRole, userPerms, 'withdrawals');
+  const canWrite = usePermission('WITHDRAWALS_CREATE');
   let canExport = false;
   if (user) {
-    if (user.role === 'ADMIN') {
+    if (user.role.toUpperCase() === 'ADMIN') {
       canExport = true;
-    } else if (user.role === 'FARMACEUTICO') {
+    } else if (user.role.toUpperCase() === 'FARMACEUTICO') {
       canExport = true;
     }
   }
@@ -189,6 +184,23 @@ export function WithdrawalsPage() {
     });
     downloadCSV('retiradas_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
     toast.success('Relatório exportado com sucesso!');
+  };
+
+  const handleDownloadReceipt = (withdrawal: Withdrawal) => {
+    const medicineName = withdrawal.batch?.medicine?.name || 'Medicamento';
+    const dosage = withdrawal.batch?.medicine?.dosage || '';
+    const batchNumber = withdrawal.batch?.code || withdrawal.batch?.batchNumber || '';
+    downloadCSV(`comprovante-retirada-${withdrawal.id}.csv`, [
+      ['Comprovante de Retirada', 'Valor'],
+      ['Registro', String(withdrawal.id)],
+      ['Paciente', withdrawal.patient?.name || ''],
+      ['CPF', withdrawal.patient?.cpf || ''],
+      ['Medicamento', `${medicineName} ${dosage}`.trim()],
+      ['Lote', batchNumber],
+      ['Quantidade', String(withdrawal.quantity)],
+      ['Data', withdrawal.createdAt ? new Date(withdrawal.createdAt).toLocaleString('pt-BR') : ''],
+      ['Status', withdrawal.status || 'COMPLETED'],
+    ]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -966,6 +978,17 @@ export function WithdrawalsPage() {
                     }
                     return null;
                   })()}
+                  {user?.role?.toUpperCase() === 'PACIENTE' && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full gap-2"
+                      onClick={() => handleDownloadReceipt(selectedWithdrawal)}
+                    >
+                      <Download className="h-4 w-4" />
+                      Baixar comprovante
+                    </Button>
+                  )}
                 </div>
               );
             }

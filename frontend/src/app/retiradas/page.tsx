@@ -7,7 +7,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 function RetiradasContent() {
   return (
-    <ProtectedRoute allowedRoles={['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO']}>
+    <ProtectedRoute routeKey="retiradas">
       <AppShell activeModuleId="retiradas" pageTitle="Retiradas">
         <WithdrawalsPage />
       </AppShell>

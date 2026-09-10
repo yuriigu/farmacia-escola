@@ -14,7 +14,7 @@ function DashboardContent() {
   const router = useRouter();
 
   return (
-    <ProtectedRoute allowedRoles={['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO', 'PACIENTE']}>
+    <ProtectedRoute routeKey="dashboard">
       <AppShell activeModuleId="dashboard" pageTitle="Dashboard">
         <DashboardPage
           onNavigate={(mod, tab) => {

@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Toaster, toast } from 'sonner';
 import {
-  Pill, LogOut, Menu, XIcon, Sun, Moon, UserRound, ChevronRight, Settings
+  Pill, LogOut, Menu, XIcon, Sun, Moon, UserRound, ChevronRight, Settings, ShieldAlert
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -20,6 +20,7 @@ import {
 } from '@/lib/Constants';
 import type { ModuleId } from '@/lib/Constants';
 import { RoleBadge } from '@/components/shared/RoleBadge';
+import { hasRouteAccess } from '@/config/Rbac';
 import { ScrollArea } from '@/components/ui/ScrollArea';
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem,
@@ -43,6 +44,9 @@ const PATH_MODULE_MAP: Record<string, ModuleId> = {
   '/admin': 'administracao',
   '/configuracoes': 'configuracoes',
   '/profile': 'configuracoes',
+  '/settings': 'settings',
+  '/my-appointments': 'my-appointments',
+  '/my-withdrawals': 'my-withdrawals',
 };
 
 // INTERFACE DAS PROPRIEDADES DO COMPONENTE
@@ -87,6 +91,7 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
   }
 
   const visibleModules = getVisibleModules(userRole, userPermissions);
+  const isRouteAuthorized = hasRouteAccess(userRole, pathname || '/dashboard');
 
   // DETERMINANDO O ID DO MODULO ATUAL
   let currentModuleId: ModuleId = 'dashboard';
@@ -258,6 +263,26 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     }
   };
 
+  const restrictedContent = (
+    <div className="min-h-[60vh] flex items-center justify-center p-4">
+      <div className="max-w-md w-full rounded-2xl border border-rose-200 bg-rose-50/40 p-6 text-center shadow-sm dark:border-rose-900/50 dark:bg-rose-950/20">
+        <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 dark:bg-rose-900/40 dark:text-rose-400">
+          <ShieldAlert className="h-7 w-7" />
+        </div>
+        <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100">Acesso Restrito</h2>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+          Seu perfil não possui permissão para acessar esta área do sistema.
+        </p>
+        <Link
+          href="/dashboard"
+          className="mt-5 inline-flex items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-700"
+        >
+          Voltar ao Dashboard
+        </Link>
+      </div>
+    </div>
+  );
+
   let themeIcon = <Moon className="w-4 h-4" />;
   let themeLabel = 'Tema Escuro';
   if (theme === 'dark') {
@@ -401,13 +426,13 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem asChild>
-                    <Link href="/configuracoes?tab=perfil" className="cursor-pointer gap-2 text-sm flex items-center">
+                    <Link href="/profile" className="cursor-pointer gap-2 text-sm flex items-center">
                       <UserRound className="w-4 h-4" />
                       Meu Perfil & Senha
                     </Link>
                   </DropdownMenuItem>
                   <DropdownMenuItem asChild>
-                    <Link href="/configuracoes" className="cursor-pointer gap-2 text-sm flex items-center">
+                    <Link href="/settings" className="cursor-pointer gap-2 text-sm flex items-center">
                       <Settings className="w-4 h-4" />
                       Configurações & Tema
                     </Link>
@@ -436,7 +461,7 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
         {/* CONTEUDO DA PAGINA */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="w-full max-w-7xl mx-auto">
-            {children}
+            {isRouteAuthorized ? children : restrictedContent}
           </div>
         </main>
       </div>

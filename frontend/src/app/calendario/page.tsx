@@ -42,7 +42,7 @@ function CalendarioContent() {
   }
 
   return (
-    <ProtectedRoute allowedRoles={['ADMIN', 'FARMACEUTICO', 'MEDICO']}>
+    <ProtectedRoute routeKey="calendario">
       <AppShell activeModuleId="calendario" pageTitle="Calendário">
         <CalendarModule
           module={activeModule}

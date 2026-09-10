@@ -8,7 +8,7 @@ import { useAuthStore } from '@/lib/AuthStore';
 import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/PharmacyStore';
 import { api } from '@/lib/Api';
 import { apiClient } from '@/lib/Axios';
-import { canWriteClient } from '@/lib/Constants';
+import { usePermission } from '@/hooks/usePermission';
 import type { ScheduleSlot, User } from '@/lib/Types';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
@@ -26,13 +26,7 @@ export function ScheduleSlotsPage() {
   const user = useAuthStore((s) => s.user);
   const scheduleSlots = usePharmacyStore((s) => s.scheduleSlots);
   const [pharmacists, setPharmacists] = useState<User[]>([]);
-  let userRole: string | undefined = undefined;
-  let userPermissions: Record<string, boolean> | undefined = undefined;
-  if (user) {
-    userRole = user.role;
-    userPermissions = user.permissions;
-  }
-  const canWrite = canWriteClient(userRole, userPermissions, 'schedule-slots');
+  const canWrite = usePermission('SCHEDULES_CREATE');
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editSlot, setEditSlot] = useState<ScheduleSlot | null>(null);

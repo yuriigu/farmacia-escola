@@ -9,6 +9,8 @@ import {
 import { usePharmacyStore } from '@/lib/PharmacyStore';
 import type { Patient } from '@/lib/Types';
 import { downloadCSV, getAvatarColor } from '@/lib/Constants';
+import { usePermission } from '@/hooks/usePermission';
+import { useAuthStore } from '@/lib/AuthStore';
 import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
@@ -20,6 +22,8 @@ import { Badge } from '@/components/ui/Badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
 
 export function PatientsPage() {
+  const user = useAuthStore((state) => state.user);
+  const canWrite = usePermission('PATIENTS_CREATE');
   const { patients, withdrawals, appointments } = usePharmacyStore();
   const [searchInput, setSearchInput] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
@@ -345,7 +349,7 @@ export function PatientsPage() {
       align: 'right',
       cell: (p) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <Button
+          {canWrite && <Button
             size="sm"
             variant="ghost"
             onClick={() => setSelectedPatient(p)}
@@ -353,8 +357,8 @@ export function PatientsPage() {
             title="Ver prontuário do paciente"
           >
             <Eye className="w-4 h-4" />
-          </Button>
-          <Button
+          </Button>}
+          {canWrite && <Button
             size="sm"
             variant="ghost"
             onClick={() => openEdit(p)}
@@ -362,7 +366,7 @@ export function PatientsPage() {
             title="Editar paciente"
           >
             <Pencil className="w-3.5 h-3.5" />
-          </Button>
+          </Button>}
           <Button
             size="sm"
             variant="ghost"
@@ -395,7 +399,7 @@ export function PatientsPage() {
         icon={Users}
         actions={
           <>
-            <Button
+            {canWrite && <Button
               variant="outline"
               onClick={handleExportCSV}
               disabled={patients.length === 0}
@@ -403,8 +407,8 @@ export function PatientsPage() {
             >
               <Download className="w-4 h-4" />
               <span>Exportar CSV</span>
-            </Button>
-            <Button
+            </Button>}
+            {canWrite && <Button
               onClick={() => {
                 setEditing(null);
                 setForm({ name: '', cpf: '', phone: '', birthDate: '', address: '' });
@@ -414,7 +418,7 @@ export function PatientsPage() {
             >
               <Plus className="w-4 h-4" />
               <span>Novo Paciente</span>
-            </Button>
+            </Button>}
           </>
         }
       />

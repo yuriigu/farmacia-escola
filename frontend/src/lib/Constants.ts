@@ -42,22 +42,23 @@ export function checkPermission(
   permissions: Record<string, boolean> | undefined | null,
   key: PermissionKey
 ): boolean {
-  if (role === 'ADMIN') {
+  const normalizedRole = role.toUpperCase();
+  if (normalizedRole === 'ADMIN') {
     return true;
   }
-  if (role === 'FARMACEUTICO') {
+  if (normalizedRole === 'FARMACEUTICO') {
     if (key !== 'users') {
       return true;
     } else {
       return false;
     }
   }
-  if (role === 'MEDICO') {
+  if (normalizedRole === 'MEDICO') {
     const medicoAllowed: PermissionKey[] = ['inventory', 'appointments', 'appointmentsOverview', 'batches', 'withdrawals'];
     const isAllowed = medicoAllowed.includes(key);
     return isAllowed;
   }
-  if (role === 'PACIENTE') {
+  if (normalizedRole === 'PACIENTE') {
     let isPacienteAllowed = false;
     if (key === 'inventory') {
       isPacienteAllowed = true;
@@ -134,6 +135,7 @@ export function canWriteClient(
     return false;
   }
 
+  const normalizedRole = role.toUpperCase();
   let permKey: PermissionKey;
   if (ENTITY_PERMISSION_MAP[entity] !== null) {
     if (ENTITY_PERMISSION_MAP[entity] !== undefined) {
@@ -145,24 +147,24 @@ export function canWriteClient(
     permKey = entity as PermissionKey;
   }
 
-  if (role === 'ADMIN') {
+  if (normalizedRole === 'ADMIN') {
     return true;
   }
-  if (role === 'FARMACEUTICO') {
+  if (normalizedRole === 'FARMACEUTICO') {
     if (entity !== 'users') {
       return true;
     } else {
       return false;
     }
   }
-  if (role === 'MEDICO') {
+  if (normalizedRole === 'MEDICO') {
     if (entity === 'appointments') {
       return true;
     } else {
       return false;
     }
   }
-  if (role === 'PACIENTE') {
+  if (normalizedRole === 'PACIENTE') {
     if (entity === 'appointments') {
       return true;
     } else {
@@ -225,7 +227,11 @@ export type ModuleId =
   | 'scales'
   | 'pacientes'
   | 'administracao'
-  | 'configuracoes';
+  | 'configuracoes'
+  | 'profile'
+  | 'settings'
+  | 'my-appointments'
+  | 'my-withdrawals';
 
 export type TabId = string;
 
@@ -353,9 +359,39 @@ export const MODULES: ModuleConfig[] = [
   },
   {
     id: 'configuracoes',
-    label: 'Configurações',
-    path: '/configuracoes',
+    label: 'Meu Perfil',
+    path: '/profile',
     icon: Settings,
+    tabs: [],
+    defaultTab: '',
+    actionLabels: {},
+  },
+  {
+    id: 'settings',
+    label: 'Configurações do Sistema',
+    path: '/settings',
+    icon: Settings,
+    forbiddenRoles: ['FARMACEUTICO', 'MEDICO', 'ALUNO', 'PACIENTE'],
+    tabs: [],
+    defaultTab: '',
+    actionLabels: {},
+  },
+  {
+    id: 'my-appointments',
+    label: 'Meus Agendamentos',
+    path: '/my-appointments',
+    icon: Calendar,
+    forbiddenRoles: ['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO'],
+    tabs: [],
+    defaultTab: '',
+    actionLabels: {},
+  },
+  {
+    id: 'my-withdrawals',
+    label: 'Minhas Retiradas',
+    path: '/my-withdrawals',
+    icon: ArrowUpRight,
+    forbiddenRoles: ['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO'],
     tabs: [],
     defaultTab: '',
     actionLabels: {},
@@ -364,18 +400,19 @@ export const MODULES: ModuleConfig[] = [
 
 /** Get visible modules for a given role */
 export function getVisibleModules(role: string, permissions?: Record<string, boolean> | null): ModuleConfig[] {
+  const normalizedRole = role.toUpperCase();
   return MODULES.filter((mod) => {
-    const hasAccess = hasRouteAccess(role, mod.id);
+    const hasAccess = hasRouteAccess(normalizedRole, mod.id);
     if (!hasAccess) {
       return false;
     }
     if (mod.forbiddenRoles) {
-      if (mod.forbiddenRoles.includes(role)) {
+      if (mod.forbiddenRoles.map((item) => item.toUpperCase()).includes(normalizedRole)) {
         return false;
       }
     }
     if (mod.permission) {
-      const allowed = checkPermission(role, permissions, mod.permission as PermissionKey);
+      const allowed = checkPermission(normalizedRole, permissions, mod.permission as PermissionKey);
       if (!allowed) {
         return false;
       }

@@ -7,7 +7,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 function AdministracaoContent() {
   return (
-    <ProtectedRoute allowedRoles={['ADMIN']}>
+    <ProtectedRoute routeKey="administracao">
       <AppShell activeModuleId="administracao" pageTitle="Administração">
         <AdminPage />
       </AppShell>

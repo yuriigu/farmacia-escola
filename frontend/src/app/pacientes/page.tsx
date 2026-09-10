@@ -7,7 +7,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute';
 
 function PacientesContent() {
   return (
-    <ProtectedRoute allowedRoles={['ADMIN', 'FARMACEUTICO']}>
+    <ProtectedRoute routeKey="pacientes">
       <AppShell activeModuleId="administracao" pageTitle="Pacientes">
         <div className="space-y-6 page-enter">
           <PatientsPage />

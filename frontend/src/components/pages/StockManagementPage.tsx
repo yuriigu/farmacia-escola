@@ -14,7 +14,8 @@ import { ConfirmDialog } from '@/components/shared/ConfirmDialog';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { DataTable, Column } from '@/components/shared/DataTable';
 import { api } from '@/lib/Api';
-import { canWriteClient, downloadCSV } from '@/lib/Constants';
+import { downloadCSV } from '@/lib/Constants';
+import { usePermission } from '@/hooks/usePermission';
 import { useAuthStore } from '@/lib/AuthStore';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -35,19 +36,7 @@ const batchDraftSchema = z.object({
 export function StockManagementPage() {
   const { medicines, batches, withdrawals, disposals, loading } = usePharmacyStore();
   const { user } = useAuthStore();
-  let userRole: string | undefined = undefined;
-  if (user) {
-    if (user.role) {
-      userRole = user.role;
-    }
-  }
-  let userPerms: Record<string, boolean> | undefined = undefined;
-  if (user) {
-    if (user.permissions) {
-      userPerms = user.permissions;
-    }
-  }
-  const canWrite = canWriteClient(userRole, userPerms, 'batches');
+  const canWrite = usePermission('BATCHES_CREATE');
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<BatchEntryDraft>({
     medicineId: 0,
@@ -631,7 +620,7 @@ export function StockManagementPage() {
         icon={Boxes}
         actions={
           <div className="flex items-center gap-2">
-            <Button
+            {canWrite && <Button
               variant="outline"
               onClick={handleExportCSV}
               disabled={filteredBatches.length === 0}
@@ -639,7 +628,7 @@ export function StockManagementPage() {
             >
               <Download className="w-4 h-4" />
               <span>Exportar CSV</span>
-            </Button>
+            </Button>}
             {(() => {
               if (canWrite) {
                 return (

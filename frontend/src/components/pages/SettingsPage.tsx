@@ -20,12 +20,12 @@ import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Separator } from '@/components/ui/Separator';
 
-export function SettingsPage() {
+export function SettingsPage({ mode = 'profile' }: { mode?: 'profile' | 'system' }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get('tab');
-  let initialTab = 'perfil';
-  if (tabParam) {
+  let initialTab = mode === 'system' ? 'sistema' : 'perfil';
+  if (tabParam && mode === 'system') {
     initialTab = tabParam;
   }
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -53,14 +53,14 @@ export function SettingsPage() {
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab) {
+    if (tab && mode === 'system') {
       if (['perfil', 'aparencia', 'sistema'].includes(tab)) {
         setTimeout(() => {
           setActiveTab(tab);
         }, 0);
       }
     }
-  }, [searchParams]);
+  }, [mode, searchParams]);
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
@@ -149,7 +149,7 @@ export function SettingsPage() {
     { id: 'perfil', label: 'Meu Perfil & Senha', icon: UserRound },
     { id: 'aparencia', label: 'Aparência & Tema', icon: Palette },
     { id: 'sistema', label: 'Sistema & Informações', icon: Info },
-  ];
+  ].filter((tab) => mode === 'system' || tab.id === 'perfil');
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto page-enter">

@@ -44,7 +44,7 @@ Stack Tecnológica
   - Desenvolvimento, testes e produção: SQLite (file:./prisma/dev.db)
 * Autenticação & Criptografia: JSON Web Token (jsonwebtoken 9.0) + bcryptjs 3.0
 * Segurança & CORS: cors 2.8 + Middlewares customizados
-* Testes: Vitest 4.1 + Supertest 7.2
+* Testes: Vitest 3.0 + Supertest 7.2
 * Hot-Reload: Nodemon 3.1 + ts-node 10.9
 
 Execução com Docker
@@ -138,7 +138,7 @@ Scripts Disponíveis
 * npm run db:push — prisma db push (Sincroniza o schema diretamente com o banco)
 * npm run db:generate — prisma generate (Atualiza as tipagens do Prisma Client)
 * npm run db:migrate — prisma migrate dev (Gera e aplica migrações relacionais)
-* npm run db:seed — npx ts-node src/seed/seed.ts (Carrega o conjunto de dados iniciais)
+* npm run db:seed — npx ts-node src/seed/Seed.ts (Carrega o conjunto de dados iniciais)
 
 Testes Automatizados
 --------------------
@@ -157,7 +157,7 @@ backend/
 ├── prisma.config.ts
 ├── tsconfig.json
 ├── vitest.config.ts
-├── README.md
+├── README
 │
 ├── prisma/
 │   ├── schema.prisma

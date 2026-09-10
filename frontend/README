@@ -59,7 +59,7 @@ docker build -t farmacia-frontend .
 docker run -p 3000:3000 \
   -e PORT=3000 \
   -e HOSTNAME="0.0.0.0" \
-  -e NEXT_PUBLIC_API_URL="http://localhost:3001" \
+  -e NEXT_PUBLIC_API_URL="http://localhost:3001/api" \
   -e INTERNAL_API_URL="http://localhost:3001" \
   farmacia-frontend
 
@@ -80,7 +80,7 @@ npm install
 
 Crie o arquivo frontend/.env:
 
-NEXT_PUBLIC_API_URL="http://localhost:3001"
+NEXT_PUBLIC_API_URL="http://localhost:3001/api"
 INTERNAL_API_URL="http://localhost:3001"
 
 3. Inicialização em Modo Desenvolvimento:
@@ -97,7 +97,7 @@ npm run start
 Variáveis de Ambiente
 ---------------------
 
-* NEXT_PUBLIC_API_URL: URL pública da API consumida pelo navegador (Exemplo: http://localhost:3001)
+* NEXT_PUBLIC_API_URL: URL pública da API consumida pelo navegador (Exemplo: http://localhost:3001/api)
 * INTERNAL_API_URL: URL para comunicação interna entre o servidor Next.js e o backend (Exemplo: http://localhost:3001)
 * PORT: Porta de escuta do servidor Next.js (Exemplo: 3000)
 * HOSTNAME: Endereço de escuta da aplicação (Exemplo: 0.0.0.0)
@@ -132,7 +132,7 @@ frontend/
 ├── tsconfig.json
 ├── vitest.config.ts
 ├── vitest.setup.ts
-├── README.md
+├── README
 │
 ├── __tests__/
 │
@@ -145,11 +145,19 @@ frontend/
     │   ├── register/
     │   ├── dashboard/
     │   ├── estoque/
+    │   ├── medicines/
     │   ├── agendamentos/
     │   ├── calendario/
+    │   ├── retiradas/
+    │   ├── descartes/
     │   ├── pacientes/
     │   ├── administracao/
     │   ├── configuracoes/
+    │   ├── settings/
+    │   ├── appointments/
+    │   ├── scales/
+    │   ├── my-appointments/
+    │   ├── my-withdrawals/
     │   └── profile/
     │
     ├── components/

@@ -48,7 +48,7 @@ Dispensação e Assistência Farmacêutica:
 Controle de Acesso e Governança:
 * Sistema de permissões baseado em papéis (ADMIN, FARMACEUTICO, MEDICO, ALUNO, PACIENTE).
 * Trilha de auditoria para acompanhamento de logins, alterações, dispensações e descartes.
-* Autenticação e segurança com criptografia de ponta a ponta.
+* Autenticação com JWT e armazenamento de senhas utilizando hashing com bcryptjs.
 
 Tecnologias Utilizadas
 ----------------------
@@ -68,7 +68,7 @@ Backend:
 * Node.js
 * Express.js 4
 * TypeScript 5
-* Prisma ORM 6
+* Prisma ORM 5.22
 * SQLite
 * JWT
 * Bcrypt.js
@@ -79,6 +79,29 @@ Instalação
 Clone o repositório:
 
 git clone https://github.com/yuriigu/farmacia-escola.git
+
+Execute o projeto completo com Docker Compose:
+
+cd farmacia-escola
+docker compose up --build -d
+
+A aplicação estará disponível em:
+
+* Frontend: http://localhost:3000
+* API: http://localhost:3001
+* Verificação de integridade da API: http://localhost:3001/health
+
+Para acompanhar os logs dos serviços:
+
+docker compose logs -f
+
+Para popular o banco com os dados iniciais:
+
+docker compose exec backend npm run db:seed
+
+Para parar os serviços:
+
+docker compose down
 
 Documentação
 ------------

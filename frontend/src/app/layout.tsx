@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
-import { QueryProvider } from "@/providers/QueryProvider";
+import { QueryProvider } from "@/providers/query-provider";
 import "./globals.css";
 
 const plusJakarta = Plus_Jakarta_Sans({

@@ -10,24 +10,24 @@ import {
   Boxes, Plus, Search, Trash2, AlertTriangle,
   CheckCircle2, Clock, Calendar, Package, X
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/AppShell';
+import { AppShell } from '@/components/layout/app-shell';
 import {
   useBatches,
   useMedicines,
   useCreateBatch,
   useDeleteBatch,
-} from '@/services/Queries';
-import { useAuthStore } from '@/lib/AuthStore';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Label } from '@/components/ui/Label';
-import { Badge } from '@/components/ui/Badge';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { DataTable, Column } from '@/components/shared/DataTable';
+} from '@/services/queries';
+import { useAuthStore } from '@/lib/auth-store';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { PageHeader } from '@/components/shared/page-header';
+import { DataTable, Column } from '@/components/shared/data-table';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle
-} from '@/components/ui/Dialog';
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,8 +37,8 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/AlertDialog';
-import type { Batch } from '@/lib/Types';
+} from '@/components/ui/alert-dialog';
+import type { Batch } from '@/lib/types';
 
 const batchSchema = z.object({
   medicineId: z.number({ message: 'Selecione um medicamento' }).min(1, 'Selecione um medicamento'),

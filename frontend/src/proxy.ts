@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 // IMPORTS LOCAIS
-import { hasRouteAccess } from './config/Rbac';
+import { hasRouteAccess } from './config/rbac';
 
 // ROTAS PUBLICAS QUE NAO EXIGEM AUTENTICACAO
 const PUBLIC_PATHS = ['/login', '/register'];

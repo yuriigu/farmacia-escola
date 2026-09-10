@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import apiRoutes from './routes/Index';
-import { errorMiddleware } from './middlewares/ErrorMiddleware';
-import { globalRateLimiter } from './middlewares/RateLimitMiddleware';
+import apiRoutes from './routes/index';
+import { errorMiddleware } from './middlewares/error-middleware';
+import { globalRateLimiter } from './middlewares/rate-limit-middleware';
 
 dotenv.config();
 

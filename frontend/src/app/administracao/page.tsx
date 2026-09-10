@@ -1,9 +1,9 @@
 'use client';
 
 import { Suspense } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
-import { AdminPage } from '@/components/pages/AdminPage';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AppShell } from '@/components/layout/app-shell';
+import { AdminPage } from '@/components/pages/admin-page';
+import { ProtectedRoute } from '@/components/protected-route';
 
 function AdministracaoContent() {
   return (

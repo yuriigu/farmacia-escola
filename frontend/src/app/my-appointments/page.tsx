@@ -1,8 +1,8 @@
 'use client';
 
-import { AppShell } from '@/components/layout/AppShell';
-import { AppointmentsPage } from '@/components/pages/AppointmentsPage';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AppShell } from '@/components/layout/app-shell';
+import { AppointmentsPage } from '@/components/pages/appointments-page';
+import { ProtectedRoute } from '@/components/protected-route';
 
 export default function MyAppointmentsPage() {
   return (

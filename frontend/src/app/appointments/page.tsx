@@ -7,7 +7,7 @@ import {
   Calendar, Plus, Clock, Pill, Search, X, Check, XCircle,
   Eye, RefreshCw, CalendarDays, User, FileText, HeartPulse, ShieldCheck
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/AppShell';
+import { AppShell } from '@/components/layout/app-shell';
 import {
   useAppointments,
   useCancelAppointment,
@@ -15,21 +15,21 @@ import {
   useCreateAppointment,
   useMedicines,
   usePatients,
-} from '@/services/Queries';
-import { useAuthStore } from '@/lib/AuthStore';
-import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/PharmacyStore';
-import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES } from '@/lib/Constants';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Label } from '@/components/ui/Label';
-import { Badge } from '@/components/ui/Badge';
-import { Textarea } from '@/components/ui/Textarea';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { DataTable, Column } from '@/components/shared/DataTable';
+} from '@/services/queries';
+import { useAuthStore } from '@/lib/auth-store';
+import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
+import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES } from '@/lib/constants';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Badge } from '@/components/ui/badge';
+import { Textarea } from '@/components/ui/textarea';
+import { PageHeader } from '@/components/shared/page-header';
+import { DataTable, Column } from '@/components/shared/data-table';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle
-} from '@/components/ui/Dialog';
+} from '@/components/ui/dialog';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,9 +39,9 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from '@/components/ui/AlertDialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
-import type { Appointment, AppointmentItem, AppointmentItemDraft } from '@/lib/Types';
+} from '@/components/ui/alert-dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import type { Appointment, AppointmentItem, AppointmentItemDraft } from '@/lib/types';
 
 function AppointmentsContent() {
   const searchParams = useSearchParams();

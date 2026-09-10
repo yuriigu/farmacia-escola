@@ -1,8 +1,8 @@
 'use client';
 
-import { AppShell } from '@/components/layout/AppShell';
-import { SettingsPage } from '@/components/pages/SettingsPage';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AppShell } from '@/components/layout/app-shell';
+import { SettingsPage } from '@/components/pages/settings-page';
+import { ProtectedRoute } from '@/components/protected-route';
 
 export default function SettingsRoute() {
   return (

@@ -1,9 +1,9 @@
 'use client';
 
 import { Suspense } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
-import { ScheduleSlotsPage } from '@/components/pages/ScheduleSlotsPage';
+import { AppShell } from '@/components/layout/app-shell';
+import { ProtectedRoute } from '@/components/protected-route';
+import { ScheduleSlotsPage } from '@/components/pages/schedule-slots-page';
 
 function ScalesContent() {
   return (

@@ -12,13 +12,13 @@ import {
 } from 'lucide-react';
 
 // IMPORTS LOCAIS
-import { AppShell } from '@/components/layout/AppShell';
-import { useMedicine } from '@/services/Queries';
-import { useAuthStore } from '@/lib/AuthStore';
-import { MEDICINE_CATEGORY_LABELS, MEDICINE_CATEGORY_COLORS } from '@/lib/Constants';
-import { Button } from '@/components/ui/Button';
-import { Badge } from '@/components/ui/Badge';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
+import { AppShell } from '@/components/layout/app-shell';
+import { useMedicine } from '@/services/queries';
+import { useAuthStore } from '@/lib/auth-store';
+import { MEDICINE_CATEGORY_LABELS, MEDICINE_CATEGORY_COLORS } from '@/lib/constants';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 // COMPONENTE DA PAGINA DE DETALHES DO MEDICAMENTO
 export default function MedicineDetailsPage() {

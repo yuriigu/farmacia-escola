@@ -5,9 +5,9 @@ import { Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 
 // COMPONENTES LOCAIS
-import { AppShell } from '@/components/layout/AppShell';
-import { DashboardPage } from '@/components/pages/DashboardPage';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AppShell } from '@/components/layout/app-shell';
+import { DashboardPage } from '@/components/pages/dashboard-page';
+import { ProtectedRoute } from '@/components/protected-route';
 
 // CONTEUDO DA PAGINA DO DASHBOARD
 function DashboardContent() {

@@ -10,24 +10,24 @@ import {
   Pill, X, Eye, HeartPulse, ShieldCheck,
   Layers, Clock, User, Download, Boxes, AlertCircle, CheckCircle2
 } from 'lucide-react';
-import { AppShell } from '@/components/layout/AppShell';
-import { useMedicines, useCreateMedicine, useCreateAppointment, usePatients, useCreateBatch } from '@/services/Queries';
-import { useAuthStore } from '@/lib/AuthStore';
-import { MEDICINE_CATEGORIES, downloadCSV } from '@/lib/Constants';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
-import { Label } from '@/components/ui/Label';
-import { Textarea } from '@/components/ui/Textarea';
-import { PageHeader } from '@/components/shared/PageHeader';
-import { DataTable, Column } from '@/components/shared/DataTable';
-import { CategoryBadge } from '@/components/shared/CategoryBadge';
-import { StockStatusBadge } from '@/components/shared/StockStatusBadge';
+import { AppShell } from '@/components/layout/app-shell';
+import { useMedicines, useCreateMedicine, useCreateAppointment, usePatients, useCreateBatch } from '@/services/queries';
+import { useAuthStore } from '@/lib/auth-store';
+import { MEDICINE_CATEGORIES, downloadCSV } from '@/lib/constants';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { PageHeader } from '@/components/shared/page-header';
+import { DataTable, Column } from '@/components/shared/data-table';
+import { CategoryBadge } from '@/components/shared/category-badge';
+import { StockStatusBadge } from '@/components/shared/stock-status-badge';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle
-} from '@/components/ui/Dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
-import { computeStockStatus, type Medicine, type StockStatus } from '@/lib/Types';
+} from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { computeStockStatus, type Medicine, type StockStatus } from '@/lib/types';
 
 export const DOSAGE_UNITS = ['MG', 'ML', 'G', 'MCG', 'UI'] as const;
 export type DosageUnit = typeof DOSAGE_UNITS[number];

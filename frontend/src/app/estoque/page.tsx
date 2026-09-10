@@ -1,9 +1,9 @@
 'use client';
 
 import { Suspense } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
-import { StockManagementPage } from '@/components/pages/StockManagementPage';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AppShell } from '@/components/layout/app-shell';
+import { StockManagementPage } from '@/components/pages/stock-management-page';
+import { ProtectedRoute } from '@/components/protected-route';
 
 function EstoqueContent() {
   return (

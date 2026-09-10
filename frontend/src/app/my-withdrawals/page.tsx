@@ -1,8 +1,8 @@
 'use client';
 
-import { AppShell } from '@/components/layout/AppShell';
-import { WithdrawalsPage } from '@/components/pages/WithdrawalsPage';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AppShell } from '@/components/layout/app-shell';
+import { WithdrawalsPage } from '@/components/pages/withdrawals-page';
+import { ProtectedRoute } from '@/components/protected-route';
 
 export default function MyWithdrawalsPage() {
   return (

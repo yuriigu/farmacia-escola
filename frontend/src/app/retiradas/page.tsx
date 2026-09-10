@@ -1,9 +1,9 @@
 'use client';
 
 import { Suspense } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
-import { WithdrawalsPage } from '@/components/pages/WithdrawalsPage';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AppShell } from '@/components/layout/app-shell';
+import { WithdrawalsPage } from '@/components/pages/withdrawals-page';
+import { ProtectedRoute } from '@/components/protected-route';
 
 function RetiradasContent() {
   return (

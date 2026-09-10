@@ -1,9 +1,9 @@
 'use client';
 
 import { Suspense } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
-import { PatientsPage } from '@/components/pages/PatientsPage';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AppShell } from '@/components/layout/app-shell';
+import { PatientsPage } from '@/components/pages/patients-page';
+import { ProtectedRoute } from '@/components/protected-route';
 
 function PacientesContent() {
   return (

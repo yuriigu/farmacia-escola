@@ -1,9 +1,9 @@
 'use client';
 
 import { Suspense } from 'react';
-import { AppShell } from '@/components/layout/AppShell';
-import { DisposalsPage } from '@/components/pages/DisposalsPage';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AppShell } from '@/components/layout/app-shell';
+import { DisposalsPage } from '@/components/pages/disposals-page';
+import { ProtectedRoute } from '@/components/protected-route';
 
 function DescartesContent() {
   return (

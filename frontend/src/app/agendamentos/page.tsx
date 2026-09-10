@@ -5,10 +5,10 @@ import { Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 
 // COMPONENTES LOCAIS
-import { AppShell } from '@/components/layout/AppShell';
-import { CalendarModule } from '@/components/modules/CalendarModule';
-import { getModuleById } from '@/lib/Constants';
-import { ProtectedRoute } from '@/components/ProtectedRoute';
+import { AppShell } from '@/components/layout/app-shell';
+import { CalendarModule } from '@/components/modules/calendar-module';
+import { getModuleById } from '@/lib/constants';
+import { ProtectedRoute } from '@/components/protected-route';
 
 // CONTEUDO DA PAGINA DE AGENDAMENTOS
 function AgendamentosContent() {

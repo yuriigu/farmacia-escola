@@ -1,0 +1,433 @@
+'use client';
+
+import { useState, useEffect, useMemo } from 'react';
+import type { EventClickArg } from '@fullcalendar/core';
+import { toast } from 'sonner';
+import { CalendarDays, Plus, Trash2, Edit3, Clock, Loader2 } from 'lucide-react';
+import { useAuthStore } from '@/lib/auth-store';
+import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
+import { api } from '@/lib/api';
+import { apiClient } from '@/lib/axios';
+import { usePermission } from '@/hooks/use-permission';
+import type { ScheduleSlot, User } from '@/lib/types';
+import { PageHeader } from '@/components/shared/page-header';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { StandardCalendar } from '@/components/shared/standard-calendar';
+
+const TIME_OPTIONS = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'];
+
+export function ScheduleSlotsPage() {
+  const user = useAuthStore((s) => s.user);
+  const scheduleSlots = usePharmacyStore((s) => s.scheduleSlots);
+  const [pharmacists, setPharmacists] = useState<User[]>([]);
+  const canWrite = usePermission('SCHEDULES_CREATE');
+
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editSlot, setEditSlot] = useState<ScheduleSlot | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({ date: '', timeSlot: '09:00', maxCapacity: 4, assignedToId: 0 });
+
+  // Load slots for visible month
+  useEffect(() => {
+    api.getUsers().then((users) => {
+      const responsibleUsers = users.filter((item) => item.role === 'FARMACEUTICO');
+      setPharmacists(responsibleUsers);
+    }).catch(() => {});
+  }, []);
+
+  const handleDatesSet = (info: { startStr: string; endStr: string }) => {
+    fetchScheduleSlotsData({
+      startDate: info.startStr.slice(0, 10),
+      endDate: info.endStr.slice(0, 10),
+    }).catch(() => {});
+  };
+
+  // Group slots by date
+  const slotsByDate = useMemo(() => {
+    const map: Record<string, ScheduleSlot[]> = {};
+    scheduleSlots.forEach((s) => {
+      const dateKey = s.date.split('T')[0];
+      if (!map[dateKey]) map[dateKey] = [];
+      map[dateKey].push(s);
+    });
+    return map;
+  }, [scheduleSlots]);
+
+  const calendarEvents = useMemo(() => scheduleSlots.map((slot) => {
+    const booked = slot._count?.appointments ?? 0;
+    const available = Math.max(slot.maxCapacity - booked, 0);
+    const isFull = available === 0;
+    return {
+      id: String(slot.id),
+      title: `${slot.timeSlot} · ${isFull ? 'Esgotado' : `${available} vagas`}`,
+      date: slot.date.slice(0, 10),
+      backgroundColor: isFull ? '#64748b' : '#16a34a',
+      borderColor: isFull ? '#475569' : '#15803d',
+      extendedProps: { slot },
+    };
+  }), [scheduleSlots]);
+
+  const handleCalendarEventClick = (info: EventClickArg) => {
+    const slot = info.event.extendedProps.slot as ScheduleSlot | undefined;
+    if (slot && canWrite) {
+      handleOpenEdit(slot);
+    }
+  };
+
+  const handleOpenCreate = (date?: string) => {
+    setEditSlot(null);
+    let initialDate = new Date().toISOString().split('T')[0];
+    if (date) {
+      initialDate = date;
+    }
+    let responsibleId = 0;
+    if (user) {
+      if (user.role === 'FARMACEUTICO') {
+        responsibleId = user.id;
+      }
+    }
+    setForm({
+      date: initialDate,
+      timeSlot: '09:00',
+      maxCapacity: 4,
+      assignedToId: responsibleId,
+    });
+    setModalOpen(true);
+  };
+
+  const handleOpenEdit = (slot: ScheduleSlot) => {
+    setEditSlot(slot);
+    let responsibleId = 0;
+    if (slot.assignedToId) {
+      responsibleId = slot.assignedToId;
+    }
+    setForm({
+      date: slot.date.split('T')[0],
+      timeSlot: slot.timeSlot,
+      maxCapacity: slot.maxCapacity,
+      assignedToId: responsibleId,
+    });
+    setModalOpen(true);
+  };
+
+  const handleSave = async () => {
+    if (!form.date) return;
+    if (!form.timeSlot) return;
+    setSaving(true);
+    try {
+      if (editSlot) {
+        await apiClient.put(`/api/schedule-slots/${editSlot.id}`, {
+          maxCapacity: form.maxCapacity,
+          assignedToId: form.assignedToId,
+          active: true,
+        });
+        toast.success('Horário atualizado com sucesso.');
+      } else {
+        await api.createScheduleSlot({
+          date: form.date,
+          timeSlot: form.timeSlot,
+          maxCapacity: form.maxCapacity,
+          assignedToId: form.assignedToId,
+        });
+        toast.success('Horário cadastrado na escala.');
+      }
+      setModalOpen(false);
+      fetchScheduleSlotsData();
+    } catch (err: unknown) {
+      const error = err as { error?: string };
+      let errorMsg = 'Erro ao salvar horário.';
+      if (error) {
+        if (error.error) {
+          errorMsg = error.error;
+        }
+      }
+      toast.error(errorMsg);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (slot: ScheduleSlot) => {
+    try {
+      await api.deleteScheduleSlot(slot.id);
+      toast.success('Horário removido da escala.');
+      fetchScheduleSlotsData();
+    } catch (err: unknown) {
+      const error = err as { error?: string };
+      let errorMsg = 'Erro ao excluir horário.';
+      if (error) {
+        if (error.error) {
+          errorMsg = error.error;
+        }
+      }
+      toast.error(errorMsg);
+    }
+  };
+
+  return (
+    <div className="space-y-5 page-enter">
+      {/* Standardized PageHeader */}
+      <PageHeader
+        title="Escala de Horários de Atendimento"
+        description="Configure os horários disponíveis e o limite de vagas para agendamento de dispensação."
+        icon={CalendarDays}
+        actions={
+          <div className="flex items-center gap-2">
+            {(() => {
+              if (canWrite) {
+                return (
+                  <Button
+                    onClick={() => handleOpenCreate()}
+                    className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Novo Horário</span>
+                  </Button>
+                );
+              }
+              return null;
+            })()}
+          </div>
+        }
+      />
+
+      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs dark:border-slate-700 dark:bg-slate-800" aria-label="Legenda de vagas">
+        <span className="font-semibold text-slate-600 dark:text-slate-300">Legenda:</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-green-600" />Disponível</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-slate-500" />Esgotado</span>
+      </div>
+
+      <Card className="rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 sm:p-5">
+        <StandardCalendar
+          events={calendarEvents}
+          onEventClick={handleCalendarEventClick}
+          onDateClick={(info) => canWrite && handleOpenCreate(info.dateStr)}
+          onDatesSet={handleDatesSet}
+        />
+      </Card>
+
+      {/* Slots Detailed Schedule List */}
+      {(() => {
+        if (Object.keys(slotsByDate).length > 0) {
+          return (
+            <Card className="rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 sm:p-5">
+              <CardHeader className="p-0 pb-3">
+                <CardTitle className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <Clock className="w-4 h-4 text-emerald-600" />
+                  Detalhamento dos Horários Configurados no Mês
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-0 space-y-3">
+                {Object.entries(slotsByDate)
+                  .sort(([a], [b]) => a.localeCompare(b))
+                  .map(([dateKey, slots]) => (
+                    <div key={dateKey} className="rounded-xl border border-slate-100 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-800/40 p-3">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">
+                          {new Date(dateKey + 'T12:00:00').toLocaleDateString('pt-BR', {
+                            weekday: 'long',
+                            day: 'numeric',
+                            month: 'long',
+                          })}
+                        </span>
+                        <Badge variant="outline" className="text-[10px] bg-white dark:bg-slate-700">
+                          {slots.length} horário{(() => {
+                            if (slots.length > 1) {
+                              return 's';
+                            }
+                            return '';
+                          })()}
+                        </Badge>
+                      </div>
+                      <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                        {slots.map((slot) => (
+                          <div
+                            key={slot.id}
+                            className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2 text-xs flex flex-col justify-between"
+                          >
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="font-bold text-slate-800 dark:text-slate-200">{slot.timeSlot}</span>
+                              {(() => {
+                                if (canWrite) {
+                                  return (
+                                    <div className="flex items-center gap-1">
+                                      <button
+                                        onClick={() => handleOpenEdit(slot)}
+                                        className="text-slate-400 hover:text-emerald-600 p-0.5"
+                                        title="Editar vaga"
+                                      >
+                                        <Edit3 className="w-3 h-3" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDelete(slot)}
+                                        disabled={(slot._count?.appointments ?? 0) > 0}
+                                        className="text-slate-400 hover:text-rose-600 p-0.5"
+                                        title={(slot._count?.appointments ?? 0) > 0 ? 'Possui agendamentos vinculados' : 'Excluir horário'}
+                                      >
+                                        <Trash2 className="w-3 h-3" />
+                                      </button>
+                                    </div>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
+                            <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
+                              <span>
+                                {(() => {
+                                  let count = 0;
+                                  if (slot._count) {
+                                    if (slot._count.appointments) {
+                                      count = slot._count.appointments;
+                                    }
+                                  }
+                                  return count;
+                                })()}/{slot.maxCapacity} vagas
+                              </span>
+                              {(() => {
+                                let count = 0;
+                                if (slot._count) {
+                                  if (slot._count.appointments) {
+                                    count = slot._count.appointments;
+                                  }
+                                }
+                                if (count >= slot.maxCapacity) {
+                                  return <span className="text-[9px] font-bold text-amber-600">Lotado</span>;
+                                }
+                                return <span className="text-[9px] font-bold text-emerald-600">Livre</span>;
+                              })()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+              </CardContent>
+            </Card>
+          );
+        }
+        return null;
+      })()}
+
+      {/* Create / Edit Modal */}
+      {(() => {
+        if (canWrite) {
+          return (
+            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+              <DialogContent className="sm:max-w-md rounded-3xl">
+                <DialogHeader>
+                  <DialogTitle className="text-lg font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+                    <CalendarDays className="w-5 h-5 text-emerald-600" />
+                    {(() => {
+                      if (editSlot) {
+                        return 'Editar Horário';
+                      }
+                      return 'Novo Horário na Escala';
+                    })()}
+                  </DialogTitle>
+                  <DialogDescription>
+                    {(() => {
+                      if (editSlot) {
+                        return `Alterando capacidade do horário ${editSlot.timeSlot}`;
+                      }
+                      return 'Selecione a data, horário e capacidade máxima de atendimentos.';
+                    })()}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 pt-1">
+                  <div>
+                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                      Farmacêutico responsável
+                    </Label>
+                    <Select
+                      value={form.assignedToId ? String(form.assignedToId) : ''}
+                      onValueChange={(value) => setForm({ ...form, assignedToId: Number(value) })}
+                      disabled={Boolean(editSlot)}
+                    >
+                      <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-700/50">
+                        <SelectValue placeholder="Selecione um farmacêutico" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pharmacists.map((pharmacist) => <SelectItem key={pharmacist.id} value={String(pharmacist.id)}>{pharmacist.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                      Data
+                    </Label>
+                    <Input
+                      type="date"
+                      value={form.date}
+                      onChange={(e) => setForm({ ...form, date: e.target.value })}
+                      disabled={Boolean(editSlot)}
+                      className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+                    />
+                  </div>
+                  <div>
+                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                      Horário
+                    </Label>
+                    <select
+                      value={form.timeSlot}
+                      onChange={(e) => setForm({ ...form, timeSlot: e.target.value })}
+                      disabled={Boolean(editSlot)}
+                      className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-200 text-sm focus:outline-none"
+                    >
+                      {TIME_OPTIONS.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                      Capacidade Máxima (Vagas)
+                    </Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={form.maxCapacity}
+                      onChange={(e) => setForm({ ...form, maxCapacity: Number(e.target.value) })}
+                      className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
+                    />
+                  </div>
+
+                  <DialogFooter className="pt-2">
+                    <Button variant="outline" onClick={() => setModalOpen(false)} className="rounded-xl">
+                      Cancelar
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                    >
+                      {(() => {
+                        if (saving) {
+                          return <Loader2 className="w-4 h-4 animate-spin" />;
+                        }
+                        if (editSlot) {
+                          return 'Salvar Alterações';
+                        }
+                        return 'Criar Horário';
+                      })()}
+                    </Button>
+                  </DialogFooter>
+                </div>
+              </DialogContent>
+            </Dialog>
+          );
+        }
+        return null;
+      })()}
+    </div>
+  );
+}

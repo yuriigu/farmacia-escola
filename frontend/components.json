@@ -3,11 +3,11 @@
   "rsc": true,
   "tsx": true,
   "tailwind": {
-    "config": "",
+    "config": "enums.ts",
     "css": "src/app/globals.css",
     "baseColor": "neutral",
     "cssVariables": true,
-    "prefix": ""
+    "prefix": "enums.ts"
   },
   "aliases": {
     "components": "@/components",

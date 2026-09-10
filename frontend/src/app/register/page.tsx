@@ -1,6 +1,6 @@
 'use client';
 
-import { RegisterPage } from '@/components/pages/RegisterPage';
+import { RegisterPage } from '@/components/pages/register-page';
 import { useRouter } from 'next/navigation';
 
 export default function RegisterRoutePage() {

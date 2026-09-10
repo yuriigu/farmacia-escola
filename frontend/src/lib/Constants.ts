@@ -1,6 +1,6 @@
 import {
   LayoutDashboard, Package, Calendar, ShieldCheck, Settings,
-  CalendarDays, Boxes, ArrowUpRight, Trash2, Users
+  CalendarDays, Boxes, ArrowUpRight, Trash2, Users, Clock
 } from 'lucide-react';
 import { hasRouteAccess } from '@/config/Rbac';
 
@@ -222,6 +222,7 @@ export type ModuleId =
   | 'descartes'
   | 'agendamentos'
   | 'calendario'
+  | 'scales'
   | 'pacientes'
   | 'administracao'
   | 'configuracoes';
@@ -274,7 +275,7 @@ export const MODULES: ModuleConfig[] = [
   },
   {
     id: 'estoque',
-    label: 'Estoque de Lotes',
+    label: 'Lotes',
     path: '/estoque',
     icon: Boxes,
     forbiddenRoles: ['PACIENTE', 'MEDICO'],
@@ -313,9 +314,19 @@ export const MODULES: ModuleConfig[] = [
   },
   {
     id: 'calendario',
-    label: 'Calendário Geral',
+    label: 'Calendário',
     path: '/calendario',
     icon: CalendarDays,
+    tabs: [],
+    defaultTab: '',
+    actionLabels: {},
+  },
+  {
+    id: 'scales',
+    label: 'Escala',
+    path: '/scales',
+    icon: Clock,
+    forbiddenRoles: ['MEDICO', 'ALUNO', 'PACIENTE'],
     tabs: [],
     defaultTab: '',
     actionLabels: {},

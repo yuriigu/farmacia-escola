@@ -28,10 +28,11 @@ export interface Medicine {
   physicalQuantity?: number;
   reservedQuantity?: number;
   availableQuantity?: number;
-  batchesCount: number;
+  batchesCount?: number;
   status?: StockStatus;
   batches?: Batch[];
   createdAt: string;
+  updatedAt?: string;
 }
 
 export interface Batch {
@@ -45,6 +46,8 @@ export interface Batch {
   isBlocked?: boolean;
   blockReason?: string | null;
   receivedAt?: string;
+  createdAt?: string;
+  updatedAt?: string;
   status?: StockStatus;
   medicine?: {
     id: number;
@@ -62,6 +65,7 @@ export interface Patient {
   birthDate?: string | null;
   address?: string | null;
   createdAt?: string;
+  updatedAt?: string;
   userId?: number | null;
   withdrawalsCount?: number;
   appointmentsCount?: number;
@@ -82,6 +86,7 @@ export interface User {
   address?: string | null;
   active?: boolean;
   createdAt?: string;
+  updatedAt?: string;
   permissions?: Record<string, boolean> | null;
   patient?: {
     id?: number;
@@ -96,8 +101,11 @@ export interface User {
 export interface Withdrawal {
   id: number;
   createdAt: string;
+  date?: string;
+  status?: string;
+  cancelReason?: string | null;
   quantity: number;
-  notes: string;
+  notes?: string | null;
   allocatedItems?: Array<{
     batchId: number;
     batchNumber: string;
@@ -110,7 +118,10 @@ export interface Withdrawal {
   batch: {
     id: number;
     medicineId: number;
+    batchNumber: string;
     code: string;
+    currentQuantity: number;
+    expirationDate: string;
     medicine: {
       name: string;
       dosage: string;
@@ -125,16 +136,23 @@ export interface Withdrawal {
 export interface Disposal {
   id: number;
   createdAt: string;
+  date?: string;
   quantity: number;
   reason: string;
-  reverted: boolean;
+  notes?: string | null;
+  status: 'DISPOSED' | 'REVERTED' | string;
+  revertReason?: string | null;
+  reverted?: boolean;
   batch: {
     id: number;
+    batchNumber: string;
     code: string;
+    expirationDate: string;
     expiresAt: string;
     medicine: {
+      id?: number;
       name: string;
-      dosage: string;
+      dosage?: string | null;
     };
   };
   user: {
@@ -217,10 +235,13 @@ export interface BatchEntryDraft {
 }
 
 export interface WithdrawalDraft {
+  patientId?: number;
   patientName: string;
   patientCpf: string;
+  medicineId?: number;
   batchId: number;
   quantity: number;
+  appointmentId?: number;
   notes: string;
 }
 
@@ -228,6 +249,7 @@ export interface DisposalDraft {
   batchId: number;
   quantity: number;
   reason: string;
+  notes?: string;
 }
 
 export interface AppointmentItemDraft {

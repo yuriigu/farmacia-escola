@@ -37,6 +37,7 @@ const PATH_MODULE_MAP: Record<string, ModuleId> = {
   '/appointments': 'agendamentos',
   '/appointments/new': 'agendamentos',
   '/calendario': 'calendario',
+  '/scales': 'scales',
   '/pacientes': 'pacientes',
   '/administracao': 'administracao',
   '/admin': 'administracao',

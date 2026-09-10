@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from 'sonner';
 import {
-  ArrowUpRight, Plus, Download, Pill, Boxes, User, Clock, Eye, Search, X, Calendar
+  ArrowUpRight, Plus, Download, Pill, Boxes, User, Clock, Eye, Search, X, Calendar, RotateCcw
 } from 'lucide-react';
 import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/PharmacyStore';
 import type { WithdrawalDraft, Withdrawal } from '@/lib/Types';
@@ -20,10 +20,14 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
 
 export function WithdrawalsPage() {
-  const { withdrawals, batches, loading } = usePharmacyStore();
+  const { withdrawals, batches, appointments, patients, loading } = usePharmacyStore();
   const { user } = useAuthStore();
-  const userRole = user?.role;
-  const userPerms = user?.permissions;
+  let userRole: string | undefined = undefined;
+  let userPerms: Record<string, boolean> | null | undefined = undefined;
+  if (user) {
+    userRole = user.role;
+    userPerms = user.permissions;
+  }
   const canWrite = canWriteClient(userRole, userPerms, 'withdrawals');
   let canExport = false;
   if (user) {
@@ -38,12 +42,40 @@ export function WithdrawalsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [form, setForm] = useState<WithdrawalDraft>({ patientName: '', patientCpf: '', batchId: 0, quantity: 0, notes: '' });
   const [selectedWithdrawal, setSelectedWithdrawal] = useState<Withdrawal | null>(null);
+  const [patientSearch, setPatientSearch] = useState('');
+  const [cancelTarget, setCancelTarget] = useState<Withdrawal | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
 
   useEffect(() => {
     fetchBatchesData().finally(() => setLoadingBatches(false));
   }, [fetchBatchesData, modalOpen]);
 
   const selectedBatch = batches.find((b) => b.id === form.batchId);
+  const matchingPatients = patients.filter((patient) => {
+    if (!patientSearch) {
+      return false;
+    }
+    const normalizedSearch = patientSearch.toLowerCase();
+    if (patient.cpf.includes(patientSearch)) {
+      return true;
+    }
+    if (patient.name.toLowerCase().includes(normalizedSearch)) {
+      return true;
+    }
+    return false;
+  }).slice(0, 6);
+  const pendingAppointments = appointments.filter((appointment) => {
+    if (appointment.status !== 'PENDING') {
+      return false;
+    }
+    if (!form.patientId) {
+      return false;
+    }
+    if (appointment.patientId !== form.patientId) {
+      return false;
+    }
+    return true;
+  });
   let overBalance = false;
   if (selectedBatch) {
     let currentQty = 0;
@@ -216,6 +248,33 @@ export function WithdrawalsPage() {
     }
   };
 
+  const handleCancel = async () => {
+    if (!cancelTarget) {
+      return;
+    }
+    if (!cancelReason.trim()) {
+      toast.error('Informe a justificativa do cancelamento.');
+      return;
+    }
+    try {
+      await api.cancelWithdrawal(cancelTarget.id, cancelReason.trim());
+      toast.success('Retirada estornada e saldo devolvido ao lote.');
+      setCancelTarget(null);
+      setCancelReason('');
+      setSelectedWithdrawal(null);
+      fetchAllData();
+    } catch (err: unknown) {
+      const error = err as { error?: string };
+      let errorMsg = 'Erro ao estornar retirada.';
+      if (error) {
+        if (error.error) {
+          errorMsg = error.error;
+        }
+      }
+      toast.error(errorMsg);
+    }
+  };
+
   const columns: Column<Withdrawal>[] = [
     {
       header: 'Paciente',
@@ -368,7 +427,7 @@ export function WithdrawalsPage() {
       align: 'right',
       cell: (w) => (
         <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
-          <Button
+            <Button
             size="sm"
             variant="ghost"
             onClick={() => setSelectedWithdrawal(w)}
@@ -377,6 +436,25 @@ export function WithdrawalsPage() {
           >
             <Eye className="w-4 h-4" />
           </Button>
+          {(() => {
+            if (w.status !== 'CANCELLED') {
+              return (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => {
+                    setCancelTarget(w);
+                    setCancelReason('');
+                  }}
+                  className="h-8 w-8 p-0 rounded-lg text-rose-500 hover:text-rose-700 hover:bg-rose-50"
+                  title="Cancelar e estornar retirada"
+                >
+                  <RotateCcw className="w-4 h-4" />
+                </Button>
+              );
+            }
+            return null;
+          })()}
         </div>
       ),
     },
@@ -497,31 +575,122 @@ export function WithdrawalsPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
+            <div>
                 <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
-                  Nome do Paciente *
+                  Buscar paciente por CPF ou nome *
                 </Label>
                 <Input
-                  value={form.patientName}
-                  onChange={(e) => setForm({ ...form, patientName: e.target.value })}
-                  placeholder="Ex: Maria Silva"
+                  value={patientSearch}
+                  onChange={(e) => {
+                    setPatientSearch(e.target.value);
+                    setForm({ ...form, patientId: undefined, patientName: '', patientCpf: '', appointmentId: undefined });
+                  }}
+                  placeholder="Digite o CPF cadastrado"
                   required
                   className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
                 />
-              </div>
-              <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
-                  CPF do Paciente *
-                </Label>
-                <Input
-                  value={form.patientCpf}
-                  onChange={(e) => setForm({ ...form, patientCpf: e.target.value })}
-                  placeholder="000.000.000-00"
-                  required
-                  className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
-                />
-              </div>
+                {(() => {
+                  if (matchingPatients.length > 0) {
+                    return (
+                      <div className="mt-1 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-800">
+                        {matchingPatients.map((patient) => (
+                          <button
+                            key={patient.id}
+                            type="button"
+                            className="block w-full px-3 py-2 text-left text-xs hover:bg-emerald-50 dark:hover:bg-slate-700"
+                            onClick={() => {
+                              setPatientSearch(patient.cpf);
+                              setForm({ ...form, patientId: patient.id, patientName: patient.name, patientCpf: patient.cpf, appointmentId: undefined });
+                            }}
+                          >
+                            <span className="font-semibold">{patient.name}</span>
+                            <span className="ml-2 font-mono text-slate-400">{patient.cpf}</span>
+                          </button>
+                        ))}
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+                {(() => {
+                  if (form.patientId) {
+                    return <p className="mt-1 text-xs font-medium text-emerald-600">Paciente selecionado: {form.patientName}</p>;
+                  }
+                  return null;
+                })()}
+            </div>
+
+            <div>
+              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                Agendamento pendente
+              </Label>
+              <Select
+                value={(() => {
+                  if (form.appointmentId) {
+                    return String(form.appointmentId);
+                  }
+                  return '';
+                })()}
+                onValueChange={(value) => {
+                  const appointment = appointments.find((item) => item.id === Number(value));
+                  if (!appointment) {
+                    return;
+                  }
+                  const appointmentItem = appointment.items;
+                  if (!appointmentItem) {
+                    return;
+                  }
+                  const firstAppointmentItem = appointmentItem[0];
+                  if (!firstAppointmentItem) {
+                    return;
+                  }
+                  const appointmentBatch = batches.find((batch) => {
+                    if (batch.medicineId !== firstAppointmentItem.medicineId) {
+                      return false;
+                    }
+                    if (batch.isBlocked === true) {
+                      return false;
+                    }
+                    if (batch.currentQuantity <= 0) {
+                      return false;
+                    }
+                    return true;
+                  });
+                  let nextBatchId = 0;
+                  if (appointmentBatch) {
+                    nextBatchId = appointmentBatch.id;
+                  }
+                  let appointmentPatientName = '';
+                  let appointmentPatientCpf = '';
+                  if (appointment.patient) {
+                    appointmentPatientName = appointment.patient.name;
+                    if (appointment.patient.cpf) {
+                      appointmentPatientCpf = appointment.patient.cpf;
+                    }
+                  }
+                  setForm({ ...form, patientId: appointment.patientId, patientName: appointmentPatientName, patientCpf: appointmentPatientCpf, medicineId: firstAppointmentItem.medicineId, batchId: nextBatchId, quantity: firstAppointmentItem.quantity, appointmentId: appointment.id });
+                  if (appointment.patient) {
+                    let appointmentSearch = appointment.patient.name;
+                    if (appointment.patient.cpf) {
+                      appointmentSearch = appointment.patient.cpf;
+                    }
+                    setPatientSearch(appointmentSearch);
+                  }
+                }}
+              >
+                <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50">
+                  <SelectValue placeholder="Selecione para preencher automaticamente..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {pendingAppointments.map((appointment) => {
+                    let appointmentLabel = 'Agendamento #' + appointment.id;
+                    if (appointment.scheduledDate) {
+                      appointmentLabel = appointmentLabel + ' - ' + new Date(appointment.scheduledDate).toLocaleDateString('pt-BR');
+                    }
+                    return <SelectItem key={appointment.id} value={String(appointment.id)}>{appointmentLabel}</SelectItem>;
+                  })}
+                </SelectContent>
+              </Select>
             </div>
 
             <div>
@@ -571,7 +740,7 @@ export function WithdrawalsPage() {
                       }
                       return (
                         <SelectItem key={b.id} value={String(b.id)}>
-                          {mName} ({mDosage}) • Lote {b.batchNumber} - {b.currentQuantity} un.
+                          {mName} ({mDosage}) — Lote: {b.batchNumber} — Val: {new Date(b.expirationDate).toLocaleDateString('pt-BR')} — Disp: {b.currentQuantity} un.
                         </SelectItem>
                       );
                     })}
@@ -609,6 +778,12 @@ export function WithdrawalsPage() {
                   return cls;
                 })()}
               />
+              {(() => {
+                if (selectedBatch) {
+                  return <p className="mt-1 text-xs font-medium text-emerald-600">Saldo disponível no lote: {selectedBatch.currentQuantity} un.</p>;
+                }
+                return null;
+              })()}
               {(() => {
                 if (overBalance) {
                   let maxQty = 0;
@@ -662,6 +837,25 @@ export function WithdrawalsPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={(() => {
+        if (cancelTarget) {
+          return true;
+        }
+        return false;
+      })()} onOpenChange={() => setCancelTarget(null)}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle>Cancelar e estornar retirada</DialogTitle>
+            <DialogDescription>O saldo dos lotes será devolvido dentro da mesma transação.</DialogDescription>
+          </DialogHeader>
+          <Textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Digite a justificativa obrigatória" rows={4} />
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCancelTarget(null)}>Voltar</Button>
+            <Button type="button" onClick={handleCancel} className="bg-rose-600 text-white hover:bg-rose-700">Confirmar estorno</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

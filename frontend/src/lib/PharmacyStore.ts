@@ -34,6 +34,8 @@ export function fetchAllData() {
   api.getWithdrawals().then((withdrawals) => usePharmacyStore.setState({ withdrawals })).catch(() => {});
   api.getDisposals().then((disposals) => usePharmacyStore.setState({ disposals })).catch(() => {});
   api.getAppointments().then((appointments) => usePharmacyStore.setState({ appointments })).catch(() => {});
+  api.getPatients().then((patients) => usePharmacyStore.setState({ patients })).catch(() => {});
+  api.getScheduleSlots().then((scheduleSlots) => usePharmacyStore.setState({ scheduleSlots })).catch(() => {});
   // Set loading false after a delay to ensure all requests have had a chance
   setTimeout(() => usePharmacyStore.setState({ loading: false }), 500);
 }

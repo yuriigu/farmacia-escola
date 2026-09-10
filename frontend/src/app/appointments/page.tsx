@@ -17,6 +17,7 @@ import {
   usePatients,
 } from '@/services/Queries';
 import { useAuthStore } from '@/lib/AuthStore';
+import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/PharmacyStore';
 import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES } from '@/lib/Constants';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -40,7 +41,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/AlertDialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
-import type { Appointment, AppointmentItem } from '@/lib/Types';
+import type { Appointment, AppointmentItem, AppointmentItemDraft } from '@/lib/Types';
 
 function AppointmentsContent() {
   const searchParams = useSearchParams();
@@ -79,6 +80,7 @@ function AppointmentsContent() {
   const { data: appointments = [], isLoading, refetch } = useAppointments();
   const { data: medicines = [] } = useMedicines();
   const { data: patients = [] } = usePatients();
+  const { scheduleSlots } = usePharmacyStore();
 
   const cancelAppointmentMutation = useCancelAppointment();
   const updateStatusMutation = useUpdateAppointmentStatus();
@@ -87,7 +89,9 @@ function AppointmentsContent() {
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [appointmentToCancel, setAppointmentToCancel] = useState<number | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
   const [selectedAppointmentForDetails, setSelectedAppointmentForDetails] = useState<Appointment | null>(null);
+  const [receipt, setReceipt] = useState<any>(null);
 
   // Create Appointment Dialog State
   const newParam = searchParams.get('new');
@@ -110,37 +114,49 @@ function AppointmentsContent() {
   }
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(initialNew);
-  const [selectedMedId, setSelectedMedId] = useState<number | undefined>(initialMedId);
+  const [items, setItems] = useState<AppointmentItemDraft[]>([{ medicineId: initialMedId || 0, quantity: 1 }]);
   const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>(undefined);
+  const [patientSearch, setPatientSearch] = useState('');
   const [appointmentDate, setAppointmentDate] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     return tomorrow.toISOString().split('T')[0];
   });
-  const [appointmentTime, setAppointmentTime] = useState('09:00');
-  const [quantity, setQuantity] = useState(1);
+  const [slotId, setSlotId] = useState<number | undefined>(undefined);
   const [notes, setNotes] = useState('');
+
+  const availableSlots = scheduleSlots.filter((slot) => slot.active && slot.date.slice(0, 10) === appointmentDate);
+  const patientSuggestions = patients.filter((patient) => {
+    const term = patientSearch.trim().toLowerCase();
+    return term.length >= 2 && (patient.name.toLowerCase().includes(term) || patient.cpf.includes(patientSearch.replace(/\D/g, '')));
+  }).slice(0, 6);
+
+  const realAvailable = (medicineId: number) => {
+    const medicine = medicines.find((item) => item.id === medicineId);
+    if (!medicine) return 0;
+    if (medicine.availableQuantity !== undefined && medicine.availableQuantity !== null) return medicine.availableQuantity;
+    const physical = medicine.physicalQuantity ?? medicine.totalQuantity ?? 0;
+    return Math.max(0, physical - (medicine.reservedQuantity ?? 0));
+  };
 
   // Reset form when modal opens
   const handleOpenCreateModal = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     setAppointmentDate(tomorrow.toISOString().split('T')[0]);
-    setAppointmentTime('09:00');
-    setQuantity(1);
+    setSlotId(undefined);
+    setItems([{ medicineId: initialMedId || medicines[0]?.id || 0, quantity: 1 }]);
     setNotes('');
     if (!isPatient && patients.length > 0 && !selectedPatientId) {
       setSelectedPatientId(patients[0].id);
     }
-    if (medicines.length > 0 && !selectedMedId) {
-      setSelectedMedId(medicines[0].id);
-    }
+    setPatientSearch('');
     setIsCreateDialogOpen(true);
   };
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedMedId) {
+    if (items.length === 0 || items.some((item) => !item.medicineId || item.quantity < 1)) {
       toast.error('Selecione um medicamento.');
       return;
     }
@@ -148,8 +164,18 @@ function AppointmentsContent() {
       toast.error('Selecione uma data para o agendamento.');
       return;
     }
+    if (!slotId) {
+      toast.error('Selecione um horário disponível na escala.');
+      return;
+    }
     if (!isPatient && !selectedPatientId) {
       toast.error('Selecione o paciente.');
+      return;
+    }
+
+    const invalidStock = items.find((item) => item.quantity > realAvailable(item.medicineId));
+    if (invalidStock) {
+      toast.error('A quantidade solicitada excede o estoque disponível real.');
       return;
     }
 
@@ -170,15 +196,11 @@ function AppointmentsContent() {
     createAppointmentMutation.mutate(
       {
         scheduledDate: appointmentDate,
-        scheduledTime: appointmentTime,
+        scheduledTime: scheduleSlots.find((slot) => slot.id === slotId)?.timeSlot,
+        slotId,
         patientId: targetPatientId,
         notes: notesVal,
-        items: [
-          {
-            medicineId: selectedMedId,
-            quantity: quantity,
-          },
-        ],
+        items,
       },
       {
         onSuccess: () => {
@@ -256,11 +278,16 @@ function AppointmentsContent() {
   }, [appointments, statusFilter, searchTerm]);
 
   const handleConfirmCancel = () => {
+    if (!cancelReason.trim()) {
+      toast.error('O motivo do cancelamento é obrigatório.');
+      return;
+    }
     if (appointmentToCancel) {
-      cancelAppointmentMutation.mutate(appointmentToCancel, {
+      cancelAppointmentMutation.mutate({ id: appointmentToCancel, reason: cancelReason.trim() }, {
         onSuccess: () => {
           toast.success('Agendamento cancelado.');
           setAppointmentToCancel(null);
+          setCancelReason('');
         },
         onError: (err: any) => {
           let msg = 'Erro ao cancelar agendamento.';
@@ -278,6 +305,10 @@ function AppointmentsContent() {
       });
     }
   };
+
+  useEffect(() => {
+    fetchScheduleSlotsData();
+  }, []);
 
   const columns: Column<Appointment>[] = [
     {
@@ -529,7 +560,12 @@ function AppointmentsContent() {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' })}
+                onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' }, {
+                  onSuccess: (withdrawal) => {
+                    setReceipt(withdrawal);
+                    refetch();
+                  },
+                })}
                 disabled={updateStatusMutation.isPending}
                 className="h-8 w-8 p-0 rounded-lg text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/30"
                 title="Concluir Atendimento"
@@ -543,7 +579,7 @@ function AppointmentsContent() {
               <Button
                 size="sm"
                 variant="ghost"
-                onClick={() => setAppointmentToCancel(app.id)}
+                onClick={() => { setAppointmentToCancel(app.id); setCancelReason(''); }}
                 disabled={cancelAppointmentMutation.isPending}
                 className="h-8 w-8 p-0 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30"
                 title="Cancelar Agendamento"
@@ -578,12 +614,7 @@ function AppointmentsContent() {
     selectedPatientVal = '';
   }
 
-  let selectedMedVal = '';
-  if (selectedMedId) {
-    selectedMedVal = String(selectedMedId);
-  } else {
-    selectedMedVal = '';
-  }
+  const selectedMedVal = items[0]?.medicineId ? String(items[0].medicineId) : '';
 
   return (
     <AppShell activeModuleId={'appointments' as any} pageTitle="Agendamentos de Retirada">
@@ -712,70 +743,55 @@ function AppointmentsContent() {
                         <User className="w-3.5 h-3.5 text-emerald-600" />
                         Paciente *
                       </Label>
-                      <Select
-                        value={selectedPatientVal}
-                        onValueChange={(v) => setSelectedPatientId(Number(v))}
-                      >
-                        <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
-                          <SelectValue placeholder="Selecione o paciente..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {patients.map((p) => {
-                            let cpfStr = '';
-                            if (p.cpf) {
-                              cpfStr = ' (CPF: ' + p.cpf + ')';
-                            }
-                            return (
-                              <SelectItem key={p.id} value={String(p.id)} className="text-xs">
-                                {p.name}{cpfStr}
-                              </SelectItem>
-                            );
-                          })}
-                        </SelectContent>
-                      </Select>
+                      <div className="relative">
+                        <Input value={patientSearch || patients.find((patient) => patient.id === selectedPatientId)?.name || ''} onChange={(event) => { setPatientSearch(event.target.value); setSelectedPatientId(undefined); }} placeholder="Buscar por nome ou CPF" className="rounded-xl text-xs" />
+                        {patientSuggestions.length > 0 && <div className="absolute z-20 mt-1 w-full rounded-xl border bg-white p-1 shadow-lg dark:bg-slate-800">{patientSuggestions.map((patient) => <button type="button" key={patient.id} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-emerald-50" onClick={() => { setSelectedPatientId(patient.id); setPatientSearch(patient.name); }}>{patient.name} - {patient.cpf}</button>)}</div>}
+                      </div>
                     </div>
                   );
                 }
                 return null;
               })()}
 
-              {/* Medicine Selector */}
-              <div className="space-y-1.5">
+              {/* Medicine list */}
+              <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                   <Pill className="w-3.5 h-3.5 text-emerald-600" />
-                  Medicamento *
+                  Medicamentos *
                 </Label>
-                <Select
-                  value={selectedMedVal}
-                  onValueChange={(v) => setSelectedMedId(Number(v))}
-                >
-                  <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
-                    <SelectValue placeholder="Selecione o medicamento..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {medicines.map((m) => {
-                      let dosageStr = '';
-                      if (m.dosage) {
-                        dosageStr = ' — ' + m.dosage;
-                      }
-                      let totalQty = 0;
-                      if (m.totalQuantity !== null && m.totalQuantity !== undefined) {
-                        totalQty = m.totalQuantity;
-                      } else {
-                        totalQty = 0;
-                      }
-                      return (
-                        <SelectItem key={m.id} value={String(m.id)} className="text-xs">
-                          {m.name}{dosageStr} ({totalQty} un. disponíveis)
-                        </SelectItem>
-                      );
-                    })}
-                  </SelectContent>
-                </Select>
+                {items.map((item, index) => (
+                  <div key={`${index}-${item.medicineId}`} className="grid grid-cols-[1fr_90px_auto] gap-2 items-center">
+                    <Select
+                      value={item.medicineId ? String(item.medicineId) : ''}
+                      onValueChange={(value) => setItems((current) => current.map((entry, itemIndex) => itemIndex === index ? { ...entry, medicineId: Number(value) } : entry))}
+                    >
+                      <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                        <SelectValue placeholder="Selecione o medicamento" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {medicines.map((medicine) => <SelectItem key={medicine.id} value={String(medicine.id)}>{medicine.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="number"
+                      min={1}
+                      value={item.quantity}
+                      onChange={(event) => setItems((current) => current.map((entry, itemIndex) => itemIndex === index ? { ...entry, quantity: Math.max(1, Number(event.target.value)) } : entry))}
+                      className="rounded-xl text-xs"
+                      aria-label="Quantidade"
+                    />
+                    <Badge variant="outline" className="whitespace-nowrap text-[10px] text-emerald-700 border-emerald-200">
+                      Disponível Real: {realAvailable(item.medicineId)} un.
+                    </Badge>
+                  </div>
+                ))}
+                <Button type="button" variant="outline" onClick={() => setItems((current) => [...current, { medicineId: 0, quantity: 1 }])} className="rounded-xl text-xs">
+                  + Adicionar outro medicamento
+                </Button>
               </div>
 
-              {/* Data & Horário */}
-              <div className="grid grid-cols-2 gap-3">
+              {/* Data and scale slot */}
+              <div className="space-y-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
                     Data *
@@ -790,29 +806,22 @@ function AppointmentsContent() {
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                    Horário Sugerido
+                    Horário da Escala *
                   </Label>
-                  <Input
-                    type="time"
-                    value={appointmentTime}
-                    onChange={(e) => setAppointmentTime(e.target.value)}
-                    className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
-                  />
+                  <Select value={slotId ? String(slotId) : ''} onValueChange={(value) => setSlotId(Number(value))} disabled={!appointmentDate}>
+                    <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                      <SelectValue placeholder={appointmentDate ? 'Selecione um horário' : 'Escolha a data primeiro'} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableSlots.map((slot) => {
+                        const booked = slot._count?.appointments ?? 0;
+                        const free = Math.max(0, slot.maxCapacity - booked);
+                        const pharmacist = slot.assignedTo?.name ?? 'Não informado';
+                        return <SelectItem key={slot.id} value={String(slot.id)} disabled={free === 0}>{slot.timeSlot} — ({free}/{slot.maxCapacity} vagas livres) — Farm. {pharmacist}</SelectItem>;
+                      })}
+                    </SelectContent>
+                  </Select>
                 </div>
-              </div>
-
-              {/* Quantidade */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                  Quantidade de Unidades
-                </Label>
-                <Input
-                  type="number"
-                  min={1}
-                  value={quantity}
-                  onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-                  className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
-                />
               </div>
 
               {/* Observações */}
@@ -1046,8 +1055,15 @@ function AppointmentsContent() {
                 Cancelar Agendamento
               </AlertDialogTitle>
               <AlertDialogDescription>
-                Tem certeza de que deseja cancelar este agendamento? Esta ação não pode ser desfeita.
+                  Informe obrigatoriamente o motivo do cancelamento. Esta ação não pode ser desfeita.
               </AlertDialogDescription>
+              <Textarea
+                value={cancelReason}
+                onChange={(event) => setCancelReason(event.target.value)}
+                placeholder="Motivo do Cancelamento"
+                required
+                rows={4}
+              />
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-xl">Não, manter</AlertDialogCancel>
@@ -1060,6 +1076,22 @@ function AppointmentsContent() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
+
+        <Dialog open={receipt !== null} onOpenChange={(open) => { if (!open) setReceipt(null); }}>
+          <DialogContent className="rounded-2xl max-w-md">
+            <DialogHeader>
+              <DialogTitle>Comprovante de Retirada</DialogTitle>
+              <DialogDescription>Baixa FEFO concluída para este atendimento.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2 text-sm">
+              <p><span className="text-slate-500">Paciente:</span> {receipt?.patient?.name ?? 'Não informado'}</p>
+              <p><span className="text-slate-500">Lote consumido:</span> {receipt?.batch?.batchNumber ?? receipt?.allocatedItems?.map((item: { batchNumber: string }) => item.batchNumber).join(', ') ?? 'Baixa FEFO registrada'}</p>
+            </div>
+            <DialogFooter>
+              <Button type="button" onClick={() => window.print()} className="bg-emerald-600 text-white">Imprimir/Salvar PDF</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </AppShell>
   );

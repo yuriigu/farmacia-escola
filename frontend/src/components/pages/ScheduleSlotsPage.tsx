@@ -1,17 +1,15 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import type { EventClickArg } from '@fullcalendar/core';
 import { toast } from 'sonner';
-import {
-  CalendarDays, ChevronLeft, ChevronRight, Plus, Trash2, Edit3,
-  Clock, Users, AlertTriangle, Check, Calendar, Loader2
-} from 'lucide-react';
+import { CalendarDays, Plus, Trash2, Edit3, Clock, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/lib/AuthStore';
 import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/PharmacyStore';
 import { api } from '@/lib/Api';
 import { apiClient } from '@/lib/Axios';
 import { canWriteClient } from '@/lib/Constants';
-import type { ScheduleSlot } from '@/lib/Types';
+import type { ScheduleSlot, User } from '@/lib/Types';
 import { PageHeader } from '@/components/shared/PageHeader';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -19,12 +17,15 @@ import { Badge } from '@/components/ui/Badge';
 import { Input } from '@/components/ui/Input';
 import { Label } from '@/components/ui/Label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
+import { StandardCalendar } from '@/components/shared/StandardCalendar';
 
 const TIME_OPTIONS = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'];
 
 export function ScheduleSlotsPage() {
   const user = useAuthStore((s) => s.user);
   const scheduleSlots = usePharmacyStore((s) => s.scheduleSlots);
+  const [pharmacists, setPharmacists] = useState<User[]>([]);
   let userRole: string | undefined = undefined;
   let userPermissions: Record<string, boolean> | undefined = undefined;
   if (user) {
@@ -33,27 +34,25 @@ export function ScheduleSlotsPage() {
   }
   const canWrite = canWriteClient(userRole, userPermissions, 'schedule-slots');
 
-  const [viewYear, setViewYear] = useState(new Date().getFullYear());
-  const [viewMonth, setViewMonth] = useState(new Date().getMonth());
   const [modalOpen, setModalOpen] = useState(false);
   const [editSlot, setEditSlot] = useState<ScheduleSlot | null>(null);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ date: '', timeSlot: '09:00', maxCapacity: 4 });
-
-  const today = new Date();
-  const startOfMonth = new Date(viewYear, viewMonth, 1);
-  const endOfMonth = new Date(viewYear, viewMonth + 1, 0);
+  const [form, setForm] = useState({ date: '', timeSlot: '09:00', maxCapacity: 4, assignedToId: 0 });
 
   // Load slots for visible month
   useEffect(() => {
-    let active = true;
-    const startDate = startOfMonth.toISOString().split('T')[0];
-    const endDate = endOfMonth.toISOString().split('T')[0];
-    fetchScheduleSlotsData({ startDate, endDate }).then(() => {}).catch(() => {});
-    return () => {
-      active = false;
-    };
-  }, [viewYear, viewMonth]);
+    api.getUsers().then((users) => {
+      const responsibleUsers = users.filter((item) => item.role === 'FARMACEUTICO');
+      setPharmacists(responsibleUsers);
+    }).catch(() => {});
+  }, []);
+
+  const handleDatesSet = (info: { startStr: string; endStr: string }) => {
+    fetchScheduleSlotsData({
+      startDate: info.startStr.slice(0, 10),
+      endDate: info.endStr.slice(0, 10),
+    }).catch(() => {});
+  };
 
   // Group slots by date
   const slotsByDate = useMemo(() => {
@@ -66,21 +65,26 @@ export function ScheduleSlotsPage() {
     return map;
   }, [scheduleSlots]);
 
-  // Build month days
-  const buildMonthDays = (year: number, month: number) => {
-    const first = new Date(year, month, 1);
-    const startWeekday = first.getDay();
-    const daysInMonth = new Date(year, month + 1, 0).getDate();
-    const cells: (number | null)[] = [];
-    for (let i = 0; i < startWeekday; i++) cells.push(null);
-    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-    while (cells.length % 7 !== 0) cells.push(null);
-    return cells;
-  };
+  const calendarEvents = useMemo(() => scheduleSlots.map((slot) => {
+    const booked = slot._count?.appointments ?? 0;
+    const available = Math.max(slot.maxCapacity - booked, 0);
+    const isFull = available === 0;
+    return {
+      id: String(slot.id),
+      title: `${slot.timeSlot} · ${isFull ? 'Esgotado' : `${available} vagas`}`,
+      date: slot.date.slice(0, 10),
+      backgroundColor: isFull ? '#64748b' : '#16a34a',
+      borderColor: isFull ? '#475569' : '#15803d',
+      extendedProps: { slot },
+    };
+  }), [scheduleSlots]);
 
-  const days = buildMonthDays(viewYear, viewMonth);
-  const monthLabel = new Date(viewYear, viewMonth, 1).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  const capitalizedMonth = monthLabel.charAt(0).toUpperCase() + monthLabel.slice(1);
+  const handleCalendarEventClick = (info: EventClickArg) => {
+    const slot = info.event.extendedProps.slot as ScheduleSlot | undefined;
+    if (slot && canWrite) {
+      handleOpenEdit(slot);
+    }
+  };
 
   const handleOpenCreate = (date?: string) => {
     setEditSlot(null);
@@ -88,20 +92,32 @@ export function ScheduleSlotsPage() {
     if (date) {
       initialDate = date;
     }
+    let responsibleId = 0;
+    if (user) {
+      if (user.role === 'FARMACEUTICO') {
+        responsibleId = user.id;
+      }
+    }
     setForm({
       date: initialDate,
       timeSlot: '09:00',
       maxCapacity: 4,
+      assignedToId: responsibleId,
     });
     setModalOpen(true);
   };
 
   const handleOpenEdit = (slot: ScheduleSlot) => {
     setEditSlot(slot);
+    let responsibleId = 0;
+    if (slot.assignedToId) {
+      responsibleId = slot.assignedToId;
+    }
     setForm({
       date: slot.date.split('T')[0],
       timeSlot: slot.timeSlot,
       maxCapacity: slot.maxCapacity,
+      assignedToId: responsibleId,
     });
     setModalOpen(true);
   };
@@ -114,6 +130,7 @@ export function ScheduleSlotsPage() {
       if (editSlot) {
         await apiClient.put(`/api/schedule-slots/${editSlot.id}`, {
           maxCapacity: form.maxCapacity,
+          assignedToId: form.assignedToId,
           active: true,
         });
         toast.success('Horário atualizado com sucesso.');
@@ -122,13 +139,12 @@ export function ScheduleSlotsPage() {
           date: form.date,
           timeSlot: form.timeSlot,
           maxCapacity: form.maxCapacity,
+          assignedToId: form.assignedToId,
         });
         toast.success('Horário cadastrado na escala.');
       }
       setModalOpen(false);
-      const startDate = startOfMonth.toISOString().split('T')[0];
-      const endDate = endOfMonth.toISOString().split('T')[0];
-      fetchScheduleSlotsData({ startDate, endDate });
+      fetchScheduleSlotsData();
     } catch (err: unknown) {
       const error = err as { error?: string };
       let errorMsg = 'Erro ao salvar horário.';
@@ -147,9 +163,7 @@ export function ScheduleSlotsPage() {
     try {
       await api.deleteScheduleSlot(slot.id);
       toast.success('Horário removido da escala.');
-      const startDate = startOfMonth.toISOString().split('T')[0];
-      const endDate = endOfMonth.toISOString().split('T')[0];
-      fetchScheduleSlotsData({ startDate, endDate });
+      fetchScheduleSlotsData();
     } catch (err: unknown) {
       const error = err as { error?: string };
       let errorMsg = 'Erro ao excluir horário.';
@@ -171,38 +185,6 @@ export function ScheduleSlotsPage() {
         icon={CalendarDays}
         actions={
           <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 bg-white dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700 shadow-xs">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (viewMonth === 0) {
-                    setViewMonth(11);
-                    setViewYear(viewYear - 1);
-                  } else setViewMonth(viewMonth - 1);
-                }}
-                className="h-8 w-8 p-0 rounded-lg"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </Button>
-              <span className="font-semibold text-slate-800 dark:text-slate-200 text-xs px-2 min-w-[120px] text-center">
-                {capitalizedMonth}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  if (viewMonth === 11) {
-                    setViewMonth(0);
-                    setViewYear(viewYear + 1);
-                  } else setViewMonth(viewMonth + 1);
-                }}
-                className="h-8 w-8 p-0 rounded-lg"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </Button>
-            </div>
-
             {(() => {
               if (canWrite) {
                 return (
@@ -221,146 +203,19 @@ export function ScheduleSlotsPage() {
         }
       />
 
-      {/* Calendar Grid Container */}
+      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs dark:border-slate-700 dark:bg-slate-800" aria-label="Legenda de vagas">
+        <span className="font-semibold text-slate-600 dark:text-slate-300">Legenda:</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-green-600" />Disponível</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-slate-500" />Esgotado</span>
+      </div>
+
       <Card className="rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 sm:p-5">
-        <div className="grid grid-cols-7 gap-1 mb-2">
-          {['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'].map((d) => (
-            <div key={d} className="text-center text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider py-1.5">
-              {d}
-            </div>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1.5">
-          {days.map((d, i) => {
-            if (d === null) return <div key={i} className="aspect-square rounded-xl bg-slate-50/50 dark:bg-slate-900/20" />;
-            const dateKey = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
-            let daySlots: ScheduleSlot[] = [];
-            if (slotsByDate[dateKey]) {
-              daySlots = slotsByDate[dateKey];
-            }
-            const isToday = today.getFullYear() === viewYear && today.getMonth() === viewMonth && today.getDate() === d;
-            const isPast = new Date(viewYear, viewMonth, d) < new Date(today.getFullYear(), today.getMonth(), today.getDate());
-            const hasSlots = daySlots.length > 0;
-            const allFull = daySlots.every((s) => {
-              let appCount = 0;
-              if (s._count) {
-                if (s._count.appointments) {
-                  appCount = s._count.appointments;
-                }
-              }
-              return appCount >= s.maxCapacity;
-            });
-
-            let cellClass = 'min-h-[85px] rounded-xl p-2 flex flex-col justify-between border transition-all ';
-            if (canWrite) {
-              if (!isPast) {
-                cellClass = cellClass + 'cursor-pointer hover:border-emerald-400 hover:shadow-xs ';
-              }
-            }
-
-            if (isToday) {
-              cellClass = cellClass + 'border-emerald-500 bg-emerald-50/60 dark:bg-emerald-950/20 shadow-xs';
-            } else if (isPast) {
-              cellClass = cellClass + 'border-slate-100 dark:border-slate-800/80 bg-slate-50/40 dark:bg-slate-900/40 opacity-70';
-            } else if (hasSlots) {
-              if (allFull) {
-                cellClass = cellClass + 'border-amber-200 bg-amber-50/30 dark:border-amber-900/40';
-              } else {
-                cellClass = cellClass + 'border-emerald-200 bg-emerald-50/30 dark:border-emerald-900/40';
-              }
-            } else {
-              cellClass = cellClass + 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800';
-            }
-
-            return (
-              <div
-                key={i}
-                className={cellClass}
-                onClick={() => {
-                  if (canWrite) {
-                    if (!isPast) {
-                      handleOpenCreate(dateKey);
-                    }
-                  }
-                }}
-              >
-                <div className="flex items-center justify-between">
-                  <span
-                    className={(() => {
-                      if (isToday) {
-                        return 'text-xs font-bold text-emerald-700 dark:text-emerald-400';
-                      }
-                      return 'text-xs font-bold text-slate-700 dark:text-slate-300';
-                    })()}
-                  >
-                    {d}
-                  </span>
-                  {(() => {
-                    if (isToday) {
-                      return (
-                        <span className="text-[9px] bg-emerald-600 text-white font-bold px-1.5 py-0.2 rounded-full">
-                          Hoje
-                        </span>
-                      );
-                    }
-                    return null;
-                  })()}
-                </div>
-
-                {(() => {
-                  if (hasSlots) {
-                    return (
-                      <div className="flex gap-1 flex-wrap mt-1">
-                        {daySlots.slice(0, 3).map((s) => {
-                          let appCount = 0;
-                          if (s._count) {
-                            if (s._count.appointments) {
-                              appCount = s._count.appointments;
-                            }
-                          }
-                          let slotBadgeClass = 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300';
-                          if (appCount >= s.maxCapacity) {
-                            slotBadgeClass = 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300';
-                          }
-                          return (
-                            <span
-                              key={s.id}
-                              className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-md ${slotBadgeClass}`}
-                            >
-                              {s.timeSlot}
-                            </span>
-                          );
-                        })}
-                        {(() => {
-                          if (daySlots.length > 3) {
-                            return <span className="text-[10px] font-bold text-slate-400">+{daySlots.length - 3}</span>;
-                          }
-                          return null;
-                        })()}
-                      </div>
-                    );
-                  }
-                  return null;
-                })()}
-
-                {(() => {
-                  if (!hasSlots) {
-                    if (!isPast) {
-                      if (canWrite) {
-                        return (
-                          <div className="text-[10px] text-slate-300 dark:text-slate-600 flex items-center gap-0.5">
-                            <Plus className="w-3 h-3" /> Adicionar
-                          </div>
-                        );
-                      }
-                    }
-                  }
-                  return null;
-                })()}
-              </div>
-            );
-          })}
-        </div>
+        <StandardCalendar
+          events={calendarEvents}
+          onEventClick={handleCalendarEventClick}
+          onDateClick={(info) => canWrite && handleOpenCreate(info.dateStr)}
+          onDatesSet={handleDatesSet}
+        />
       </Card>
 
       {/* Slots Detailed Schedule List */}
@@ -417,8 +272,9 @@ export function ScheduleSlotsPage() {
                                       </button>
                                       <button
                                         onClick={() => handleDelete(slot)}
+                                        disabled={(slot._count?.appointments ?? 0) > 0}
                                         className="text-slate-400 hover:text-rose-600 p-0.5"
-                                        title="Excluir horário"
+                                        title={(slot._count?.appointments ?? 0) > 0 ? 'Possui agendamentos vinculados' : 'Excluir horário'}
                                       >
                                         <Trash2 className="w-3 h-3" />
                                       </button>
@@ -491,6 +347,23 @@ export function ScheduleSlotsPage() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 pt-1">
+                  <div>
+                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                      Farmacêutico responsável
+                    </Label>
+                    <Select
+                      value={form.assignedToId ? String(form.assignedToId) : ''}
+                      onValueChange={(value) => setForm({ ...form, assignedToId: Number(value) })}
+                      disabled={Boolean(editSlot)}
+                    >
+                      <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-700/50">
+                        <SelectValue placeholder="Selecione um farmacêutico" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {pharmacists.map((pharmacist) => <SelectItem key={pharmacist.id} value={String(pharmacist.id)}>{pharmacist.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
+                  </div>
                   <div>
                     <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                       Data

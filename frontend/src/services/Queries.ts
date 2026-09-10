@@ -246,7 +246,7 @@ export function useUpdateAppointmentStatus() {
 export function useCancelAppointment() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: api.appointments.cancel,
+    mutationFn: ({ id, reason }: { id: number; reason: string }) => api.appointments.cancel(id, reason),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
       toast.success('Agendamento cancelado com sucesso.');

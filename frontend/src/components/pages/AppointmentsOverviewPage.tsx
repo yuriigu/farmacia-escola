@@ -2,12 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
-import dynamic from 'next/dynamic';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import listPlugin from '@fullcalendar/list';
-import { CalendarDays, Clock, Plus } from 'lucide-react';
+import { CalendarDays, Clock, Plus, Eye, Check, CircleCheckBig, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuthStore } from '@/lib/AuthStore';
 import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/PharmacyStore';
 import type { Appointment } from '@/lib/Types';
@@ -18,15 +14,9 @@ import { Card } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/Dialog';
 import { Separator } from '@/components/ui/Separator';
-
-const FullCalendar = dynamic(() => import('@fullcalendar/react'), {
-  ssr: false,
-  loading: () => (
-    <div className="min-h-[500px] flex items-center justify-center text-slate-400 text-sm">
-      Carregando calendário...
-    </div>
-  ),
-}) as any;
+import { Textarea } from '@/components/ui/Textarea';
+import { api } from '@/lib/Api';
+import { StandardCalendar } from '@/components/shared/StandardCalendar';
 
 export function AppointmentsOverviewPage() {
   const { appointments, scheduleSlots } = usePharmacyStore();
@@ -48,6 +38,10 @@ export function AppointmentsOverviewPage() {
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
+  const [receipt, setReceipt] = useState<any>(null);
 
   useEffect(() => {
     fetchScheduleSlotsData();
@@ -56,9 +50,6 @@ export function AppointmentsOverviewPage() {
   const appointmentsByDay = (() => {
     const map: Record<string, Appointment[]> = {};
     appointments.forEach((app) => {
-      if (app.status === 'CANCELLED') {
-        return;
-      }
       const parsed = new Date(app.scheduledDate);
       if (Number.isNaN(parsed.getTime())) {
         return;
@@ -76,9 +67,6 @@ export function AppointmentsOverviewPage() {
   if (isPatient) {
     const map: Record<string, Appointment[]> = {};
     appointments.forEach((app) => {
-      if (app.status === 'CANCELLED') {
-        return;
-      }
       if (user) {
         if (app.patientId !== user.patientId) {
           return;
@@ -102,9 +90,6 @@ export function AppointmentsOverviewPage() {
   const calendarEvents = (() => {
     const list: any[] = [];
     appointments.forEach((app) => {
-      if (app.status === 'CANCELLED') {
-        return;
-      }
       if (isPatient) {
         if (user) {
           if (app.patientId !== user.patientId) {
@@ -129,13 +114,15 @@ export function AppointmentsOverviewPage() {
         title = timeText + ' - ' + patientName;
       }
 
-      let eventColor = '#059669';
+      let eventColor = '#16a34a';
       if (app.status === 'PENDING') {
-        eventColor = '#d97706';
+        eventColor = '#f97316';
       } else if (app.status === 'CONFIRMED') {
-        eventColor = '#059669';
+        eventColor = '#2563eb';
+      } else if (app.status === 'CANCELLED') {
+        eventColor = '#dc2626';
       } else {
-        eventColor = '#475569';
+        eventColor = '#16a34a';
       }
 
       let dateIso = '';
@@ -204,8 +191,12 @@ export function AppointmentsOverviewPage() {
     }
   }
 
-  const handleGoToAppointments = () => {
-    window.dispatchEvent(new CustomEvent('calendar:goToAppointments'));
+  const handleGoToAppointments = (slot?: { date: string; timeSlot: string; id: number }) => {
+    let detail: { date?: string; time?: string; slotId?: number } = {};
+    if (slot) {
+      detail = { date: slot.date.slice(0, 10), time: slot.timeSlot, slotId: slot.id };
+    }
+    window.dispatchEvent(new CustomEvent('calendar:goToAppointments', { detail }));
     setSelectedDay(null);
   };
 
@@ -253,7 +244,7 @@ export function AppointmentsOverviewPage() {
         icon={CalendarDays}
         actions={
           <Button
-            onClick={handleGoToAppointments}
+            onClick={() => handleGoToAppointments()}
             className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
           >
             <Plus className="w-4 h-4" />
@@ -262,28 +253,20 @@ export function AppointmentsOverviewPage() {
         }
       />
 
+      <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs dark:border-slate-700 dark:bg-slate-800" aria-label="Legenda de status">
+        <span className="font-semibold text-slate-600 dark:text-slate-300">Legenda:</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-orange-500" />Pendente</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-blue-600" />Confirmado</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-green-600" />Concluído (Dispensado)</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-600" />Cancelado</span>
+      </div>
+
       {/* Calendar Card */}
       <Card className="rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 sm:p-5 bg-white dark:bg-slate-800">
-        <FullCalendar
-          plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
-          initialView="dayGridMonth"
-          headerToolbar={{
-            left: 'prev,next today',
-            center: 'title',
-            right: 'dayGridMonth,timeGridWeek,listMonth',
-          }}
-          buttonText={{
-            today: 'Hoje',
-            month: 'Mês',
-            week: 'Semana',
-            list: 'Lista',
-          }}
+        <StandardCalendar
           events={calendarEvents}
-          dateClick={handleDateClick}
-          eventClick={handleEventClick}
-          height="auto"
-          dayMaxEvents={3}
-          moreLinkText={(n) => `+${n}`}
+          onDateClick={handleDateClick}
+          onEventClick={handleEventClick}
         />
       </Card>
 
@@ -349,6 +332,12 @@ export function AppointmentsOverviewPage() {
                                   <Badge variant="outline" className="text-[10px] bg-white text-emerald-700 border-emerald-200">
                                     {freeSlots} vagas livres
                                   </Badge>
+                                  {(() => {
+                                    if (freeSlots > 0) {
+                                      return <Button onClick={() => handleGoToAppointments(slot)} className="h-7 rounded-lg bg-emerald-600 px-2 text-[10px] text-white">Agendar</Button>;
+                                    }
+                                    return null;
+                                  })()}
                                 </div>
                               );
                             })}
@@ -436,6 +425,12 @@ export function AppointmentsOverviewPage() {
                                 Paciente: <strong className="text-slate-800 dark:text-slate-200">{patientNameText}</strong>
                               </p>
                             </div>
+                            <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+                              <Button variant="ghost" size="sm" title="Visualizar" onClick={() => setSelectedAppointment(app)}><Eye className="h-4 w-4" /></Button>
+                              {!isPatient && app.status === 'PENDING' && <Button variant="ghost" size="sm" title="Confirmar" onClick={async () => { await api.confirmAppointment(app.id); toast.success('Agendamento confirmado.'); fetchScheduleSlotsData(); }}><Check className="h-4 w-4 text-blue-600" /></Button>}
+                              {!isPatient && app.status === 'CONFIRMED' && <Button variant="ghost" size="sm" title="Concluir/Dispensar" onClick={async () => { const withdrawal = await api.completeAppointment(app.id); setReceipt(withdrawal); toast.success('Atendimento concluído e dispensado.'); fetchScheduleSlotsData(); }}><CircleCheckBig className="h-4 w-4 text-green-600" /></Button>}
+                              {app.status !== 'CANCELLED' && <Button variant="ghost" size="sm" title="Cancelar" onClick={() => { setCancelTarget(app); setCancelReason(''); }}><X className="h-4 w-4 text-red-600" /></Button>}
+                            </div>
                           </div>
                         );
                       })}
@@ -447,11 +442,34 @@ export function AppointmentsOverviewPage() {
             })()}
 
             <div className="pt-2 flex justify-end">
-              <Button onClick={handleGoToAppointments} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs">
+              <Button onClick={() => handleGoToAppointments()} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs">
                 Ir para Agendamentos
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={selectedAppointment !== null} onOpenChange={(open) => { if (!open) setSelectedAppointment(null); }}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader><DialogTitle>Detalhes do Agendamento</DialogTitle><DialogDescription>Informações do atendimento selecionado.</DialogDescription></DialogHeader>
+          {selectedAppointment && <div className="space-y-2 text-sm"><p>Paciente: <strong>{selectedAppointment.patient?.name ?? 'Não informado'}</strong></p><p>Status: {APPOINTMENT_STATUS_LABELS[selectedAppointment.status]}</p><p>Horário: {selectedAppointment.scheduledTime ?? 'Não informado'}</p></div>}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cancelTarget !== null} onOpenChange={(open) => { if (!open) setCancelTarget(null); }}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader><DialogTitle>Cancelar Agendamento</DialogTitle><DialogDescription>O motivo é obrigatório para liberar a vaga.</DialogDescription></DialogHeader>
+          <Textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Motivo do Cancelamento" rows={4} required />
+          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCancelTarget(null)}>Voltar</Button><Button className="bg-red-600 text-white" onClick={async () => { if (!cancelTarget || !cancelReason.trim()) { toast.error('Informe o motivo do cancelamento.'); return; } await api.cancelAppointment(cancelTarget.id, cancelReason); setCancelTarget(null); toast.success('Agendamento cancelado.'); }}>Cancelar agendamento</Button></div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={receipt !== null} onOpenChange={(open) => { if (!open) setReceipt(null); }}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader><DialogTitle>Comprovante de Retirada</DialogTitle><DialogDescription>Baixa FEFO concluída para o atendimento.</DialogDescription></DialogHeader>
+          <div className="space-y-2 text-sm"><p>Paciente: {receipt?.patient?.name ?? 'Não informado'}</p><p>Lote consumido: {receipt?.batch?.batchNumber ?? receipt?.allocatedItems?.map((item: { batchNumber: string }) => item.batchNumber).join(', ') ?? 'Baixa FEFO registrada'}</p></div>
+          <div className="flex justify-end"><Button onClick={() => window.print()} className="bg-emerald-600 text-white">Imprimir/Salvar PDF</Button></div>
         </DialogContent>
       </Dialog>
     </div>

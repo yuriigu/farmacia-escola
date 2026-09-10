@@ -175,7 +175,7 @@ export const api = {
       currentQuantity: number;
       expirationDate: string;
       manufacturingDate?: string | null;
-      supplier: string;
+      supplier?: string;
       isBlocked?: boolean;
       blockReason?: string | null;
     }) => {
@@ -239,8 +239,8 @@ export const api = {
       const result = response.data;
       return result;
     },
-    cancel: async (id: number) => {
-      const response = await apiClient.delete<Appointment>(`/api/appointments/${id}`);
+    cancel: async (id: number, cancelReason: string) => {
+      const response = await apiClient.put<Appointment>(`/api/appointments/${id}/status`, { status: 'CANCELLED', notes: cancelReason });
       const result = response.data;
       return result;
     },
@@ -310,10 +310,13 @@ export const api = {
       return result;
     },
     create: async (data: {
-      patientName: string;
+      patientId?: number;
+      patientName?: string;
       patientCpf: string;
       batchId: number;
       quantity: number;
+      medicineId?: number;
+      appointmentId?: number;
       notes?: string;
     }) => {
       const response = await apiClient.post<{
@@ -324,8 +327,8 @@ export const api = {
       const result = response.data;
       return result;
     },
-    cancel: async (id: number) => {
-      const response = await apiClient.delete<{ message: string }>(`/api/withdrawals/${id}`);
+    cancel: async (id: number, cancelReason: string) => {
+      const response = await apiClient.post<Withdrawal>(`/api/withdrawals/${id}/cancel`, { cancelReason });
       const result = response.data;
       return result;
     },
@@ -338,13 +341,13 @@ export const api = {
       const result = response.data;
       return result;
     },
-    create: async (data: { batchId: number; quantity: number; reason: string }) => {
-      const response = await apiClient.post<{ message: string; disposal: Disposal }>('/api/disposals', data);
+    create: async (data: { batchId: number; quantity: number; reason: string; notes?: string }) => {
+      const response = await apiClient.post<Disposal>('/api/disposals', data);
       const result = response.data;
       return result;
     },
-    revert: async (id: number) => {
-      const response = await apiClient.post<{ message: string }>(`/api/disposals/${id}/revert`);
+    revert: async (id: number, revertReason: string) => {
+      const response = await apiClient.post<Disposal>(`/api/disposals/${id}/revert`, { revertReason });
       const result = response.data;
       return result;
     },

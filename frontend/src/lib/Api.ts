@@ -42,15 +42,15 @@ export const api = {
 
   // Withdrawals
   getWithdrawals: () => serviceApi.withdrawals.getAll(),
-  createWithdrawal: (data: { patientName: string; patientCpf: string; batchId: number; quantity: number; notes?: string }) =>
+  createWithdrawal: (data: { patientId?: number; patientName?: string; patientCpf: string; batchId: number; quantity: number; medicineId?: number; appointmentId?: number; notes?: string }) =>
     serviceApi.withdrawals.create(data),
-  cancelWithdrawal: (id: number) => serviceApi.withdrawals.cancel(id),
+  cancelWithdrawal: (id: number, cancelReason: string) => serviceApi.withdrawals.cancel(id, cancelReason),
 
   // Disposals
   getDisposals: () => serviceApi.disposals.getAll(),
-  createDisposal: (data: { batchId: number; quantity: number; reason: string }) =>
+  createDisposal: (data: { batchId: number; quantity: number; reason: string; notes?: string }) =>
     serviceApi.disposals.create(data),
-  revertDisposal: (id: number) => serviceApi.disposals.revert(id),
+  revertDisposal: (id: number, revertReason: string) => serviceApi.disposals.revert(id, revertReason),
 
   // Appointments
   getAppointments: () => serviceApi.appointments.getAll(),
@@ -67,7 +67,13 @@ export const api = {
   }) => serviceApi.appointments.create(data),
   confirmAppointment: (id: number) => serviceApi.appointments.updateStatus(id, 'CONFIRMED'),
   completeAppointment: (id: number) => serviceApi.appointments.updateStatus(id, 'COMPLETED'),
-  cancelAppointment: (id: number) => serviceApi.appointments.cancel(id),
+  cancelAppointment: (id: number, cancelReason?: string) => {
+    let reason = 'Cancelamento solicitado pelo usuário';
+    if (cancelReason) {
+      reason = cancelReason;
+    }
+    return serviceApi.appointments.cancel(id, reason);
+  },
 
   // Patients
   getPatients: (search?: string) => serviceApi.patients.getAll(search),

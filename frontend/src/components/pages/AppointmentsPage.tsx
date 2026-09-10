@@ -8,7 +8,7 @@ import {
   Eye, Pill, User, FileText, Info, Search, CalendarDays
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/AuthStore';
-import { usePharmacyStore, fetchAllData } from '@/lib/PharmacyStore';
+import { usePharmacyStore, fetchAllData, fetchScheduleSlotsData } from '@/lib/PharmacyStore';
 import type { Appointment, AppointmentDraft, AppointmentItem } from '@/lib/Types';
 import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS, downloadCSV, getAvatarColor } from '@/lib/Constants';
 import { api } from '@/lib/Api';
@@ -35,14 +35,20 @@ function stripCPF(value: string): string {
   return value.replace(/\D/g, '');
 }
 
+function getAvailableStock(medicine: { physicalQuantity?: number; totalQuantity?: number; reservedQuantity?: number; availableQuantity?: number }): number {
+  const physicalStock = medicine.physicalQuantity ?? medicine.totalQuantity ?? 0;
+  const reservedStock = medicine.reservedQuantity ?? 0;
+  return medicine.availableQuantity ?? Math.max(physicalStock - reservedStock, 0);
+}
+
 // ==================== DOCTOR APPOINTMENT MODAL ====================
 function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
-  const { medicines } = usePharmacyStore();
+  const { medicines, scheduleSlots } = usePharmacyStore();
   const [cpfInput, setCpfInput] = useState('');
   const [patientName, setPatientName] = useState('');
-  const [medicineId, setMedicineId] = useState<number>(0);
-  const [quantity, setQuantity] = useState(1);
+  const [items, setItems] = useState<Array<{ medicineId: number; quantity: number }>>([{ medicineId: 0, quantity: 1 }]);
   const [scheduledDate, setScheduledDate] = useState('');
+  const [slotId, setSlotId] = useState(0);
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [cpfSuggestions, setCpfSuggestions] = useState<Array<{ id: number; name: string; cpf: string }>>([]);
@@ -54,12 +60,16 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
   const cleanForm = useCallback(() => {
     setCpfInput('');
     setPatientName('');
-    setMedicineId(0);
-    setQuantity(1);
+    setItems([{ medicineId: 0, quantity: 1 }]);
     setScheduledDate('');
+    setSlotId(0);
     setNotes('');
     setCpfSuggestions([]);
     setShowSuggestions(false);
+  }, []);
+
+  useEffect(() => {
+    fetchScheduleSlotsData();
   }, []);
 
   // Close suggestions on outside click
@@ -115,12 +125,16 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!medicineId) {
-      toast.error('Preencha medicamento e data/horário.');
+    if (items.some((item) => !item.medicineId || item.quantity < 1)) {
+      toast.error('Selecione o medicamento e informe uma quantidade válida em todas as linhas.');
       return;
     }
     if (!scheduledDate) {
       toast.error('Preencha medicamento e data/horário.');
+      return;
+    }
+    if (!slotId) {
+      toast.error('Selecione um horário disponível na escala.');
       return;
     }
 
@@ -134,35 +148,14 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
       return;
     }
 
-    const selectedMed = medicines.find((m) => m.id === medicineId);
-    if (selectedMed) {
-      let physicalStock = 0;
-      if (selectedMed.physicalQuantity !== null && selectedMed.physicalQuantity !== undefined) {
-        physicalStock = selectedMed.physicalQuantity;
-      } else if (selectedMed.totalQuantity !== null && selectedMed.totalQuantity !== undefined) {
-        physicalStock = selectedMed.totalQuantity;
-      }
-      let reservedStock = 0;
-      if (selectedMed.reservedQuantity !== null && selectedMed.reservedQuantity !== undefined) {
-        reservedStock = selectedMed.reservedQuantity;
-      }
-      let realAvailableStock = 0;
-      if (selectedMed.availableQuantity !== null && selectedMed.availableQuantity !== undefined) {
-        realAvailableStock = selectedMed.availableQuantity;
-      } else {
-        if (physicalStock > reservedStock) {
-          realAvailableStock = physicalStock - reservedStock;
-        } else {
-          realAvailableStock = 0;
-        }
-      }
-      if (quantity > realAvailableStock) {
+    const requestedByMedicine = new Map<number, number>();
+    items.forEach((item) => requestedByMedicine.set(item.medicineId, (requestedByMedicine.get(item.medicineId) ?? 0) + item.quantity));
+    for (const [requestedMedicineId, requestedQuantity] of requestedByMedicine) {
+      const selectedMed = medicines.find((medicine) => medicine.id === requestedMedicineId);
+      const availableStock = selectedMed ? getAvailableStock(selectedMed) : 0;
+      if (!selectedMed || requestedQuantity > availableStock) {
         toast.error(
-          'Estoque insuficiente: Quantidade solicitada (' +
-            quantity +
-            ' un.) excede o saldo disponível real (' +
-            realAvailableStock +
-            ' un.).'
+          `Estoque insuficiente: a quantidade solicitada (${requestedQuantity} un.) excede o saldo disponível (${availableStock} un.).`
         );
         return;
       }
@@ -170,8 +163,13 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
 
     try {
       setLoading(true);
-      const dateVal = new Date(scheduledDate);
-      const timeVal = dateVal.toTimeString().slice(0, 5);
+      const selectedSlot = scheduleSlots.find((slot) => slot.id === slotId);
+      if (!selectedSlot) {
+        toast.error('Selecione um horário disponível na escala.');
+        return;
+      }
+      const dateVal = new Date(scheduledDate + 'T' + selectedSlot.timeSlot + ':00');
+      const timeVal = selectedSlot.timeSlot;
 
       let notesVal: string | undefined = undefined;
       if (notes.trim().length > 0) {
@@ -181,11 +179,12 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
       }
 
       await api.createAppointment({
-        items: [{ medicineId, quantity }],
+        items,
         patientName: patientName.trim(),
         patientCpf: digits,
         scheduledDate: dateVal.toISOString(),
         scheduledTime: timeVal,
+        slotId: selectedSlot.id,
         notes: notesVal,
       });
 
@@ -210,13 +209,6 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
       setLoading(false);
     }
   };
-
-  let medSelectVal = '';
-  if (medicineId) {
-    medSelectVal = String(medicineId);
-  } else {
-    medSelectVal = '';
-  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -302,98 +294,44 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
             />
           </div>
 
-          {/* Medicamento */}
-          <div>
-            <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
-              Medicamento
-            </Label>
-            <Select value={medSelectVal} onValueChange={(v) => setMedicineId(Number(v))}>
-              <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500">
-                <SelectValue placeholder="Selecione um medicamento..." />
-              </SelectTrigger>
-              <SelectContent>
-                {medicines.map((m) => {
-                  let dosageStr = '';
-                  if (m.dosage) {
-                    dosageStr = ' — ' + m.dosage;
-                  }
-                  return (
-                    <SelectItem key={m.id} value={String(m.id)}>
-                      {m.name}{dosageStr}
-                    </SelectItem>
-                  );
-                })}
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Painel de Reserva & Disponibilidade */}
-          {(() => {
-            if (medicineId) {
-              const selectedMed = medicines.find((m) => m.id === medicineId);
-              if (selectedMed) {
-                let physicalStock = 0;
-                if (selectedMed.physicalQuantity !== null && selectedMed.physicalQuantity !== undefined) {
-                  physicalStock = selectedMed.physicalQuantity;
-                } else if (selectedMed.totalQuantity !== null && selectedMed.totalQuantity !== undefined) {
-                  physicalStock = selectedMed.totalQuantity;
-                }
-                let reservedStock = 0;
-                if (selectedMed.reservedQuantity !== null && selectedMed.reservedQuantity !== undefined) {
-                  reservedStock = selectedMed.reservedQuantity;
-                }
-                let realAvailableStock = 0;
-                if (selectedMed.availableQuantity !== null && selectedMed.availableQuantity !== undefined) {
-                  realAvailableStock = selectedMed.availableQuantity;
-                } else {
-                  if (physicalStock > reservedStock) {
-                    realAvailableStock = physicalStock - reservedStock;
-                  } else {
-                    realAvailableStock = 0;
-                  }
-                }
-                const isOver = quantity > realAvailableStock;
-
-                return (
-                  <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
-                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
-                        <span className="block text-[10px] uppercase font-bold text-slate-400">Físico</span>
-                        <span className="font-bold text-slate-800 dark:text-slate-100">{physicalStock} un.</span>
-                      </div>
-                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
-                        <span className="block text-[10px] uppercase font-bold text-amber-500">Reservado</span>
-                        <span className="font-bold text-amber-600 dark:text-amber-400">{reservedStock} un.</span>
-                      </div>
-                      <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
-                        <span className="block text-[10px] uppercase font-bold text-emerald-600">Disponível</span>
-                        <span className="font-bold text-emerald-700 dark:text-emerald-300">{realAvailableStock} un.</span>
-                      </div>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <Label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Medicamentos do atendimento</Label>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setItems((current) => [...current, { medicineId: 0, quantity: 1 }])}
+                className="h-8 rounded-lg border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+              >
+                + Adicionar outro medicamento
+              </Button>
+            </div>
+            {items.map((item, index) => {
+              const selectedMed = medicines.find((medicine) => medicine.id === item.medicineId);
+              const availableStock = selectedMed ? getAvailableStock(selectedMed) : 0;
+              const isOver = Boolean(selectedMed && item.quantity > availableStock);
+              return (
+                <div key={index} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 space-y-2">
+                  <div className="grid grid-cols-[minmax(0,1fr)_6rem_auto] gap-2 items-end">
+                    <div>
+                      <Label className="mb-1 block text-[11px] font-semibold text-slate-500">Medicamento</Label>
+                      <Select value={item.medicineId ? String(item.medicineId) : ''} onValueChange={(value) => setItems((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, medicineId: Number(value) } : entry))}>
+                        <SelectTrigger className="rounded-lg"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                        <SelectContent>
+                          {medicines.map((medicine) => <SelectItem key={medicine.id} value={String(medicine.id)}>{medicine.name}{medicine.dosage ? ` — ${medicine.dosage}` : ''}</SelectItem>)}
+                        </SelectContent>
+                      </Select>
                     </div>
-                    {isOver && (
-                      <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
-                        Estoque insuficiente: A quantidade solicitada ({quantity} un.) excede o saldo disponível real ({realAvailableStock} un.), pois há {reservedStock} un. reservadas para outros agendamentos pendentes.
-                      </p>
-                    )}
+                    <div>
+                      <Label className="mb-1 block text-[11px] font-semibold text-slate-500">Quantidade</Label>
+                      <Input type="number" min={1} value={item.quantity} onChange={(event) => setItems((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, quantity: Math.max(1, Number(event.target.value)) } : entry))} className="rounded-lg" />
+                    </div>
+                    {items.length > 1 && <Button type="button" variant="ghost" onClick={() => setItems((current) => current.filter((_, entryIndex) => entryIndex !== index))} className="h-10 w-10 p-0 text-slate-400 hover:text-rose-600" aria-label="Remover medicamento">×</Button>}
                   </div>
-                );
-              }
-            }
-            return null;
-          })()}
-
-          {/* Quantidade */}
-          <div>
-            <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
-              Quantidade
-            </Label>
-            <Input
-              type="number"
-              min={1}
-              value={quantity}
-              onChange={(e) => setQuantity(Math.max(1, Number(e.target.value)))}
-              className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-            />
+                  {selectedMed && <div className={`text-[11px] font-medium ${isOver ? 'text-rose-600' : 'text-emerald-700'}`}>Saldo disponível: {availableStock} un.{isOver ? ` · solicitado: ${item.quantity} un.` : ''}</div>}
+                </div>
+              );
+            })}
           </div>
 
           {/* Data e Horário */}
@@ -401,13 +339,34 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
             <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
               Data e Horário (Slot)
             </Label>
-            <Input
-              type="datetime-local"
-              required
-              value={scheduledDate}
-              onChange={(e) => setScheduledDate(e.target.value)}
-              className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
-            />
+            <Input type="date" required value={scheduledDate} onChange={(e) => { setScheduledDate(e.target.value); setSlotId(0); }} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+            <Select value={slotId ? String(slotId) : ''} onValueChange={(value) => setSlotId(Number(value))}>
+              <SelectTrigger className="mt-2 rounded-xl border-slate-200 dark:border-slate-600"><SelectValue placeholder="Selecione um horário com vagas..." /></SelectTrigger>
+              <SelectContent>
+                {scheduleSlots.filter((slot) => {
+                  if (!slot.active) {
+                    return false;
+                  }
+                  if (slot.date.slice(0, 10) !== scheduledDate) {
+                    return false;
+                  }
+                  return true;
+                }).map((slot) => {
+                  let booked = 0;
+                  if (slot._count) {
+                    if (slot._count.appointments) {
+                      booked = slot._count.appointments;
+                    }
+                  }
+                  const free = slot.maxCapacity - booked;
+                  let pharmacist = 'Não informado';
+                  if (slot.assignedTo) {
+                    pharmacist = slot.assignedTo.name;
+                  }
+                  return <SelectItem key={slot.id} value={String(slot.id)} disabled={free <= 0}>{slot.timeSlot} — {free}/{slot.maxCapacity} vagas — (Farm. {pharmacist})</SelectItem>;
+                })}
+              </SelectContent>
+            </Select>
           </div>
 
           {/* Observações */}
@@ -466,9 +425,11 @@ export function AppointmentsPage() {
     initialMedId = 0;
   }
 
-  const { appointments, medicines, patients, loading } = usePharmacyStore();
+  const { appointments, medicines, patients, scheduleSlots, loading } = usePharmacyStore();
   const [modalOpen, setModalOpen] = useState(initialNew);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
+  const [cancelReason, setCancelReason] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const user = useAuthStore((s) => {
@@ -507,9 +468,39 @@ export function AppointmentsPage() {
   const [form, setForm] = useState<AppointmentDraft>(defaultForm);
   const [loadingPatients, setLoadingPatients] = useState(false);
 
+  const availableSlotsForDate = scheduleSlots.filter((slot) => {
+    if (!slot.active) {
+      return false;
+    }
+    if (!form.scheduledDate) {
+      return false;
+    }
+    if (slot.date.slice(0, 10) !== form.scheduledDate.slice(0, 10)) {
+      return false;
+    }
+    return true;
+  });
+
   // Listen for calendar day-click event to auto-open modal
   useEffect(() => {
-    const handler = () => {
+    fetchScheduleSlotsData();
+  }, []);
+
+  useEffect(() => {
+    const handler = (event: Event) => {
+      const customEvent = event as CustomEvent<{ date?: string; time?: string; slotId?: number }>;
+      let nextForm = defaultForm;
+      if (customEvent.detail) {
+        if (customEvent.detail.date) {
+          nextForm = {
+            ...nextForm,
+            scheduledDate: customEvent.detail.date,
+            scheduledTime: customEvent.detail.time,
+            slotId: customEvent.detail.slotId,
+          };
+        }
+      }
+      setForm(nextForm);
       setModalOpen(true);
     };
     window.addEventListener('calendar:goToAppointments', handler);
@@ -561,6 +552,10 @@ export function AppointmentsPage() {
     if (!form.scheduledDate) {
       return;
     }
+    if (!form.slotId) {
+      toast.error('Selecione um horário disponível na escala.');
+      return;
+    }
     if (!isPatient && !isMedico && !form.patientId) {
       return;
     }
@@ -600,7 +595,7 @@ export function AppointmentsPage() {
     }
 
     try {
-      const dateVal = new Date(form.scheduledDate);
+      const dateVal = new Date(form.scheduledDate + 'T' + form.scheduledTime + ':00');
       let timeVal = '';
       if (form.scheduledTime) {
         timeVal = form.scheduledTime;
@@ -619,6 +614,7 @@ export function AppointmentsPage() {
         items: form.items,
         scheduledDate: dateVal.toISOString(),
         scheduledTime: timeVal,
+        slotId: form.slotId,
         notes: notesVal,
       };
       if (!isPatient) {
@@ -643,6 +639,25 @@ export function AppointmentsPage() {
         errMessage = 'Erro ao criar agendamento.';
       }
       toast.error(errMessage);
+    }
+  };
+
+  const handleCancelAppointment = async () => {
+    if (!cancelTarget) {
+      return;
+    }
+    if (!cancelReason.trim()) {
+      toast.error('A justificativa do cancelamento é obrigatória.');
+      return;
+    }
+    try {
+      await api.cancelAppointment(cancelTarget.id, cancelReason.trim());
+      toast.success('Agendamento cancelado e reserva liberada.');
+      setCancelTarget(null);
+      setCancelReason('');
+      fetchAllData();
+    } catch {
+      toast.error('Erro ao cancelar agendamento.');
     }
   };
 
@@ -997,14 +1012,9 @@ export function AppointmentsPage() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={async () => {
-                      try {
-                        await api.cancelAppointment(app.id);
-                        toast.success('Agendamento cancelado.');
-                        fetchAllData();
-                      } catch {
-                        toast.error('Erro ao cancelar.');
-                      }
+                    onClick={() => {
+                      setCancelTarget(app);
+                      setCancelReason('');
                     }}
                     className="h-8 w-8 p-0 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30"
                     title="Cancelar agendamento"
@@ -1067,14 +1077,9 @@ export function AppointmentsPage() {
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={async () => {
-                        try {
-                          await api.cancelAppointment(app.id);
-                          toast.success('Agendamento cancelado.');
-                          fetchAllData();
-                        } catch {
-                          toast.error('Erro ao cancelar.');
-                        }
+                      onClick={() => {
+                        setCancelTarget(app);
+                        setCancelReason('');
                       }}
                       className="h-8 w-8 p-0 rounded-lg text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-900/30"
                       title="Cancelar Agendamento"
@@ -1547,8 +1552,41 @@ export function AppointmentsPage() {
                     return null;
                   })()}
                   <div>
-                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Data e Horário</Label>
-                    <Input type="datetime-local" required value={form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledDate: e.target.value })} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Data</Label>
+                    <Input type="date" required value={form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledDate: e.target.value, scheduledTime: '', slotId: undefined })} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                  </div>
+                  <div>
+                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Horário da escala</Label>
+                    <Select value={form.slotId ? String(form.slotId) : ''} onValueChange={(value) => {
+                      const selectedSlot = availableSlotsForDate.find((slot) => slot.id === Number(value));
+                      if (selectedSlot) {
+                        setForm({ ...form, slotId: selectedSlot.id, scheduledTime: selectedSlot.timeSlot });
+                      }
+                    }}>
+                      <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600"><SelectValue placeholder="Selecione um horário com vagas..." /></SelectTrigger>
+                      <SelectContent>
+                        {availableSlotsForDate.map((slot) => {
+                          let booked = 0;
+                          if (slot._count) {
+                            if (slot._count.appointments) {
+                              booked = slot._count.appointments;
+                            }
+                          }
+                          const free = slot.maxCapacity - booked;
+                          let pharmacist = 'Não informado';
+                          if (slot.assignedTo) {
+                            pharmacist = slot.assignedTo.name;
+                          }
+                          return <SelectItem key={slot.id} value={String(slot.id)} disabled={free <= 0}>{slot.timeSlot} — {free}/{slot.maxCapacity} vagas — (Farm. {pharmacist})</SelectItem>;
+                        })}
+                      </SelectContent>
+                    </Select>
+                    {(() => {
+                      if (form.scheduledDate && availableSlotsForDate.length === 0) {
+                        return <p className="mt-1 text-xs text-rose-600">Não há escala ativa para esta data.</p>;
+                      }
+                      return null;
+                    })()}
                   </div>
                   <div>
                     <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Observações (opcional)</Label>
@@ -1565,6 +1603,19 @@ export function AppointmentsPage() {
         }
         return null;
       })()}
+      <Dialog open={cancelTarget !== null} onOpenChange={() => setCancelTarget(null)}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-rose-600">Cancelar agendamento</DialogTitle>
+            <DialogDescription>A reserva de estoque será liberada. Informe a justificativa obrigatória.</DialogDescription>
+          </DialogHeader>
+          <Textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Justificativa do cancelamento" rows={4} />
+          <div className="flex justify-end gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={() => setCancelTarget(null)}>Voltar</Button>
+            <Button type="button" className="bg-rose-600 text-white hover:bg-rose-700" onClick={handleCancelAppointment}>Confirmar cancelamento</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

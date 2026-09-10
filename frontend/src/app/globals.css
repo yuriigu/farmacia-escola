@@ -1588,6 +1588,25 @@ button[aria-label="Next.js Dev Tools"] {
   font-weight: 800 !important;
 }
 
+.standard-calendar .fc-day-today {
+  box-shadow: inset 0 0 0 2px #10b981;
+}
+
+.fc .fc-daygrid-day-top {
+  align-items: center;
+}
+
+.fc .fc-today-badge {
+  margin: 0.35rem 0.35rem 0 0;
+  padding: 0.15rem 0.4rem;
+  border-radius: 999px;
+  background: #059669;
+  color: #ffffff;
+  font-size: 0.575rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
 .dark .fc .fc-day-today .fc-daygrid-day-number {
   color: #34d399 !important;
 }
@@ -1618,6 +1637,12 @@ button[aria-label="Next.js Dev Tools"] {
   padding: 1px 4px !important;
   border: none !important;
   cursor: pointer;
+}
+
+.standard-calendar .fc-daygrid-event {
+  border-radius: 999px !important;
+  padding: 0.2rem 0.45rem !important;
+  margin: 0.15rem 0.35rem !important;
 }
 
 

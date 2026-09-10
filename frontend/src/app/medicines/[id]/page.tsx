@@ -3,6 +3,7 @@
 // IMPORTS DO NEXT E REACT
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
 
 // IMPORTS DE BIBLIOTECAS
 import {
@@ -141,7 +142,7 @@ export default function MedicineDetailsPage() {
   }
 
   // DETERMINANDO ELEMENTO DE DOSAGEM
-  let dosageElement = null;
+  let dosageElement: ReactNode = null;
   if (medicine.dosage) {
     dosageElement = (
       <p className="text-base font-bold text-emerald-700 dark:text-emerald-400">
@@ -151,7 +152,7 @@ export default function MedicineDetailsPage() {
   }
 
   // DETERMINANDO ELEMENTO DE PRINCIPIO ATIVO
-  let activeIngredientElement = null;
+  let activeIngredientElement: ReactNode = null;
   if (medicine.activeIngredient) {
     activeIngredientElement = (
       <p className="text-sm text-slate-500 dark:text-slate-400">
@@ -170,7 +171,7 @@ export default function MedicineDetailsPage() {
   }
 
   // DETERMINANDO DESCRICAO ACESSIVEL
-  let accessibleDescElement = null;
+  let accessibleDescElement: ReactNode = null;
   if (medicine.accessibleDesc) {
     accessibleDescElement = (
       <div className="bg-emerald-50/70 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 p-5 rounded-2xl text-slate-700 dark:text-slate-300 text-sm sm:text-base leading-relaxed">
@@ -186,7 +187,7 @@ export default function MedicineDetailsPage() {
   }
 
   // DETERMINANDO BOTAO DE GERENCIAR LOTES
-  let manageBatchesButton = null;
+  let manageBatchesButton: ReactNode = null;
   if (user) {
     if (user.role !== 'PACIENTE') {
       manageBatchesButton = (
@@ -200,7 +201,7 @@ export default function MedicineDetailsPage() {
   }
 
   // DETERMINANDO CONTEUDO DOS LOTES
-  let batchesContent = null;
+  let batchesContent: ReactNode = null;
   if (medicine.batches) {
     if (medicine.batches.length > 0) {
       batchesContent = (
@@ -214,7 +215,7 @@ export default function MedicineDetailsPage() {
               isExpired = false;
             }
 
-            let expiredBadge = null;
+              let expiredBadge: ReactNode = null;
             if (isExpired) {
               expiredBadge = (
                 <Badge variant="outline" className="bg-rose-50 text-rose-700 border-rose-200 text-[10px]">

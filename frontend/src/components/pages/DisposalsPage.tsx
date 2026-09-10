@@ -15,16 +15,26 @@ import { Label } from '@/components/ui/Label';
 import { Badge } from '@/components/ui/Badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/Dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/Select';
+import { Textarea } from '@/components/ui/Textarea';
 
 export function DisposalsPage() {
   const { disposals, batches, loading } = usePharmacyStore();
   const [modalOpen, setModalOpen] = useState(false);
   const [reverting, setReverting] = useState<number | null>(null);
+  const [selectedDisposal, setSelectedDisposal] = useState<Disposal | null>(null);
+  const [revertReason, setRevertReason] = useState('');
   const [loadingBatches, setLoadingBatches] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [form, setForm] = useState<DisposalDraft>({ batchId: 0, quantity: 0, reason: 'Medicamento Vencido' });
+  const [form, setForm] = useState<DisposalDraft>({ batchId: 0, quantity: 0, reason: 'EXPIRED', notes: '' });
 
-  const REASONS = ['Medicamento Vencido', 'Embalagem Danificada', 'Recolhimento ANVISA', 'Contaminação', 'Outro'];
+  const REASONS = [
+    { value: 'EXPIRED', label: 'Vencimento' },
+    { value: 'DAMAGED_PACKAGING', label: 'Embalagem Danificada' },
+    { value: 'CONTAMINATION', label: 'Contaminação' },
+    { value: 'RECALL', label: 'Recall do Fabricante' },
+    { value: 'STORAGE_ERROR', label: 'Erro de Armazenamento/Refrigeração' },
+    { value: 'OTHER', label: 'Outros' },
+  ];
 
   useEffect(() => {
     fetchBatchesData().finally(() => {
@@ -114,7 +124,7 @@ export function DisposalsPage() {
       }
 
       let revertedStr = 'Não';
-      if (d.reverted) {
+      if (d.status === 'REVERTED') {
         revertedStr = 'Sim';
       } else {
         revertedStr = 'Não';
@@ -148,7 +158,7 @@ export function DisposalsPage() {
     try {
       await api.createDisposal(form);
       toast.success('Descarte registrado com sucesso.');
-      setForm({ batchId: 0, quantity: 0, reason: REASONS[0] });
+      setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
       setModalOpen(false);
       fetchAllData();
     } catch (err: unknown) {
@@ -164,10 +174,15 @@ export function DisposalsPage() {
   };
 
   const handleRevert = async (id: number) => {
+    if (!revertReason.trim()) {
+      toast.error('Informe a justificativa da reversão.');
+      return;
+    }
     try {
-      await api.revertDisposal(id);
+      await api.revertDisposal(id, revertReason.trim());
       toast.success('Descarte revertido com sucesso.');
       setReverting(null);
+      setRevertReason('');
       fetchAllData();
     } catch (err: unknown) {
       const error = err as { error?: string };
@@ -195,7 +210,7 @@ export function DisposalsPage() {
               {d.batch.medicine.name}
             </p>
             <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-              Lote: {d.batch.code}
+              Lote: {d.batch.batchNumber}
             </p>
           </div>
         </div>
@@ -214,7 +229,13 @@ export function DisposalsPage() {
       header: 'Motivo',
       cell: (d) => (
         <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
-          {d.reason}
+          {(() => {
+            const selectedReason = REASONS.find((reasonItem) => reasonItem.value === d.reason);
+            if (selectedReason) {
+              return selectedReason.label;
+            }
+            return d.reason;
+          })()}
         </span>
       ),
     },
@@ -251,7 +272,7 @@ export function DisposalsPage() {
       cell: (d) => {
         let badgeClass = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 text-[10px]';
         let badgeText = 'Descartado';
-        if (d.reverted) {
+        if (d.status === 'REVERTED') {
           badgeClass = 'bg-slate-100 text-slate-500 border-slate-200 dark:bg-slate-800 dark:text-slate-400 text-[10px]';
           badgeText = 'Revertido';
         } else {
@@ -274,12 +295,15 @@ export function DisposalsPage() {
       width: '100px',
       align: 'right',
       cell: (d) => {
-        if (!d.reverted) {
+        if (d.status !== 'REVERTED') {
           return (
             <Button
               size="sm"
               variant="ghost"
-              onClick={() => setReverting(d.id)}
+              onClick={() => {
+                setRevertReason('');
+                setReverting(d.id);
+              }}
               className="h-8 px-2 rounded-lg text-xs gap-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
               title="Reverter descarte"
             >
@@ -313,7 +337,7 @@ export function DisposalsPage() {
             </Button>
             <Button
               onClick={() => {
-                setForm({ batchId: 0, quantity: 0, reason: REASONS[0] });
+                setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
                 setModalOpen(true);
               }}
               className="h-10 rounded-xl gap-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
@@ -363,7 +387,7 @@ export function DisposalsPage() {
         emptyAction={
           <Button
             onClick={() => {
-              setForm({ batchId: 0, quantity: 0, reason: REASONS[0] });
+              setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
               setModalOpen(true);
             }}
             className="h-9 rounded-xl gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold"
@@ -372,6 +396,7 @@ export function DisposalsPage() {
             Novo Descarte
           </Button>
         }
+        onRowClick={(disposal) => setSelectedDisposal(disposal)}
       />
 
       {/* Create Disposal Dialog */}
@@ -492,8 +517,8 @@ export function DisposalsPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {REASONS.map((r) => (
-                    <SelectItem key={r} value={r}>
-                      {r}
+                    <SelectItem key={r.value} value={r.value}>
+                      {r.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -541,6 +566,12 @@ export function DisposalsPage() {
               Deseja reverter este descarte? A quantidade de unidades retornará automaticamente ao saldo do lote de origem.
             </DialogDescription>
           </DialogHeader>
+          <Textarea
+            value={revertReason}
+            onChange={(event) => setRevertReason(event.target.value)}
+            placeholder="Justificativa obrigatória da reversão"
+            rows={4}
+          />
           <DialogFooter className="pt-2">
             <Button variant="outline" onClick={() => setReverting(null)} className="rounded-xl">
               Cancelar
@@ -556,6 +587,102 @@ export function DisposalsPage() {
               Sim, Reverter
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={selectedDisposal !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedDisposal(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Package className="h-5 w-5 text-rose-600" />
+              Comprovante de Descarte
+            </DialogTitle>
+            <DialogDescription>Registro de inutilização e baixa de estoque</DialogDescription>
+          </DialogHeader>
+          {(() => {
+            if (!selectedDisposal) {
+              return null;
+            }
+            let medicineName = 'Não informado';
+            let batchNumber = 'Não informado';
+            let expirationDate = 'Não informado';
+            let professionalName = 'Não informado';
+            let notes = 'Nenhuma observação adicional';
+            let timestamp = 'Não informado';
+            let reasonLabel = selectedDisposal.reason;
+            let statusLabel = 'Descartado';
+            let statusClass = 'bg-rose-50 text-rose-700 border-rose-200';
+
+            if (selectedDisposal.batch) {
+              if (selectedDisposal.batch.medicine) {
+                if (selectedDisposal.batch.medicine.name) {
+                  medicineName = selectedDisposal.batch.medicine.name;
+                }
+              }
+              if (selectedDisposal.batch.batchNumber) {
+                batchNumber = selectedDisposal.batch.batchNumber;
+              } else {
+                if (selectedDisposal.batch.code) {
+                  batchNumber = selectedDisposal.batch.code;
+                }
+              }
+              if (selectedDisposal.batch.expirationDate) {
+                expirationDate = new Date(selectedDisposal.batch.expirationDate).toLocaleDateString('pt-BR');
+              } else {
+                if (selectedDisposal.batch.expiresAt) {
+                  expirationDate = new Date(selectedDisposal.batch.expiresAt).toLocaleDateString('pt-BR');
+                }
+              }
+            }
+            if (selectedDisposal.user) {
+              if (selectedDisposal.user.name) {
+                professionalName = selectedDisposal.user.name;
+              }
+            }
+            if (selectedDisposal.notes) {
+              notes = selectedDisposal.notes;
+            }
+            const selectedReason = REASONS.find((reasonItem) => reasonItem.value === selectedDisposal.reason);
+            if (selectedReason) {
+              reasonLabel = selectedReason.label;
+            }
+            if (selectedDisposal.createdAt) {
+              timestamp = new Date(selectedDisposal.createdAt).toLocaleString('pt-BR');
+            }
+            if (selectedDisposal.status === 'REVERTED') {
+              statusLabel = 'Revertido';
+              statusClass = 'bg-slate-100 text-slate-600 border-slate-300';
+            }
+
+            return (
+              <div className="space-y-3 pt-2 text-sm">
+                <div className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                  <span className="text-xs text-slate-400">Status</span>
+                  <Badge variant="outline" className={statusClass}>{statusLabel}</Badge>
+                </div>
+                <div className="grid gap-2 rounded-xl border border-slate-100 p-3 dark:border-slate-700">
+                  <div className="flex justify-between gap-4"><span className="text-xs text-slate-400">Medicamento</span><span className="font-semibold text-right">{medicineName}</span></div>
+                  <div className="flex justify-between gap-4"><span className="text-xs text-slate-400">Lote</span><span className="font-mono text-right">{batchNumber}</span></div>
+                  <div className="flex justify-between gap-4"><span className="text-xs text-slate-400">Validade</span><span className="text-right">{expirationDate}</span></div>
+                  <div className="flex justify-between gap-4"><span className="text-xs text-slate-400">Quantidade</span><span className="font-bold text-rose-600">{selectedDisposal.quantity} unidades</span></div>
+                  <div className="flex justify-between gap-4"><span className="text-xs text-slate-400">Motivo</span><span className="font-semibold text-right">{reasonLabel}</span></div>
+                  <div className="flex justify-between gap-4"><span className="text-xs text-slate-400">Profissional</span><span className="text-right">{professionalName}</span></div>
+                  <div className="flex justify-between gap-4"><span className="text-xs text-slate-400">Data e hora</span><span className="text-right">{timestamp}</span></div>
+                </div>
+                <div className="rounded-xl border border-slate-100 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800/50">
+                  <p className="mb-1 text-[10px] font-bold uppercase text-slate-400">Observações</p>
+                  <p className="text-xs text-slate-700 dark:text-slate-300">{notes}</p>
+                </div>
+              </div>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

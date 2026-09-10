@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from 'sonner';
@@ -125,7 +125,7 @@ export default function MedicinesPage() {
     register,
     handleSubmit,
     setValue,
-    watch,
+    control,
     reset: resetMedicineForm,
     formState: { errors },
   } = useForm<NewMedicineFormInput, unknown, NewMedicineFormData>({
@@ -140,7 +140,7 @@ export default function MedicinesPage() {
     },
   });
 
-  const selectedUnit = watch('dosageUnit');
+  const selectedUnit = useWatch({ control, name: 'dosageUnit' });
 
   const onSubmitMedicine = (data: NewMedicineFormData) => {
     let formattedDosage: string | undefined = undefined;

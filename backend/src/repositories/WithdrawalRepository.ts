@@ -433,7 +433,7 @@ export class WithdrawalRepository {
     });
   }
 
-  async delete(id: number) {
+  async delete(id: number, userId?: number) {
     return prisma.$transaction(async (tx) => {
       const withdrawal = await tx.withdrawal.findUnique({
         where: { id },
@@ -455,13 +455,25 @@ export class WithdrawalRepository {
         where: { withdrawalId: id },
       });
 
+      if (userId) {
+        await tx.activityLog.create({
+          data: {
+            userId,
+            action: 'cancel',
+            entity: 'withdrawals',
+            entityId: id,
+            details: `Estornou a dispensação #${id}`,
+          },
+        });
+      }
+
       return tx.withdrawal.delete({
         where: { id },
       });
     });
   }
 
-  async cancel(id: number, cancelReason: string) {
+  async cancel(id: number, cancelReason: string, userId?: number) {
     return prisma.$transaction(async (tx) => {
       const withdrawal = await tx.withdrawal.findUnique({
         where: { id },
@@ -479,6 +491,18 @@ export class WithdrawalRepository {
         await tx.stockBatch.update({
           where: { id: item.batchId },
           data: { currentQuantity: { increment: item.quantity } },
+        });
+      }
+
+      if (userId) {
+        await tx.activityLog.create({
+          data: {
+            userId,
+            action: 'cancel',
+            entity: 'withdrawals',
+            entityId: id,
+            details: `Estornou a dispensação #${id}. Motivo: ${cancelReason}`,
+          },
         });
       }
 

@@ -8,10 +8,10 @@ const controller = new ScheduleSlotController();
 
 router.use(authMiddleware);
 
-router.get('/', controller.getAll);
-router.get('/:id', controller.getById);
-router.post('/', requirePermission('scheduleSlots'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.create);
-router.put('/:id', requirePermission('scheduleSlots'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.update);
-router.delete('/:id', requirePermission('scheduleSlots'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.delete);
+router.get('/', requirePermission('SCHEDULES_READ'), controller.getAll);
+router.get('/:id', requirePermission('SCHEDULES_READ'), controller.getById);
+router.post('/', requirePermission('SCHEDULES_CREATE'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.create);
+router.put('/:id', requirePermission('SCHEDULES_UPDATE'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.update);
+router.delete('/:id', requirePermission('SCHEDULES_DELETE'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.delete);
 
 export default router;

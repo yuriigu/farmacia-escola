@@ -49,12 +49,25 @@ export async function authMiddleware(
       patientId = null;
     }
 
+    let parsedPermissions: Record<string, boolean> | null = null;
+    if (user.permissions) {
+      if (typeof user.permissions === 'string') {
+        try {
+          parsedPermissions = JSON.parse(user.permissions) as Record<string, boolean>;
+        } catch {
+          parsedPermissions = null;
+        }
+      } else {
+        parsedPermissions = user.permissions as unknown as Record<string, boolean>;
+      }
+    }
+
     req.user = {
       userId: user.id,
       role: user.role as Role,
       email: user.email,
       patientId: patientId,
-      permissions: (user.permissions as unknown) as Record<string, boolean> | null,
+      permissions: parsedPermissions,
     };
 
     next();

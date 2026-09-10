@@ -8,10 +8,10 @@ const controller = new PatientController();
 
 router.use(authMiddleware);
 
-router.get('/', controller.getAll);
-router.get('/:id', controller.getById);
-router.post('/', requirePermission('patients'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO', 'MEDICO'), controller.create);
-router.put('/:id', requirePermission('patients'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.update);
-router.delete('/:id', authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.delete);
+router.get('/', requirePermission('PATIENTS_READ'), controller.getAll);
+router.get('/:id', requirePermission('PATIENTS_READ'), controller.getById);
+router.post('/', requirePermission('PATIENTS_CREATE'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO', 'MEDICO'), controller.create);
+router.put('/:id', requirePermission('PATIENTS_UPDATE'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.update);
+router.delete('/:id', requirePermission('PATIENTS_DELETE'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.delete);
 
 export default router;

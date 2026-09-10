@@ -269,7 +269,7 @@ export class WithdrawalService {
       throw { statusCode: 404, message: 'Dispensação não encontrada' };
     }
 
-    await this.withdrawalRepo.delete(id);
+    await this.withdrawalRepo.delete(id, userId);
 
     if (this.isAuthorizedRole(role)) {
       await this.logService.log(
@@ -295,16 +295,7 @@ export class WithdrawalService {
       throw { statusCode: 400, message: 'O motivo do cancelamento é obrigatório' };
     }
 
-    const cancelled = await this.withdrawalRepo.cancel(id, cleanReason);
-    if (this.isAuthorizedRole(role)) {
-      await this.logService.log(
-        userId,
-        'cancel',
-        'withdrawals',
-        id,
-        `Cancelou a dispensação #${id}. Motivo: ${cleanReason}`
-      );
-    }
+    const cancelled = await this.withdrawalRepo.cancel(id, cleanReason, userId);
 
     return cancelled;
   }

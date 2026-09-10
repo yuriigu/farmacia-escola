@@ -76,6 +76,7 @@ describe('Withdrawal fulfillment', () => {
   it('devolve exatamente o saldo dispensado ao cancelar', async () => {
     const batchUpdate = vi.fn().mockResolvedValue({ id: 20, currentQuantity: 12 });
     const withdrawalUpdate = vi.fn().mockResolvedValue({ id: 11, status: 'CANCELLED', cancelReason: 'Erro de separacao' });
+    const activityLogCreate = vi.fn().mockResolvedValue({ id: 30 });
 
     (prisma.$transaction as any).mockImplementation(async (callback: any) => callback({
       withdrawal: {
@@ -89,9 +90,12 @@ describe('Withdrawal fulfillment', () => {
       stockBatch: {
         update: batchUpdate,
       },
+      activityLog: {
+        create: activityLogCreate,
+      },
     }));
 
-    const result = await withdrawalRepository.cancel(11, 'Erro de separacao');
+    const result = await withdrawalRepository.cancel(11, 'Erro de separacao', 2);
 
     expect(batchUpdate).toHaveBeenCalledWith({
       where: { id: 20 },
@@ -101,6 +105,15 @@ describe('Withdrawal fulfillment', () => {
       where: { id: 11 },
       data: { status: 'CANCELLED', cancelReason: 'Erro de separacao' },
     }));
+    expect(activityLogCreate).toHaveBeenCalledWith({
+      data: {
+        userId: 2,
+        action: 'cancel',
+        entity: 'withdrawals',
+        entityId: 11,
+        details: 'Estornou a dispensação #11. Motivo: Erro de separacao',
+      },
+    });
     expect(result.status).toBe('CANCELLED');
   });
 });

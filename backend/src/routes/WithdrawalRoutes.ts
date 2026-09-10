@@ -9,11 +9,12 @@ const controller = new WithdrawalController();
 
 router.use(authMiddleware);
 
-router.get('/', controller.getAll);
-router.get('/:id', controller.getById);
-router.post('/', requirePermission('withdrawals'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), validateBody(withdrawalCreateSchema), controller.create);
-router.post('/:id/cancel', authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.cancel);
-router.put('/:id', requirePermission('withdrawals'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.update);
-router.delete('/:id', authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.delete);
+router.get('/mine', requirePermission('MY_WITHDRAWALS_READ'), controller.getAll);
+router.get('/', requirePermission('WITHDRAWALS_READ'), controller.getAll);
+router.get('/:id', requirePermission('WITHDRAWALS_READ'), controller.getById);
+router.post('/', requirePermission('WITHDRAWALS_CREATE'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), validateBody(withdrawalCreateSchema), controller.create);
+router.post('/:id/cancel', requirePermission('WITHDRAWALS_CANCEL'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.cancel);
+router.put('/:id', requirePermission('WITHDRAWALS_UPDATE'), authorizeRoles('ADMIN', 'FARMACEUTICO', 'ALUNO'), controller.update);
+router.delete('/:id', requirePermission('WITHDRAWALS_DELETE'), authorizeRoles('ADMIN', 'FARMACEUTICO'), controller.delete);
 
 export default router;

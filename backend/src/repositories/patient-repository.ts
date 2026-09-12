@@ -2,17 +2,22 @@ import { prisma } from '../utils/prisma';
 
 export class PatientRepository {
   async findAll(search?: string) {
-    const where = search
-      ? {
-          OR: [
-            { name: { contains: search } },
-            { cpf: { contains: search } },
-          ],
-        }
-      : {};
+    let where: any = {
+      deletedAt: null,
+    };
+
+    if (search) {
+      where = {
+        deletedAt: null,
+        OR: [
+          { name: { contains: search } },
+          { cpf: { contains: search } },
+        ],
+      };
+    }
 
     return prisma.patient.findMany({
-      where,
+      where: where,
       include: {
         _count: {
           select: { withdrawals: true, appointments: true },
@@ -23,8 +28,11 @@ export class PatientRepository {
   }
 
   async findById(id: number) {
-    return prisma.patient.findUnique({
-      where: { id },
+    return prisma.patient.findFirst({
+      where: {
+        id: id,
+        deletedAt: null,
+      },
       include: {
         user: { select: { id: true, email: true } },
         appointments: {
@@ -45,14 +53,20 @@ export class PatientRepository {
   }
 
   async findByCpf(cpf: string) {
-    return prisma.patient.findUnique({
-      where: { cpf },
+    return prisma.patient.findFirst({
+      where: {
+        cpf: cpf,
+        deletedAt: null,
+      },
     });
   }
 
   async findByUserId(userId: number) {
-    return prisma.patient.findUnique({
-      where: { userId },
+    return prisma.patient.findFirst({
+      where: {
+        userId: userId,
+        deletedAt: null,
+      },
       include: {
         _count: {
           select: { withdrawals: true, appointments: true },
@@ -85,14 +99,17 @@ export class PatientRepository {
     }
   ) {
     return prisma.patient.update({
-      where: { id },
-      data,
+      where: { id: id },
+      data: data,
     });
   }
 
   async delete(id: number) {
-    return prisma.patient.delete({
-      where: { id },
+    return prisma.patient.update({
+      where: { id: id },
+      data: {
+        deletedAt: new Date(),
+      },
     });
   }
 }

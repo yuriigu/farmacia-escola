@@ -2,6 +2,8 @@ import { BatchRepository } from '../repositories/batch-repository';
 import { MedicineRepository } from '../repositories/medicine-repository';
 import { ActivityLogService } from './activity-log-service';
 import { StockStatusService } from './stock-status-service';
+import { StockMovementType } from '../types/enums';
+import { prisma } from '../utils/prisma';
 
 export class BatchService {
   private batchRepo: BatchRepository;
@@ -94,6 +96,14 @@ export class BatchService {
       throw { statusCode: 404, message: 'Medicamento não encontrado' };
     }
 
+    const existingBatch = await this.batchRepo.findByMedicineAndBatchNumber(medicineId, batchNumber.trim());
+    if (existingBatch) {
+      throw {
+        statusCode: 409,
+        message: 'Já existe um lote cadastrado com este número para o medicamento selecionado.',
+      };
+    }
+
     let isBlockedValue = false;
     if (data.isBlocked) {
       isBlockedValue = true;
@@ -108,16 +118,53 @@ export class BatchService {
       blockReasonValue = null;
     }
 
-    const batch = await this.batchRepo.create({
-      medicineId,
-      batchNumber: batchNumber.trim(),
-      currentQuantity: qty,
-      expirationDate: expDate,
-      manufacturingDate: mfgDate,
-      supplier: supplier.trim(),
-      isBlocked: isBlockedValue,
-      blockReason: blockReasonValue,
-    });
+    let batch = null;
+    try {
+      batch = await this.batchRepo.create({
+        medicineId,
+        batchNumber: batchNumber.trim(),
+        currentQuantity: qty,
+        expirationDate: expDate,
+        manufacturingDate: mfgDate,
+        supplier: supplier.trim(),
+        isBlocked: isBlockedValue,
+        blockReason: blockReasonValue,
+      });
+    } catch (err: any) {
+      let isDuplicate = false;
+      if (err) {
+        if (err.code === 'P2002') {
+          isDuplicate = true;
+        } else if (err.message) {
+          if (err.message.includes('Unique constraint')) {
+            isDuplicate = true;
+          }
+        }
+      }
+      if (isDuplicate) {
+        throw {
+          statusCode: 409,
+          message: 'Já existe um lote cadastrado com este número para o medicamento selecionado.',
+        };
+      }
+      throw err;
+    }
+
+    if (qty > 0) {
+      try {
+        await prisma.stockMovement.create({
+          data: {
+            batchId: batch.id,
+            type: StockMovementType.ENTRY,
+            quantity: qty,
+            notes: 'Entrada inicial de lote: ' + batch.batchNumber,
+            userId: userId,
+          },
+        });
+      } catch {
+        // Continue if ledger record has issues
+      }
+    }
 
     await this.logService.log(
       userId,
@@ -221,7 +268,22 @@ export class BatchService {
     }
 
     const previousQuantity = batch.currentQuantity;
+    const delta = qty - previousQuantity;
     const updated = await this.batchRepo.setQuantity(id, qty);
+
+    try {
+      await prisma.stockMovement.create({
+        data: {
+          batchId: id,
+          type: StockMovementType.ADJUSTMENT,
+          quantity: delta,
+          notes: 'Ajuste de saldo do lote ' + batch.batchNumber + ': de ' + previousQuantity + ' para ' + qty + ' un. Justificativa: ' + reason.trim(),
+          userId: userId,
+        },
+      });
+    } catch {
+      // Continue if ledger record has issues
+    }
 
     await this.logService.log(
       userId,

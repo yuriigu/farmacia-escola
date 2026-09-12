@@ -1,38 +1,52 @@
-export const Role = {
-  ADMIN: 'ADMIN',
-  FARMACEUTICO: 'FARMACEUTICO',
-  MEDICO: 'MEDICO',
-  ALUNO: 'ALUNO',
-  PACIENTE: 'PACIENTE',
-} as const;
+export enum Role {
+  ADMIN = 'ADMIN',
+  FARMACEUTICO = 'FARMACEUTICO',
+  ATENDENTE = 'ATENDENTE',
+  MEDICO = 'MEDICO',
+  PACIENTE = 'PACIENTE',
+  ALUNO = 'ALUNO',
+}
 
-export type Role = typeof Role[keyof typeof Role];
+export enum AppointmentStatus {
+  PENDING = 'PENDING',
+  CONFIRMED = 'CONFIRMED',
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+}
 
-export const AppointmentStatus = {
-  PENDING: 'PENDING',
-  CONFIRMED: 'CONFIRMED',
-  COMPLETED: 'COMPLETED',
-  CANCELLED: 'CANCELLED',
-} as const;
+export enum WithdrawalStatus {
+  COMPLETED = 'COMPLETED',
+  CANCELLED = 'CANCELLED',
+  REVERTED = 'REVERTED',
+}
 
-export type AppointmentStatus = typeof AppointmentStatus[keyof typeof AppointmentStatus];
+export enum DisposalStatus {
+  DISPOSED = 'DISPOSED',
+  REVERTED = 'REVERTED',
+}
 
-export const StockStatus = {
-  BLOCKED: 'BLOCKED',
-  CRITICAL_EXPIRATION: 'CRITICAL_EXPIRATION',
-  EXPIRED: 'EXPIRED',
-  OUT_OF_STOCK: 'OUT_OF_STOCK',
-  IN_STOCK: 'IN_STOCK',
-} as const;
+export enum StockMovementType {
+  ENTRY = 'ENTRY',
+  WITHDRAWAL = 'WITHDRAWAL',
+  DISPOSAL = 'DISPOSAL',
+  REVERT = 'REVERT',
+  ADJUSTMENT = 'ADJUSTMENT',
+}
 
-export type StockStatus = typeof StockStatus[keyof typeof StockStatus];
+export enum DosageUnit {
+  MG = 'MG',
+  ML = 'ML',
+  G = 'G',
+  MCG = 'MCG',
+  UI = 'UI',
+}
 
-export const DosageUnit = {
-  MG: 'MG',
-  ML: 'ML',
-  G: 'G',
-  MCG: 'MCG',
-  UI: 'UI',
-} as const;
+export enum StockStatus {
+  BLOCKED = 'BLOCKED',
+  CRITICAL_EXPIRATION = 'CRITICAL_EXPIRATION',
+  EXPIRED = 'EXPIRED',
+  OUT_OF_STOCK = 'OUT_OF_STOCK',
+  LOW_STOCK = 'LOW_STOCK',
+  IN_STOCK = 'IN_STOCK',
+}
 
-export type DosageUnit = typeof DosageUnit[keyof typeof DosageUnit];

@@ -107,6 +107,16 @@ export class DisposalRepository {
         },
       });
 
+      await tx.stockMovement.create({
+        data: {
+          batchId: data.batchId,
+          type: 'DISPOSAL',
+          quantity: -data.quantity,
+          notes: 'Descarte de material #' + disposal.id + '. Motivo: ' + data.reason,
+          userId: data.userId,
+        },
+      });
+
       return disposal;
     });
   }
@@ -117,7 +127,7 @@ export class DisposalRepository {
       if (!disposal) {
         throw { statusCode: 404, message: 'Descarte não encontrado' };
       }
-      if (disposal.status === 'REVERTED' || disposal.reverted) {
+      if (disposal.status === 'REVERTED') {
         throw { statusCode: 400, message: 'O descarte já foi revertido' };
       }
 
@@ -125,11 +135,9 @@ export class DisposalRepository {
         where: {
           id: id,
           status: 'DISPOSED',
-          reverted: false,
         },
         data: {
           status: 'REVERTED',
-          reverted: true,
           revertReason,
         },
       });
@@ -153,6 +161,16 @@ export class DisposalRepository {
       await tx.stockBatch.update({
         where: { id: disposal.batchId },
         data: { currentQuantity: { increment: disposal.quantity } },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          batchId: disposal.batchId,
+          type: 'REVERT',
+          quantity: disposal.quantity,
+          notes: 'Reversão do descarte #' + id + '. Motivo: ' + revertReason,
+          userId: userId,
+        },
       });
 
       await tx.activityLog.create({
@@ -202,10 +220,20 @@ export class DisposalRepository {
         throw new Error('Descarte não encontrado');
       }
 
-      if (!disposal.reverted) {
+      if (disposal.status === 'DISPOSED') {
         await tx.stockBatch.update({
           where: { id: disposal.batchId },
           data: { currentQuantity: { increment: disposal.quantity } },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            batchId: disposal.batchId,
+            type: 'REVERT',
+            quantity: disposal.quantity,
+            notes: 'Exclusão do descarte #' + id,
+            userId: null,
+          },
         });
       }
 

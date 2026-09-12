@@ -28,8 +28,8 @@ export class PatientController {
       }
 
       if (role === 'PACIENTE') {
-        const patientRecord = await prisma.patient.findUnique({
-          where: { userId: userId },
+        const patientRecord = await prisma.patient.findFirst({
+          where: { userId: userId, deletedAt: null },
         });
         if (!patientRecord) {
           res.json([]);
@@ -47,13 +47,17 @@ export class PatientController {
         if (role === 'FARMACEUTICO') {
           isStaff = true;
         } else {
-          if (role === 'ALUNO') {
+          if (role === 'ATENDENTE') {
             isStaff = true;
           } else {
-            if (role === 'MEDICO') {
+            if (role === 'ALUNO') {
               isStaff = true;
             } else {
-              isStaff = false;
+              if (role === 'MEDICO') {
+                isStaff = true;
+              } else {
+                isStaff = false;
+              }
             }
           }
         }
@@ -194,8 +198,8 @@ export class PatientController {
         }
       }
 
-      const patientRecord = await prisma.patient.findUnique({
-        where: { id: id },
+      const patientRecord = await prisma.patient.findFirst({
+        where: { id: id, deletedAt: null },
       });
 
       if (!patientRecord) {
@@ -300,8 +304,8 @@ export class PatientController {
         return;
       }
 
-      const patientRecord = await prisma.patient.findUnique({
-        where: { id: id },
+      const patientRecord = await prisma.patient.findFirst({
+        where: { id: id, deletedAt: null },
       });
 
       if (!patientRecord) {

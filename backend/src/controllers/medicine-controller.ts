@@ -40,8 +40,8 @@ export class MedicineController {
         }
       }
 
-      const medicineRecord = await prisma.medicine.findUnique({
-        where: { id: id },
+      const medicineRecord = await prisma.medicine.findFirst({
+        where: { id: id, deletedAt: null },
       });
 
       if (!medicineRecord) {
@@ -165,8 +165,8 @@ export class MedicineController {
         return;
       }
 
-      const medicineRecord = await prisma.medicine.findUnique({
-        where: { id: id },
+      const medicineRecord = await prisma.medicine.findFirst({
+        where: { id: id, deletedAt: null },
       });
 
       if (!medicineRecord) {
@@ -243,8 +243,8 @@ export class MedicineController {
         return;
       }
 
-      const medicineRecord = await prisma.medicine.findUnique({
-        where: { id: id },
+      const medicineRecord = await prisma.medicine.findFirst({
+        where: { id: id, deletedAt: null },
       });
 
       if (!medicineRecord) {

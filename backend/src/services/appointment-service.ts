@@ -473,6 +473,7 @@ export class AppointmentService {
           medicineId: medicineId,
           currentQuantity: { gt: 0 },
           expirationDate: { gte: now },
+          isBlocked: false,
         },
       });
     } catch (dbErr) {
@@ -498,10 +499,12 @@ export class AppointmentService {
               batchesFound = true;
               for (let b = 0; b < med.batches.length; b++) {
                 const bItem = med.batches[b];
-                const expTime = new Date(bItem.expirationDate).getTime();
-                if (expTime >= now.getTime()) {
-                  if (bItem.currentQuantity > 0) {
-                    physicalStockTotal = physicalStockTotal + bItem.currentQuantity;
+                if (!bItem.isBlocked) {
+                  const expTime = new Date(bItem.expirationDate).getTime();
+                  if (expTime >= now.getTime()) {
+                    if (bItem.currentQuantity > 0) {
+                      physicalStockTotal = physicalStockTotal + bItem.currentQuantity;
+                    }
                   }
                 }
               }
@@ -524,7 +527,9 @@ export class AppointmentService {
         where: {
           medicineId: medicineId,
           appointment: {
-            status: 'PENDING',
+            status: {
+              in: ['PENDING', 'CONFIRMED'],
+            },
           },
         },
         select: {

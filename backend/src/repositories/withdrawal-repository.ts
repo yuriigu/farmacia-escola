@@ -3,14 +3,21 @@ import { prisma } from '../utils/prisma';
 
 export class WithdrawalRepository {
   async findAll(patientId?: number) {
-    let where = {};
+    let where: any = {
+      patient: {
+        deletedAt: null,
+      },
+    };
     if (patientId) {
-      where = { patientId };
-    } else {
-      where = {};
+      where = {
+        patientId: patientId,
+        patient: {
+          deletedAt: null,
+        },
+      };
     }
     const withdrawals = await prisma.withdrawal.findMany({
-      where,
+      where: where,
       include: {
         appointment: true,
         user: { select: { name: true } },
@@ -189,6 +196,16 @@ export class WithdrawalRepository {
             quantity: item.quantity,
           },
         });
+
+        await tx.stockMovement.create({
+          data: {
+            batchId: item.batchId,
+            type: 'WITHDRAWAL',
+            quantity: -item.quantity,
+            notes: 'Dispensação manual #' + withdrawal.id + ' para paciente #' + data.patientId,
+            userId: data.userId,
+          },
+        });
       }
 
       return withdrawal;
@@ -214,8 +231,18 @@ export class WithdrawalRepository {
         if (!appointment) {
           throw { statusCode: 404, message: 'Agendamento não encontrado' };
         }
-        if (appointment.status !== 'PENDING') {
-          throw { statusCode: 400, message: 'O agendamento precisa estar pendente para ser liquidado' };
+        let isEligible = false;
+        if (appointment.status === 'PENDING') {
+          isEligible = true;
+        } else {
+          if (appointment.status === 'CONFIRMED') {
+            isEligible = true;
+          } else {
+            isEligible = false;
+          }
+        }
+        if (!isEligible) {
+          throw { statusCode: 400, message: 'O agendamento precisa estar pendente ou confirmado para ser liquidado' };
         }
         if (appointment.patientId !== data.patientId) {
           throw { statusCode: 400, message: 'O agendamento não pertence ao paciente informado' };
@@ -336,6 +363,16 @@ export class WithdrawalRepository {
             },
           });
 
+          await tx.stockMovement.create({
+            data: {
+              batchId: batch.id,
+              type: 'WITHDRAWAL',
+              quantity: -deductQty,
+              notes: 'Dispensação FEFO #' + withdrawal.id + ' para paciente #' + data.patientId,
+              userId: data.userId,
+            },
+          });
+
           allocatedBatches.push({
             batchId: batch.id,
             batchNumber: batch.batchNumber,
@@ -449,6 +486,16 @@ export class WithdrawalRepository {
           where: { id: item.batchId },
           data: { currentQuantity: { increment: item.quantity } },
         });
+
+        await tx.stockMovement.create({
+          data: {
+            batchId: item.batchId,
+            type: 'REVERT',
+            quantity: item.quantity,
+            notes: 'Estorno da dispensação #' + id,
+            userId: userId,
+          },
+        });
       }
 
       await tx.withdrawalItem.deleteMany({
@@ -491,6 +538,16 @@ export class WithdrawalRepository {
         await tx.stockBatch.update({
           where: { id: item.batchId },
           data: { currentQuantity: { increment: item.quantity } },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            batchId: item.batchId,
+            type: 'REVERT',
+            quantity: item.quantity,
+            notes: 'Estorno/cancelamento da dispensação #' + id + '. Motivo: ' + cancelReason,
+            userId: userId,
+          },
         });
       }
 

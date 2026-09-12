@@ -35,7 +35,7 @@ export class StockStatusService {
     }
   }
 
-  calculateMedicineStatus(batches: BatchItem[]): StockStatus {
+  calculateMedicineStatus(batches: BatchItem[], minQuantity?: number): StockStatus {
     if (!batches) {
       return StockStatus.OUT_OF_STOCK;
     } else {
@@ -79,16 +79,28 @@ export class StockStatusService {
       if (totalActiveQuantity <= 0) {
         return StockStatus.OUT_OF_STOCK;
       } else {
-        if (hasCriticalExpiration) {
-          return StockStatus.CRITICAL_EXPIRATION;
+        let isLowStock = false;
+        if (minQuantity !== undefined) {
+          if (minQuantity > 0) {
+            if (totalActiveQuantity < minQuantity) {
+              isLowStock = true;
+            }
+          }
+        }
+        if (isLowStock) {
+          return StockStatus.LOW_STOCK;
         } else {
-          return StockStatus.IN_STOCK;
+          if (hasCriticalExpiration) {
+            return StockStatus.CRITICAL_EXPIRATION;
+          } else {
+            return StockStatus.IN_STOCK;
+          }
         }
       }
     }
   }
 
-  calculateMedicineStock(batches: BatchItem[]): {
+  calculateMedicineStock(batches: BatchItem[], minQuantity?: number): {
     totalQuantity: number;
     batchesCount: number;
     status: StockStatus;
@@ -129,7 +141,7 @@ export class StockStatusService {
       index = index + 1;
     }
 
-    const status = this.calculateMedicineStatus(batches);
+    const status = this.calculateMedicineStatus(batches, minQuantity);
 
     return {
       totalQuantity: totalValidQuantity,

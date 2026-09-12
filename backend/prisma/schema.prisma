@@ -24,6 +24,7 @@ model User {
   patient        Patient?
   activityLogs   ActivityLog[]
   scheduleSlots  ScheduleSlot[]
+  movements      StockMovement[]
 }
 
 model ActivityLog {
@@ -43,14 +44,15 @@ model ActivityLog {
 }
 
 model Patient {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   name      String
-  cpf       String   @unique
+  cpf       String    @unique
   phone     String?
   birthDate DateTime?
   address   String?
-  createdAt DateTime @default(now())
-  userId    Int?     @unique
+  createdAt DateTime  @default(now())
+  deletedAt DateTime?
+  userId    Int?      @unique
 
   user         User?        @relation(fields: [userId], references: [id])
   withdrawals  Withdrawal[]
@@ -58,13 +60,17 @@ model Patient {
 }
 
 model Medicine {
-  id               Int      @id @default(autoincrement())
+  id               Int       @id @default(autoincrement())
   name             String
   activeIngredient String?
   dosage           String?
+  dosageValue      Float?
+  dosageUnit       String?
+  minQuantity      Float     @default(0)
   accessibleDesc   String?
   category         String?
-  createdAt        DateTime @default(now())
+  createdAt        DateTime  @default(now())
+  deletedAt        DateTime?
 
   batches          StockBatch[]
   appointmentItems AppointmentItem[]
@@ -85,7 +91,9 @@ model StockBatch {
   medicine          Medicine        @relation(fields: [medicineId], references: [id])
   withdrawalItems   WithdrawalItem[]
   disposals         Disposal[]
-  appointmentItems  AppointmentItem[]
+  movements         StockMovement[]
+
+  @@unique([medicineId, batchNumber])
 }
 
 model Withdrawal {
@@ -130,6 +138,23 @@ model Disposal {
   user  User       @relation(fields: [userId], references: [id])
 }
 
+model StockMovement {
+  id        Int      @id @default(autoincrement())
+  batchId   Int
+  type      String
+  quantity  Int
+  notes     String?
+  createdAt DateTime @default(now())
+  userId    Int?
+
+  batch StockBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  user  User?      @relation(fields: [userId], references: [id])
+
+  @@index([batchId])
+  @@index([type])
+  @@index([createdAt])
+}
+
 model ScheduleSlot {
   id           Int      @id @default(autoincrement())
   date         DateTime
@@ -170,12 +195,10 @@ model AppointmentItem {
   id             Int  @id @default(autoincrement())
   appointmentId  Int
   medicineId     Int
-  batchId        Int?
   quantity       Int
 
   appointment Appointment @relation(fields: [appointmentId], references: [id])
   medicine    Medicine    @relation(fields: [medicineId], references: [id])
-  batch       StockBatch? @relation(fields: [batchId], references: [id])
 
   @@index([appointmentId])
 }

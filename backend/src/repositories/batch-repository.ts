@@ -2,23 +2,44 @@ import { prisma } from '../utils/prisma';
 
 export class BatchRepository {
   async findAll(medicineId?: number) {
-    let where = {};
+    let where: any = {
+      medicine: {
+        deletedAt: null,
+      },
+    };
     if (medicineId) {
-      where = { medicineId };
-    } else {
-      where = {};
+      where = {
+        medicineId: medicineId,
+        medicine: {
+          deletedAt: null,
+        },
+      };
     }
     return prisma.stockBatch.findMany({
-      where,
+      where: where,
       include: { medicine: true },
       orderBy: { expirationDate: 'asc' },
     });
   }
 
   async findById(id: number) {
-    return prisma.stockBatch.findUnique({
-      where: { id },
+    return prisma.stockBatch.findFirst({
+      where: {
+        id: id,
+        medicine: {
+          deletedAt: null,
+        },
+      },
       include: { medicine: true },
+    });
+  }
+
+  async findByMedicineAndBatchNumber(medicineId: number, batchNumber: string) {
+    return prisma.stockBatch.findFirst({
+      where: {
+        medicineId: medicineId,
+        batchNumber: batchNumber,
+      },
     });
   }
 

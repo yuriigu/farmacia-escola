@@ -109,6 +109,9 @@ export const medicineCreateSchema = z.object({
   name: z.string().min(1, 'Nome do medicamento é obrigatório'),
   activeIngredient: z.string().optional(),
   dosage: dosageSchema.optional(),
+  dosageValue: z.number().positive().optional(),
+  dosageUnit: dosageUnitEnum.optional(),
+  minQuantity: z.number().min(0).optional(),
   accessibleDesc: z.string().optional(),
   category: z.string().optional(),
 }).strict();
@@ -117,6 +120,9 @@ export const medicineUpdateSchema = z.object({
   name: z.string().optional(),
   activeIngredient: z.string().optional(),
   dosage: dosageSchema.optional(),
+  dosageValue: z.number().positive().optional(),
+  dosageUnit: dosageUnitEnum.optional(),
+  minQuantity: z.number().min(0).optional(),
   accessibleDesc: z.string().optional(),
   category: z.string().optional(),
 }).strict();

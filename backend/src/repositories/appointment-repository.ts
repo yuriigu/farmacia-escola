@@ -2,15 +2,22 @@ import { prisma } from '../utils/prisma';
 
 export class AppointmentRepository {
   async findAll(patientId?: number) {
-    let where = {};
+    let where: any = {
+      patient: {
+        deletedAt: null,
+      },
+    };
     if (patientId) {
-      where = { patientId };
-    } else {
-      where = {};
+      where = {
+        patientId: patientId,
+        patient: {
+          deletedAt: null,
+        },
+      };
     }
 
     return prisma.appointment.findMany({
-      where,
+      where: where,
       include: {
         patient: true,
         slot: {
@@ -26,13 +33,6 @@ export class AppointmentRepository {
                 name: true,
                 dosage: true,
                 activeIngredient: true,
-              },
-            },
-            batch: {
-              select: {
-                id: true,
-                batchNumber: true,
-                expirationDate: true,
               },
             },
           },
@@ -55,7 +55,6 @@ export class AppointmentRepository {
         items: {
           include: {
             medicine: true,
-            batch: true,
           },
         },
       },
@@ -116,7 +115,6 @@ export class AppointmentRepository {
           items: {
             include: {
               medicine: true,
-              batch: true,
             },
           },
         },
@@ -162,7 +160,7 @@ export class AppointmentRepository {
       include: {
         patient: true,
         slot: true,
-        items: { include: { medicine: true, batch: true } },
+        items: { include: { medicine: true } },
       },
     });
   }

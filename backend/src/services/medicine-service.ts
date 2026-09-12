@@ -19,27 +19,31 @@ export class MedicineService {
     const medicines = await this.medicineRepo.findAll();
     let reservedMap: Record<number, number> = {};
     try {
-      if (prisma && prisma.appointmentItem) {
-        const pendingItems = await prisma.appointmentItem.findMany({
-          where: {
-            appointment: {
-              status: 'PENDING',
+      if (prisma) {
+        if (prisma.appointmentItem) {
+          const pendingItems = await prisma.appointmentItem.findMany({
+            where: {
+              appointment: {
+                status: {
+                  in: ['PENDING', 'CONFIRMED'],
+                },
+              },
             },
-          },
-          select: {
-            medicineId: true,
-            quantity: true,
-          },
-        });
-        if (pendingItems) {
-          for (let p = 0; p < pendingItems.length; p++) {
-            const item = pendingItems[p];
-            const mId = item.medicineId;
-            let curRes = 0;
-            if (reservedMap[mId]) {
-              curRes = reservedMap[mId];
+            select: {
+              medicineId: true,
+              quantity: true,
+            },
+          });
+          if (pendingItems) {
+            for (let p = 0; p < pendingItems.length; p++) {
+              const item = pendingItems[p];
+              const mId = item.medicineId;
+              let curRes = 0;
+              if (reservedMap[mId]) {
+                curRes = reservedMap[mId];
+              }
+              reservedMap[mId] = curRes + item.quantity;
             }
-            reservedMap[mId] = curRes + item.quantity;
           }
         }
       }
@@ -57,7 +61,14 @@ export class MedicineService {
         }
       }
 
-      const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList);
+      let medMinQuantity = 0;
+      if (med.minQuantity !== undefined) {
+        if (med.minQuantity !== null) {
+          medMinQuantity = med.minQuantity;
+        }
+      }
+
+      const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList, medMinQuantity);
 
       const formattedBatches = [];
       for (let j = 0; j < batchesList.length; j++) {
@@ -112,7 +123,14 @@ export class MedicineService {
       }
     }
 
-    const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList);
+    let medMinQuantity = 0;
+    if (med.minQuantity !== undefined) {
+      if (med.minQuantity !== null) {
+        medMinQuantity = med.minQuantity;
+      }
+    }
+
+    const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList, medMinQuantity);
 
     const formattedBatches = [];
     for (let j = 0; j < batchesList.length; j++) {
@@ -130,21 +148,25 @@ export class MedicineService {
 
     let resQty = 0;
     try {
-      if (prisma && prisma.appointmentItem) {
-        const pendingItems = await prisma.appointmentItem.findMany({
-          where: {
-            medicineId: id,
-            appointment: {
-              status: 'PENDING',
+      if (prisma) {
+        if (prisma.appointmentItem) {
+          const pendingItems = await prisma.appointmentItem.findMany({
+            where: {
+              medicineId: id,
+              appointment: {
+                status: {
+                  in: ['PENDING', 'CONFIRMED'],
+                },
+              },
             },
-          },
-          select: {
-            quantity: true,
-          },
-        });
-        if (pendingItems) {
-          for (let p = 0; p < pendingItems.length; p++) {
-            resQty = resQty + pendingItems[p].quantity;
+            select: {
+              quantity: true,
+            },
+          });
+          if (pendingItems) {
+            for (let p = 0; p < pendingItems.length; p++) {
+              resQty = resQty + pendingItems[p].quantity;
+            }
           }
         }
       }
@@ -176,6 +198,9 @@ export class MedicineService {
     name: string;
     activeIngredient?: string;
     dosage?: string;
+    dosageValue?: number;
+    dosageUnit?: string;
+    minQuantity?: number;
     accessibleDesc?: string;
     category?: string;
   }) {
@@ -187,9 +212,19 @@ export class MedicineService {
       }
     }
 
+    let formattedDosage = data.dosage;
+    if (data.dosageValue !== undefined) {
+      if (data.dosageValue !== null) {
+        if (data.dosageUnit) {
+          formattedDosage = data.dosageValue + ' ' + data.dosageUnit;
+        }
+      }
+    }
+
     const medicine = await this.medicineRepo.create({
       ...data,
       name: data.name.trim(),
+      dosage: formattedDosage,
     });
 
     await this.logService.log(
@@ -207,6 +242,9 @@ export class MedicineService {
     name?: string;
     activeIngredient?: string;
     dosage?: string;
+    dosageValue?: number;
+    dosageUnit?: string;
+    minQuantity?: number;
     accessibleDesc?: string;
     category?: string;
   }) {
@@ -226,6 +264,14 @@ export class MedicineService {
       updateData.name = updateData.name.trim();
     }
 
+    if (data.dosageValue !== undefined) {
+      if (data.dosageValue !== null) {
+        if (data.dosageUnit) {
+          updateData.dosage = data.dosageValue + ' ' + data.dosageUnit;
+        }
+      }
+    }
+
     const updated = await this.medicineRepo.update(id, updateData);
 
     await this.logService.log(
@@ -242,7 +288,15 @@ export class MedicineService {
         batchesList = updated.batches;
       }
     }
-    const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList);
+
+    let medMinQuantity = 0;
+    if (updated.minQuantity !== undefined) {
+      if (updated.minQuantity !== null) {
+        medMinQuantity = updated.minQuantity;
+      }
+    }
+
+    const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList, medMinQuantity);
 
     return {
       ...updated,

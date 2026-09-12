@@ -130,8 +130,8 @@ export class BatchController {
         return;
       }
 
-      const medicineRecord = await prisma.medicine.findUnique({
-        where: { id: validationResult.data.medicineId },
+      const medicineRecord = await prisma.medicine.findFirst({
+        where: { id: validationResult.data.medicineId, deletedAt: null },
       });
 
       if (!medicineRecord) {
@@ -143,6 +143,20 @@ export class BatchController {
       res.status(201).json(batch);
       return;
     } catch (err: any) {
+      let isDuplicate = false;
+      if (err) {
+        if (err.code === 'P2002') {
+          isDuplicate = true;
+        } else if (err.message) {
+          if (err.message.includes('Unique constraint')) {
+            isDuplicate = true;
+          }
+        }
+      }
+      if (isDuplicate) {
+        res.status(409).json({ error: 'Já existe um lote cadastrado com este número para o medicamento selecionado.' });
+        return;
+      }
       if (err.statusCode) {
         res.status(err.statusCode).json({ error: err.message });
         return;

@@ -132,7 +132,7 @@ export function SettingsPage() {
     <div className="space-y-6 max-w-5xl mx-auto page-enter">
       {/* Page Header */}
       <PageHeader
-        title="Configurações & Perfil"
+        title="Configurações"
         description="Gerencie seus dados de acesso, preferências visuais e informações da conta."
         icon={Settings}
       />

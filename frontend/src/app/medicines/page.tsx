@@ -856,11 +856,6 @@ export default function MedicinesPage() {
           title="Catálogo de Medicamentos"
           description="Consulte estoque físico, reservas em tempo real e agende dispensações na Farmácia Escola Universitária."
           icon={Pill}
-          badge={
-            <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-[10px] font-bold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
-              Estoque FEFO &amp; Reserva Ativa
-            </span>
-          }
           actions={
             <div className="flex items-center gap-2">
               {canExport && <Button

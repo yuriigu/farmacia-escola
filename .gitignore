@@ -12,7 +12,8 @@ node_modules
 npm-debug.log*
 
 # Variáveis de ambiente
-.env*
+.env
+.env.*
 !.env.example
 
 # TypeScript

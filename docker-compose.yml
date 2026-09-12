@@ -10,11 +10,13 @@ services:
     restart: unless-stopped
     ports:
       - "3001:3001"
+    env_file:
+      - path: .env
+        required: false
     environment:
       - PORT=3001
       - NODE_ENV=development
       - DATABASE_URL=file:./prisma/dev.db
-      - JWT_SECRET=farmacia_escola_secret_key_desenvolvimento_2026
       - FRONTEND_URL=http://localhost:3000
     volumes:
       - ./backend:/app
@@ -33,6 +35,9 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"
+    env_file:
+      - path: .env
+        required: false
     environment:
       - NODE_ENV=development
       - NEXT_PUBLIC_API_URL=http://localhost:3001

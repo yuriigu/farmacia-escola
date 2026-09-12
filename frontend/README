@@ -74,11 +74,12 @@ Pré-requisitos:
 1. Instalação das Dependências:
 
 cd frontend
+cp .env.example .env.local
 npm install
 
 2. Configuração do Arquivo .env:
 
-Crie o arquivo frontend/.env:
+Preencha o arquivo frontend/.env.local:
 
 NEXT_PUBLIC_API_URL="http://localhost:3001/api"
 INTERNAL_API_URL="http://localhost:3001"
@@ -88,6 +89,7 @@ INTERNAL_API_URL="http://localhost:3001"
 npm run dev
 
 A aplicação estará disponível em: http://localhost:3000
+O backend precisa estar rodando em: http://localhost:3001
 
 4. Build e Execução em Produção:
 

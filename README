@@ -1,5 +1,5 @@
 Farmácia Escola - Sistema de Gestão Farmacêutica Universitária
-=============================================================
+==============================================================
 
 Sobre o Projeto
 ---------------
@@ -83,7 +83,20 @@ git clone https://github.com/yuriigu/farmacia-escola.git
 Execute o projeto completo com Docker Compose:
 
 cd farmacia-escola
-docker compose up --build -d
+cp .env.example .env
+
+Preencha `JWT_SECRET` no arquivo `.env` com uma chave gerada por:
+
+openssl rand -base64 32
+
+Depois, suba os serviços:
+
+docker compose up --build
+
+O banco SQLite começa vazio. Após subir os serviços, o seed é obrigatório para
+criar os dados iniciais:
+
+docker compose exec backend npx ts-node src/seed/seed.ts
 
 A aplicação estará disponível em:
 
@@ -97,11 +110,60 @@ docker compose logs -f
 
 Para popular o banco com os dados iniciais:
 
-docker compose exec backend npm run db:seed
+docker compose exec backend npx ts-node src/seed/seed.ts
 
 Para parar os serviços:
 
 docker compose down
+
+Configuração e execução sem Docker
+-----------------------------------
+
+Pré-requisitos: Node.js 22 ou superior e npm. O projeto usa SQLite, portanto não
+é necessário instalar ou configurar um servidor de banco de dados.
+
+Para executar com Docker Compose, copie `.env.example` para `.env`, substitua
+`JWT_SECRET` por uma chave aleatória com pelo menos 32 caracteres e execute:
+
+cp .env.example .env
+docker compose up --build
+
+O arquivo `.env` é ignorado pelo Git. O `JWT_SECRET` não deve ser publicado nem
+colocado no README, no código ou no arquivo `.env.example`.
+
+Para executar diretamente na máquina, abra dois terminais. No primeiro:
+
+cd farmacia-escola/backend
+cp .env.example .env
+
+Preencha `JWT_SECRET` no arquivo `.env` com uma chave gerada por:
+
+openssl rand -base64 32
+
+npm install
+npm run db:generate
+npm run db:push
+npm run db:seed
+npm run dev
+
+No segundo terminal:
+
+cd farmacia-escola/frontend
+cp .env.example .env.local
+npm install
+npm run dev
+
+O banco SQLite começa vazio também na execução sem Docker. O comando `npm run
+db:seed` é obrigatório para carregar os dados iniciais.
+
+No `backend/.env`, preencha `JWT_SECRET` e mantenha `DATABASE_URL=file:./prisma/dev.db`
+para usar o SQLite local. No `frontend/.env.local`, use
+`NEXT_PUBLIC_API_URL=http://localhost:3001` e `INTERNAL_API_URL=http://localhost:3001`.
+Para uma execução de produção, use `npm run build` e `npm start` em cada pacote.
+
+Os únicos valores sensíveis são locais: a chave `JWT_SECRET` é criada pelo
+responsável pela apresentação e não está no repositório. Este projeto não depende
+de APIs externas, serviços de e-mail ou credenciais de nuvem.
 
 Documentação
 ------------

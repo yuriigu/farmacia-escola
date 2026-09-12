@@ -1,18 +1,13 @@
 import jwt, { Secret, SignOptions } from 'jsonwebtoken';
 import { Role } from '../types/enums';
 
-let JWT_SECRET: Secret = 'farmacia-escola-secret-key';
-if (process.env.JWT_SECRET) {
-  JWT_SECRET = process.env.JWT_SECRET;
-} else {
-  JWT_SECRET = 'farmacia-escola-secret-key';
-}
+const JWT_SECRET: Secret = process.env.JWT_SECRET || (() => {
+  throw new Error('JWT_SECRET deve ser configurado no ambiente');
+})();
 
 let JWT_EXPIRES_IN: SignOptions['expiresIn'] = '7d';
 if (process.env.JWT_EXPIRES_IN) {
   JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN as SignOptions['expiresIn'];
-} else {
-  JWT_EXPIRES_IN = '7d';
 }
 
 export interface TokenPayload {

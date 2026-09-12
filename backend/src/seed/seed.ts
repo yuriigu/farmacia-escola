@@ -27,12 +27,8 @@ async function main() {
     data: { name: 'Admin Sistema', email: 'admin@farmaciaescola.edu.br', password: adminPass, role: Role.ADMIN, active: true, registerDoc: 'CRF/SP 00001' },
   });
 
-  const farm1 = await prisma.user.create({
+  const farmaceutico = await prisma.user.create({
     data: { name: 'Farm. Luciana Mendes', email: 'luciana@farmaciaescola.edu.br', password: farmPass, role: Role.FARMACEUTICO, active: true, registerDoc: 'CRF/SP 12345' },
-  });
-
-  const farm2 = await prisma.user.create({
-    data: { name: 'Farm. Pedro Almeida', email: 'pedro@farmaciaescola.edu.br', password: farmPass, role: Role.FARMACEUTICO, active: true, registerDoc: 'CRF/SP 12346' },
   });
 
   const medico = await prisma.user.create({
@@ -84,8 +80,12 @@ async function main() {
   });
 
   const now = new Date();
-  const batch1 = await prisma.stockBatch.create({
-    data: { medicineId: med1.id, batchNumber: 'LOT-2024-001', currentQuantity: 150, expirationDate: new Date(now.getFullYear() + 1, 5, 15) },
+
+  const batch1a = await prisma.stockBatch.create({
+    data: { medicineId: med1.id, batchNumber: 'LOT-2024-001A', currentQuantity: 15, expirationDate: new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()) }, // vencimento próximo
+  });
+  const batch1b = await prisma.stockBatch.create({
+    data: { medicineId: med1.id, batchNumber: 'LOT-2024-001B', currentQuantity: 150, expirationDate: new Date(now.getFullYear() + 1, 5, 15) }, // vencimento distante
   });
 
   const batch2 = await prisma.stockBatch.create({
@@ -93,7 +93,7 @@ async function main() {
   });
 
   const batch3 = await prisma.stockBatch.create({
-    data: { medicineId: med3.id, batchNumber: 'LOT-2024-003', currentQuantity: 45, expirationDate: new Date(now.getFullYear() + 1, 2, 10) },
+    data: { medicineId: med3.id, batchNumber: 'LOT-2024-003', currentQuantity: 45, expirationDate: new Date(now.getFullYear() - 1, 2, 10) }, // já vencido
   });
 
   const batch4 = await prisma.stockBatch.create({
@@ -105,36 +105,36 @@ async function main() {
   });
 
   const batch6 = await prisma.stockBatch.create({
-    data: { medicineId: med6.id, batchNumber: 'LOT-2024-006', currentQuantity: 30, expirationDate: new Date(now.getFullYear() + 1, 7, 18) },
+    data: { medicineId: med6.id, batchNumber: 'LOT-2024-006', currentQuantity: 3, expirationDate: new Date(now.getFullYear() + 1, 7, 18) }, // estoque baixo
   });
 
   await prisma.withdrawal.create({
     data: {
-      patientId: pac1.id, userId: farm1.id, notes: 'Orientacoes de uso fornecidas',
-      items: { create: { batchId: batch1.id, quantity: 10 } },
+      patientId: pac1.id, userId: farmaceutico.id, notes: 'Orientacoes de uso fornecidas',
+      items: { create: { batchId: batch1b.id, quantity: 10 } },
     },
   });
 
   await prisma.withdrawal.create({
     data: {
-      patientId: pac2.id, userId: farm2.id, notes: 'Paciente com dor de cabeca persistente',
+      patientId: pac2.id, userId: farmaceutico.id, notes: 'Paciente com dor de cabeca persistente',
       items: { create: { batchId: batch2.id, quantity: 20 } },
     },
   });
 
   await prisma.withdrawal.create({
     data: {
-      patientId: pac1.id, userId: farm1.id, notes: 'Retirada mensal',
+      patientId: pac1.id, userId: aluno.id, notes: 'Retirada mensal',
       items: { create: { batchId: batch4.id, quantity: 15 } },
     },
   });
 
   await prisma.disposal.create({
-    data: { batchId: batch3.id, userId: farm1.id, quantity: 5, reason: 'Embalagem Danificada' },
+    data: { batchId: batch3.id, userId: farmaceutico.id, quantity: 5, reason: 'Medicamento Vencido' },
   });
 
   await prisma.disposal.create({
-    data: { batchId: batch1.id, userId: farm2.id, quantity: 3, reason: 'Vencimento proximo' },
+    data: { batchId: batch1a.id, userId: aluno.id, quantity: 2, reason: 'Embalagem Danificada' },
   });
 
   const today = new Date();
@@ -146,21 +146,8 @@ async function main() {
 
   for (const date of [tomorrow, dayAfter, day3]) {
     for (const ts of TIME_SLOTS) {
-      let assignedId = farm2.id;
-      if (ts < '12:00') {
-        assignedId = farm1.id;
-      } else {
-        assignedId = farm2.id;
-      }
-
       await prisma.scheduleSlot.create({
-        data: {
-          date,
-          timeSlot: ts,
-          maxCapacity: 4,
-          active: true,
-          assignedToId: assignedId,
-        },
+        data: { date, timeSlot: ts, maxCapacity: 4, active: true, assignedToId: farmaceutico.id },
       });
     }
   }
@@ -168,41 +155,26 @@ async function main() {
   const todaySlots = ['14:00', '15:00'];
   for (const ts of todaySlots) {
     await prisma.scheduleSlot.create({
-      data: {
-        date: today,
-        timeSlot: ts,
-        maxCapacity: 4,
-        active: true,
-        assignedToId: farm2.id,
-      },
+      data: { date: today, timeSlot: ts, maxCapacity: 4, active: true, assignedToId: farmaceutico.id },
     });
   }
 
-  const slotTomorrow9 = await prisma.scheduleSlot.findFirst({
-    where: { date: tomorrow, timeSlot: '09:00' },
-  });
-  const slotDayAfter14 = await prisma.scheduleSlot.findFirst({
-    where: { date: dayAfter, timeSlot: '14:00' },
-  });
-  const slotToday14 = await prisma.scheduleSlot.findFirst({
-    where: { date: today, timeSlot: '14:00' },
-  });
+  const slotTomorrow9 = await prisma.scheduleSlot.findFirst({ where: { date: tomorrow, timeSlot: '09:00' } });
+  const slotDayAfter14 = await prisma.scheduleSlot.findFirst({ where: { date: dayAfter, timeSlot: '14:00' } });
+  const slotToday14 = await prisma.scheduleSlot.findFirst({ where: { date: today, timeSlot: '14:00' } });
+  const slotToday15 = await prisma.scheduleSlot.findFirst({ where: { date: today, timeSlot: '15:00' } });
+  const slotDay3_10 = await prisma.scheduleSlot.findFirst({ where: { date: day3, timeSlot: '10:00' } });
 
+  // ---------------------------------------------------------------------
+  // AGENDAMENTOS — cobrindo os quatro status possíveis: PENDING,
+  // CONFIRMED, COMPLETED e CANCELLED.
+  // ---------------------------------------------------------------------
   if (slotTomorrow9) {
     await prisma.appointment.create({
       data: {
-        patientId: pac1.id,
-        scheduledDate: tomorrow,
-        scheduledTime: '09:00',
-        slotId: slotTomorrow9.id,
-        status: 'PENDING',
-        notes: 'Retirada mensal de medicamentos',
-        items: {
-          create: [
-            { medicineId: med1.id, quantity: 10 },
-            { medicineId: med4.id, quantity: 5 },
-          ],
-        },
+        patientId: pac1.id, scheduledDate: tomorrow, scheduledTime: '09:00', slotId: slotTomorrow9.id,
+        status: 'PENDING', notes: 'Retirada mensal de medicamentos',
+        items: { create: [{ medicineId: med1.id, quantity: 10 }, { medicineId: med4.id, quantity: 5 }] },
       },
     });
   }
@@ -210,17 +182,9 @@ async function main() {
   if (slotDayAfter14) {
     await prisma.appointment.create({
       data: {
-        patientId: pac2.id,
-        scheduledDate: dayAfter,
-        scheduledTime: '14:00',
-        slotId: slotDayAfter14.id,
-        status: 'CONFIRMED',
-        notes: 'Paciente ja orientado pelo farmaceutico',
-        items: {
-          create: [
-            { medicineId: med2.id, quantity: 20 },
-          ],
-        },
+        patientId: pac2.id, scheduledDate: dayAfter, scheduledTime: '14:00', slotId: slotDayAfter14.id,
+        status: 'CONFIRMED', notes: 'Paciente ja orientado pelo farmaceutico',
+        items: { create: [{ medicineId: med2.id, quantity: 20 }] },
       },
     });
   }
@@ -228,38 +192,64 @@ async function main() {
   if (slotToday14) {
     await prisma.appointment.create({
       data: {
-        patientId: pac3.id,
-        scheduledDate: today,
-        scheduledTime: '14:00',
-        slotId: slotToday14.id,
-        status: 'PENDING',
-        notes: 'Primeira retirada',
-        items: {
-          create: [
-            { medicineId: med5.id, quantity: 10 },
-            { medicineId: med6.id, quantity: 5 },
-          ],
-        },
+        patientId: pac3.id, scheduledDate: today, scheduledTime: '14:00', slotId: slotToday14.id,
+        status: 'PENDING', notes: 'Primeira retirada',
+        items: { create: [{ medicineId: med5.id, quantity: 10 }, { medicineId: med6.id, quantity: 5 }] },
+      },
+    });
+  }
+
+  let apptCompleted = null;
+  if (slotToday15) {
+    apptCompleted = await prisma.appointment.create({
+      data: {
+        patientId: pac1.id, scheduledDate: today, scheduledTime: '15:00', slotId: slotToday15.id,
+        status: 'COMPLETED', notes: 'Retirada ja concluida no balcao',
+        items: { create: [{ medicineId: med1.id, quantity: 5 }] },
+      },
+    });
+  }
+
+  if (slotDay3_10) {
+    await prisma.appointment.create({
+      data: {
+        patientId: pac2.id, scheduledDate: day3, scheduledTime: '10:00', slotId: slotDay3_10.id,
+        status: 'CANCELLED', notes: 'Paciente desistiu da retirada',
+        items: { create: [{ medicineId: med3.id, quantity: 2 }] },
+      },
+    });
+  }
+
+  // Retirada vinculada a um agendamento já concluído — valida o elo
+  // agendamento -> retirada apontado nas revisões anteriores. Usa
+  // propositalmente o lote com vencimento mais próximo (batch1a) para
+  // também exercitar a prioridade do FEFO.
+  if (apptCompleted) {
+    await prisma.withdrawal.create({
+      data: {
+        patientId: pac1.id, userId: farmaceutico.id, appointmentId: apptCompleted.id,
+        notes: 'Retirada gerada a partir do agendamento concluido',
+        items: { create: { batchId: batch1a.id, quantity: 5 } },
       },
     });
   }
 
   console.log('Seed data created successfully!');
   console.log('');
-  console.log('Users:');
+  console.log('Users (5 - um por perfil):');
   console.log('   ADMIN:      admin@farmaciaescola.edu.br / admin123');
   console.log('   FARM:       luciana@farmaciaescola.edu.br / farm123');
-  console.log('   FARM:       pedro@farmaciaescola.edu.br / farm123');
+  console.log('   MEDICO:     roberto.medico@farmaciaescola.edu.br / medico123');
   console.log('   ALUNO:      ana.aluna@farmaciaescola.edu.br / aluno123');
   console.log('   PACIENTE:   joao@email.com / paciente123');
   console.log('');
   console.log('Medicines:', 6);
-  console.log('Batches:', 6);
-  console.log('Patients:', 3);
-  console.log('Schedule Slots: ~20');
-  console.log('Appointments: 3');
-  console.log('Withdrawals: 3');
-  console.log('Disposals: 2');
+  console.log('Batches:', 7, '(inclui 1 vencido, 1 critico, 1 baixo estoque, 2 lotes do mesmo medicamento p/ testar FEFO)');
+  console.log('Patients:', 3, '(1 com login, 2 sem login)');
+  console.log('Schedule Slots: ~20 (todos sob o unico farmaceutico)');
+  console.log('Appointments: 5 (PENDING x2, CONFIRMED, COMPLETED, CANCELLED)');
+  console.log('Withdrawals: 4 (2 por Farmaceutico, 1 por Aluno, 1 vinculada a agendamento concluido)');
+  console.log('Disposals: 2 (1 por Farmaceutico, 1 por Aluno)');
 }
 
 main()

@@ -1,14 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useState } from 'react';
 import { toast } from 'sonner';
 import {
-  Settings, UserRound, Palette, Info, Mail, Phone,
-  Lock, Save, Eye, EyeOff, Shield, Check, Loader2,
-  Calendar, Sun, Moon, Sparkles, Building2, Layers
+  Settings, UserRound, Lock, Save, Eye, EyeOff, Loader2,
 } from 'lucide-react';
-import { useTheme } from 'next-themes';
 import { useAuthStore } from '@/lib/auth-store';
 import { api } from '@/lib/api';
 import { getAvatarColor } from '@/lib/constants';
@@ -18,20 +14,19 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Separator } from '@/components/ui/separator';
 
-export function SettingsPage({ mode = 'profile' }: { mode?: 'profile' | 'system' }) {
-  const router = useRouter();
-  const searchParams = useSearchParams();
-  const tabParam = searchParams.get('tab');
-  let initialTab = mode === 'system' ? 'sistema' : 'perfil';
-  if (tabParam && mode === 'system') {
-    initialTab = tabParam;
-  }
-  const [activeTab, setActiveTab] = useState(initialTab);
+export function SettingsPage() {
 
-  const { theme, setTheme } = useTheme();
   const { user, token, setAuth } = useAuthStore();
+
+  let hasValidUser = false;
+  if (user) {
+    if (user.id !== null) {
+      if (user.id !== undefined) {
+        hasValidUser = true;
+      }
+    }
+  }
 
   let initialEmail = '';
   if (user) {
@@ -51,21 +46,7 @@ export function SettingsPage({ mode = 'profile' }: { mode?: 'profile' | 'system'
   const [showNewPw, setShowNewPw] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
-  useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab && mode === 'system') {
-      if (['perfil', 'aparencia', 'sistema'].includes(tab)) {
-        setTimeout(() => {
-          setActiveTab(tab);
-        }, 0);
-      }
-    }
-  }, [mode, searchParams]);
 
-  const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
-    router.replace(`/configuracoes?tab=${tabId}`);
-  };
 
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,11 +126,7 @@ export function SettingsPage({ mode = 'profile' }: { mode?: 'profile' | 'system'
     }
   };
 
-  const tabs = [
-    { id: 'perfil', label: 'Meu Perfil & Senha', icon: UserRound },
-    { id: 'aparencia', label: 'Aparência & Tema', icon: Palette },
-    { id: 'sistema', label: 'Sistema & Informações', icon: Info },
-  ].filter((tab) => mode === 'system' || tab.id === 'perfil');
+
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto page-enter">
@@ -160,33 +137,23 @@ export function SettingsPage({ mode = 'profile' }: { mode?: 'profile' | 'system'
         icon={Settings}
       />
 
-      {/* Unified Tab Bar */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          let tabClass = 'flex items-center gap-2 px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all ';
-          if (isActive) {
-            tabClass = tabClass + 'bg-emerald-600 text-white shadow-sm';
-          } else {
-            tabClass = tabClass + 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-900 dark:hover:text-slate-200';
-          }
-          return (
-            <button
-              key={tab.id}
-              onClick={() => handleTabChange(tab.id)}
-              className={tabClass}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
 
-      {/* ==================== TAB 1: PERFIL ==================== */}
+
+      {/* ==================== PERFIL ==================== */}
       {(() => {
-        if (activeTab === 'perfil') {
+        if (!hasValidUser) {
+          return (
+            <div className="p-8 text-center bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Perfil Indisponível</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Faça login com um usuário válido para visualizar seus dados.</p>
+            </div>
+          );
+        }
+        return null;
+      })()}
+
+      {(() => {
+        if (hasValidUser) {
           return (
             <div className="space-y-6">
               {/* User Profile Header Card */}
@@ -275,7 +242,7 @@ export function SettingsPage({ mode = 'profile' }: { mode?: 'profile' | 'system'
                         <Input
                           value={(() => {
                             if (user) {
-                              if (user.name) {
+                              if (typeof user.name === 'string' || typeof user.name === 'number') {
                                 return user.name;
                               }
                             }
@@ -285,6 +252,28 @@ export function SettingsPage({ mode = 'profile' }: { mode?: 'profile' | 'system'
                           className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed rounded-xl text-xs"
                         />
                         <p className="text-[11px] text-slate-400">O nome deve ser alterado por um administrador.</p>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Identificador (CRF / CRM / Matrícula / CPF)
+                        </Label>
+                        <Input
+                          value={(() => {
+                            if (user) {
+                              if ('registerDoc' in user && (typeof user.registerDoc === 'string' || typeof user.registerDoc === 'number')) {
+                                return user.registerDoc;
+                              }
+                              if (typeof user.patientId === 'string' || typeof user.patientId === 'number') {
+                                return user.patientId;
+                              }
+                            }
+                            return '—';
+                          })()}
+                          disabled
+                          className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed rounded-xl text-xs"
+                        />
+                        <p className="text-[11px] text-slate-400">O identificador é imutável na auto-edição de perfil.</p>
                       </div>
 
                       <div className="space-y-1.5">
@@ -468,122 +457,7 @@ export function SettingsPage({ mode = 'profile' }: { mode?: 'profile' | 'system'
         return null;
       })()}
 
-      {/* ==================== TAB 2: APARÊNCIA ==================== */}
-      {(() => {
-        if (activeTab === 'aparencia') {
-          return (
-            <div className="space-y-6">
-              <Card className="rounded-2xl border border-slate-200 dark:border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Palette className="w-5 h-5 text-emerald-600" />
-                    Tema e Aparência Visual
-                  </CardTitle>
-                  <CardDescription>Escolha entre o modo claro e o modo escuro para a interface.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div
-                      onClick={() => setTheme('light')}
-                      className={(() => {
-                        let cls = 'p-4 rounded-2xl border-2 cursor-pointer transition-all ';
-                        if (theme === 'light') {
-                          cls = cls + 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20';
-                        } else {
-                          cls = cls + 'border-slate-200 dark:border-slate-700 hover:border-slate-300';
-                        }
-                        return cls;
-                      })()}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="p-2 rounded-xl bg-amber-100 text-amber-600">
-                          <Sun className="w-5 h-5" />
-                        </div>
-                        {(() => {
-                          if (theme === 'light') {
-                            return <Check className="w-4 h-4 text-emerald-600" />;
-                          }
-                          return null;
-                        })()}
-                      </div>
-                      <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Tema Claro</h4>
-                      <p className="text-xs text-slate-500 mt-1">Visual claro com alto contraste, ideal para ambientes iluminados.</p>
-                    </div>
 
-                    <div
-                      onClick={() => setTheme('dark')}
-                      className={(() => {
-                        let cls = 'p-4 rounded-2xl border-2 cursor-pointer transition-all ';
-                        if (theme === 'dark') {
-                          cls = cls + 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20';
-                        } else {
-                          cls = cls + 'border-slate-200 dark:border-slate-700 hover:border-slate-300';
-                        }
-                        return cls;
-                      })()}
-                    >
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="p-2 rounded-xl bg-indigo-100 dark:bg-indigo-950 text-indigo-600">
-                          <Moon className="w-5 h-5" />
-                        </div>
-                        {(() => {
-                          if (theme === 'dark') {
-                            return <Check className="w-4 h-4 text-emerald-600" />;
-                          }
-                          return null;
-                        })()}
-                      </div>
-                      <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Tema Escuro</h4>
-                      <p className="text-xs text-slate-500 mt-1">Conforto visual para ambientes com pouca luz e economia de energia.</p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          );
-        }
-        return null;
-      })()}
-
-      {/* ==================== TAB 3: SISTEMA ==================== */}
-      {(() => {
-        if (activeTab === 'sistema') {
-          return (
-            <div className="space-y-6">
-              <Card className="rounded-2xl border border-slate-200 dark:border-slate-700">
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold flex items-center gap-2">
-                    <Building2 className="w-5 h-5 text-emerald-600" />
-                    Informações da Farmácia Escola
-                  </CardTitle>
-                  <CardDescription>Dados operacionais e de conformidade do sistema integrado.</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3 text-xs">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Instituição</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">Universidade / Farmácia Escola</span>
-                    </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Módulo de Estoque</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">Gestão por Lotes e Validade FEFO</span>
-                    </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Versão do Sistema</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">v2.4.0 (Padronizada)</span>
-                    </div>
-                    <div className="p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700">
-                      <span className="text-slate-400 block text-[10px] uppercase font-bold">Fuso Horário e Localidade</span>
-                      <span className="font-semibold text-slate-800 dark:text-slate-200">pt-BR (Formato 24h: HH:mm)</span>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          );
-        }
-        return null;
-      })()}
     </div>
   );
 }

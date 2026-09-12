@@ -45,8 +45,8 @@ export function StockStatusBadge({ status }: StockStatusBadgeProps) {
       badgeText = 'text-slate-600 dark:text-slate-400';
       badgeBorder = 'border-slate-300 dark:border-slate-700';
       dotColor = 'bg-slate-400';
-    } else if (status === 'CRITICAL_EXPIRATION') {
-      labelText = 'Vencimento Próximo (≤ 30d)';
+    } else if (status === 'CRITICAL_EXPIRATION' || status === 'Venc. Próx' || status === 'Vencimento Próximo' || status === 'Vencimento Próximo (≤ 30d)') {
+      labelText = 'Venc. Próx';
       badgeBg = 'bg-amber-50 dark:bg-amber-950/40';
       badgeText = 'text-amber-800 dark:text-amber-300';
       badgeBorder = 'border-amber-300 dark:border-amber-700';

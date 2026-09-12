@@ -3,6 +3,8 @@ export type AppRole = 'ADMIN' | 'FARMACEUTICO' | 'MEDICO' | 'ALUNO' | 'PACIENTE'
 
 export const ALL_ROLES: AppRole[] = ['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO', 'PACIENTE'];
 
+export const FARMACY_STAFF_ROLES: AppRole[] = ['FARMACEUTICO', 'ALUNO'];
+
 // MAPEAMENTO DE PERMISSOES POR PAPEL
 export const rolePermissions: Record<AppRole, string[]> = {
   ADMIN: [
@@ -19,6 +21,7 @@ export const rolePermissions: Record<AppRole, string[]> = {
     'administracao',
     'admin',
     'profile',
+    'configuracoes',
     'settings',
     'usuarios',
   ],
@@ -33,14 +36,12 @@ export const rolePermissions: Record<AppRole, string[]> = {
     'calendario',
     'scales',
     'pacientes',
+    'administracao',
+    'admin',
     'profile',
-  ],
-  MEDICO: [
-    'dashboard',
-    'medicines',
-    'agendamentos',
-    'appointments',
-    'profile',
+    'configuracoes',
+    'settings',
+    'usuarios',
   ],
   ALUNO: [
     'dashboard',
@@ -50,17 +51,39 @@ export const rolePermissions: Record<AppRole, string[]> = {
     'descartes',
     'agendamentos',
     'appointments',
+    'calendario',
+    'scales',
     'pacientes',
+    'administracao',
+    'admin',
     'profile',
+    'configuracoes',
+    'settings',
+    'usuarios',
+  ],
+  MEDICO: [
+    'dashboard',
+    'medicines',
+    'agendamentos',
+    'appointments',
+    'calendario',
+    'pacientes',
+    'administracao',
+    'admin',
+    'profile',
+    'configuracoes',
+    'settings',
+    'usuarios',
   ],
   PACIENTE: [
     'dashboard',
     'medicines',
     'agendamentos',
     'appointments',
+    'retiradas',
     'profile',
-    'my-appointments',
-    'my-withdrawals',
+    'configuracoes',
+    'settings',
   ],
 };
 
@@ -75,6 +98,7 @@ export function hasRouteAccess(role: string | undefined | null, routeOrModule: s
 
       const routeAliases: Record<string, string> = {
         admin: 'administracao',
+        usuarios: 'administracao',
         calendario: 'calendario',
         profile: 'configuracoes',
         configuracoes: 'profile',

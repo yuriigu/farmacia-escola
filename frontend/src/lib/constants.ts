@@ -1,5 +1,5 @@
 import {
-  LayoutDashboard, Package, Calendar, ShieldCheck, Settings,
+  LayoutDashboard, Package, Calendar, Settings,
   CalendarDays, Boxes, ArrowUpRight, Trash2, Users, Clock
 } from 'lucide-react';
 import { hasRouteAccess } from '@/config/rbac';
@@ -53,8 +53,15 @@ export function checkPermission(
       return false;
     }
   }
+  if (normalizedRole === 'ALUNO') {
+    if (key !== 'users') {
+      return true;
+    } else {
+      return false;
+    }
+  }
   if (normalizedRole === 'MEDICO') {
-    const medicoAllowed: PermissionKey[] = ['inventory', 'appointments', 'appointmentsOverview', 'batches', 'withdrawals'];
+    const medicoAllowed: PermissionKey[] = ['inventory', 'appointments', 'appointmentsOverview', 'patients'];
     const isAllowed = medicoAllowed.includes(key);
     return isAllowed;
   }
@@ -66,36 +73,15 @@ export function checkPermission(
       isPacienteAllowed = true;
     } else if (key === 'appointmentsOverview') {
       isPacienteAllowed = true;
+    } else if (key === 'withdrawals') {
+      isPacienteAllowed = true;
     } else {
       isPacienteAllowed = false;
     }
     return isPacienteAllowed;
   }
 
-  // ALUNO
-  let perms = DEFAULT_ALUNO_PERMISSIONS;
-  if (permissions !== null) {
-    if (permissions !== undefined) {
-      perms = permissions;
-    } else {
-      perms = DEFAULT_ALUNO_PERMISSIONS;
-    }
-  } else {
-    perms = DEFAULT_ALUNO_PERMISSIONS;
-  }
-
-  let hasPerm = false;
-  if (perms[key] !== null) {
-    if (perms[key] !== undefined) {
-      hasPerm = perms[key];
-    } else {
-      hasPerm = false;
-    }
-  } else {
-    hasPerm = false;
-  }
-
-  return hasPerm;
+  return false;
 }
 
 // ==================== CLIENT-SIDE WRITE CHECK ====================
@@ -118,13 +104,12 @@ const ENTITY_PERMISSION_MAP: Record<string, PermissionKey> = {
 /**
  * Client-side canWrite — mirrors server-side canWrite in role-guard.ts.
  * Determines whether the current user can perform write (create/update/delete)
- * operations on a given entity.  Uses the in-memory permissions from auth-store.
+ * operations on a given entity. Uses the in-memory permissions from auth-store.
  *
- * - ADMIN: write everything except 'users'... no wait, ADMIN writes everything.
- * - FARMACEUTICO: write everything except 'users'.
- * - MEDICO: write ONLY 'appointments' (create appointments via CPF flow).
+ * - ADMIN: write everything.
+ * - FARMACEUTICO / ALUNO: write everything except 'users'.
+ * - MEDICO: write 'appointments' and 'patients'.
  * - PACIENTE: write ONLY 'appointments' (own appointments).
- * - ALUNO: follows per-user permissions (falls back to DEFAULT_ALUNO_PERMISSIONS).
  */
 export function canWriteClient(
   role: string | undefined | null,
@@ -136,16 +121,6 @@ export function canWriteClient(
   }
 
   const normalizedRole = role.toUpperCase();
-  let permKey: PermissionKey;
-  if (ENTITY_PERMISSION_MAP[entity] !== null) {
-    if (ENTITY_PERMISSION_MAP[entity] !== undefined) {
-      permKey = ENTITY_PERMISSION_MAP[entity];
-    } else {
-      permKey = entity as PermissionKey;
-    }
-  } else {
-    permKey = entity as PermissionKey;
-  }
 
   if (normalizedRole === 'ADMIN') {
     return true;
@@ -157,8 +132,17 @@ export function canWriteClient(
       return false;
     }
   }
+  if (normalizedRole === 'ALUNO') {
+    if (entity !== 'users') {
+      return true;
+    } else {
+      return false;
+    }
+  }
   if (normalizedRole === 'MEDICO') {
     if (entity === 'appointments') {
+      return true;
+    } else if (entity === 'patients') {
       return true;
     } else {
       return false;
@@ -172,30 +156,7 @@ export function canWriteClient(
     }
   }
 
-  // ALUNO
-  let perms = DEFAULT_ALUNO_PERMISSIONS;
-  if (permissions !== null) {
-    if (permissions !== undefined) {
-      perms = permissions;
-    } else {
-      perms = DEFAULT_ALUNO_PERMISSIONS;
-    }
-  } else {
-    perms = DEFAULT_ALUNO_PERMISSIONS;
-  }
-
-  let hasPerm = false;
-  if (perms[permKey] !== null) {
-    if (perms[permKey] !== undefined) {
-      hasPerm = perms[permKey];
-    } else {
-      hasPerm = false;
-    }
-  } else {
-    hasPerm = false;
-  }
-
-  return hasPerm;
+  return false;
 }
 
 // ==================== ROLE BADGES & PALETTE ====================
@@ -203,7 +164,7 @@ export const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Administrador',
   FARMACEUTICO: 'Farmacêutico',
   MEDICO: 'Médico',
-  ALUNO: 'Aluno / Estagiário',
+  ALUNO: 'Aluno',
   PACIENTE: 'Paciente',
 };
 
@@ -227,6 +188,7 @@ export type ModuleId =
   | 'scales'
   | 'pacientes'
   | 'administracao'
+  | 'usuarios'
   | 'configuracoes'
   | 'profile'
   | 'settings'
@@ -294,7 +256,7 @@ export const MODULES: ModuleConfig[] = [
     label: 'Retiradas',
     path: '/retiradas',
     icon: ArrowUpRight,
-    forbiddenRoles: ['PACIENTE'],
+    forbiddenRoles: ['MEDICO'],
     tabs: [],
     defaultTab: '',
     actionLabels: {},
@@ -323,6 +285,7 @@ export const MODULES: ModuleConfig[] = [
     label: 'Calendário',
     path: '/calendario',
     icon: CalendarDays,
+    forbiddenRoles: ['PACIENTE'],
     tabs: [],
     defaultTab: '',
     actionLabels: {},
@@ -332,15 +295,15 @@ export const MODULES: ModuleConfig[] = [
     label: 'Escala',
     path: '/scales',
     icon: Clock,
-    forbiddenRoles: ['MEDICO', 'ALUNO', 'PACIENTE'],
+    forbiddenRoles: ['MEDICO', 'PACIENTE'],
     tabs: [],
     defaultTab: '',
     actionLabels: {},
   },
   {
-    id: 'pacientes',
-    label: 'Pacientes',
-    path: '/pacientes',
+    id: 'administracao',
+    label: 'Usuários',
+    path: '/administracao',
     icon: Users,
     forbiddenRoles: ['PACIENTE'],
     tabs: [],
@@ -348,50 +311,10 @@ export const MODULES: ModuleConfig[] = [
     actionLabels: {},
   },
   {
-    id: 'administracao',
-    label: 'Administração',
-    path: '/administracao',
-    icon: ShieldCheck,
-    forbiddenRoles: ['PACIENTE', 'MEDICO', 'ALUNO'],
-    tabs: [],
-    defaultTab: '',
-    actionLabels: {},
-  },
-  {
-    id: 'configuracoes',
-    label: 'Meu Perfil',
-    path: '/profile',
-    icon: Settings,
-    tabs: [],
-    defaultTab: '',
-    actionLabels: {},
-  },
-  {
     id: 'settings',
-    label: 'Configurações do Sistema',
+    label: 'Configurações',
     path: '/settings',
     icon: Settings,
-    forbiddenRoles: ['FARMACEUTICO', 'MEDICO', 'ALUNO', 'PACIENTE'],
-    tabs: [],
-    defaultTab: '',
-    actionLabels: {},
-  },
-  {
-    id: 'my-appointments',
-    label: 'Meus Agendamentos',
-    path: '/my-appointments',
-    icon: Calendar,
-    forbiddenRoles: ['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO'],
-    tabs: [],
-    defaultTab: '',
-    actionLabels: {},
-  },
-  {
-    id: 'my-withdrawals',
-    label: 'Minhas Retiradas',
-    path: '/my-withdrawals',
-    icon: ArrowUpRight,
-    forbiddenRoles: ['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO'],
     tabs: [],
     defaultTab: '',
     actionLabels: {},

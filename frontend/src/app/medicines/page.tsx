@@ -797,12 +797,21 @@ export default function MedicinesPage() {
           }
         }
 
-        let bCount = 0;
-        if (med.batchesCount !== null && med.batchesCount !== undefined) {
-          bCount = med.batchesCount;
-        } else {
-          bCount = 0;
+        let currentStatus = med.status;
+        if (!currentStatus) {
+          currentStatus = computeStockStatus({ totalQuantity: physical });
         }
+
+        const isExpired =
+          currentStatus === 'EXPIRED' ||
+          currentStatus === 'expired' ||
+          currentStatus === 'Vencido';
+
+        const isBlocked =
+          currentStatus === 'BLOCKED' ||
+          currentStatus === 'Bloqueado';
+
+        const isUnavailable = realAvail <= 0 || isExpired || isBlocked;
 
         return (
           <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -816,54 +825,24 @@ export default function MedicinesPage() {
               <span>Ver</span>
             </Button>
 
-            {(() => {
-              if (canCreateMedicine) {
-                if (bCount === 0 || physical === 0) {
-                  return (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setNewlyCreatedMedicine(med);
-                        setInitialBatchNumber('LOT-' + new Date().getFullYear() + '-001');
-                        setInitialBatchQuantity(100);
-                        const nextYear = new Date();
-                        nextYear.setFullYear(nextYear.getFullYear() + 1);
-                        setInitialBatchExpiration(nextYear.toISOString().split('T')[0]);
-                        setIsInitialBatchModalOpen(true);
-                      }}
-                      className="h-8 px-2 rounded-lg text-xs gap-1 text-amber-700 border-amber-300 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/30 dark:border-amber-800 dark:text-amber-400 font-bold"
-                    >
-                      <Plus className="w-3 h-3" />
-                      <span>+ Lote</span>
-                    </Button>
-                  );
+            <Button
+              size="sm"
+              disabled={isUnavailable}
+              onClick={() => {
+                if (!isUnavailable) {
+                  handleOpenAppointmentModal(med);
                 }
+              }}
+              title={isUnavailable ? 'Medicamento indisponível para agendamento' : 'Agendar retirada'}
+              className={
+                isUnavailable
+                  ? 'h-8 px-2.5 rounded-lg text-xs gap-1 bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700 font-medium shadow-none cursor-not-allowed disabled:pointer-events-auto disabled:opacity-60'
+                  : 'h-8 px-2.5 rounded-lg text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs'
               }
-              return null;
-            })()}
-
-            {(() => {
-              if (realAvail > 0) {
-                return (
-                  <Button
-                    size="sm"
-                    onClick={() => handleOpenAppointmentModal(med)}
-                    className="h-8 px-2.5 rounded-lg text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
-                  >
-                    <Calendar className="w-3.5 h-3.5" />
-                    <span>Agendar</span>
-                  </Button>
-                );
-              } else if (physical > 0 && reserved >= physical) {
-                return (
-                  <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-2 py-1 rounded-md border border-amber-200 dark:border-amber-800">
-                    Reservado
-                  </span>
-                );
-              }
-              return null;
-            })()}
+            >
+              <Calendar className="w-3.5 h-3.5" />
+              <span>Agendar</span>
+            </Button>
           </div>
         );
       },

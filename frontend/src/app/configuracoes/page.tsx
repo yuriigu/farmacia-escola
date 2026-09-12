@@ -9,7 +9,7 @@ function ConfiguracoesContent() {
   return (
     <ProtectedRoute routeKey="profile">
       <AppShell activeModuleId="configuracoes" pageTitle="Meu Perfil">
-        <SettingsPage mode="profile" />
+        <SettingsPage />
       </AppShell>
     </ProtectedRoute>
   );

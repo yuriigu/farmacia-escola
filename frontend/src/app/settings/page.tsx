@@ -8,7 +8,7 @@ export default function SettingsRoute() {
   return (
     <ProtectedRoute routeKey="settings">
       <AppShell activeModuleId="settings" pageTitle="Configurações do Sistema">
-        <SettingsPage mode="system" />
+        <SettingsPage />
       </AppShell>
     </ProtectedRoute>
   );

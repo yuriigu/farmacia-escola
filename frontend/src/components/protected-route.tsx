@@ -11,8 +11,8 @@ import { ShieldAlert, ArrowLeft, Lock } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { hasRouteAccess, AppRole } from '@/config/rbac';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { toast } from 'sonner';
 
 interface ProtectedRouteProps {
   children: ReactNode;
@@ -103,29 +103,6 @@ export function ProtectedRoute({
       return <>{fallback}</>;
     }
 
-    // BLOCO DE ROLES PERMITIDAS
-    let allowedRolesBlock: ReactNode = null;
-    if (allowedRoles) {
-      if (allowedRoles.length > 0) {
-        allowedRolesBlock = (
-          <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-700/60">
-            <span className="text-slate-500">Perfis permitidos:</span>
-            <div className="flex flex-wrap gap-1 justify-end">
-              {allowedRoles.map((role) => (
-                <Badge key={role} variant="secondary" className="text-[10px] px-1.5 py-0">
-                  {role}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        );
-      } else {
-        allowedRolesBlock = null;
-      }
-    } else {
-      allowedRolesBlock = null;
-    }
-
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-4">
         <Card className="max-w-md w-full border-rose-200 dark:border-rose-900/50 bg-rose-50/30 dark:bg-rose-950/20 shadow-lg">
@@ -137,20 +114,10 @@ export function ProtectedRoute({
               Acesso Não Autorizado
             </CardTitle>
             <CardDescription className="text-slate-600 dark:text-slate-400 text-sm mt-1">
-              Seu perfil não possui permissão para acessar esta área do sistema.
+              Você não tem permissão para realizar esta ação.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4 pt-2">
-            <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-xs space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-slate-500">Seu perfil atual:</span>
-                <Badge variant="outline" className="bg-slate-100 dark:bg-slate-700 text-slate-800 dark:text-slate-200 font-semibold uppercase">
-                  {user.role}
-                </Badge>
-              </div>
-              {allowedRolesBlock}
-            </div>
-
             <div className="flex gap-2">
               <Button
                 variant="default"

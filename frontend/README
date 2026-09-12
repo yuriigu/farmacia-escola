@@ -187,7 +187,7 @@ Arquitetura de Páginas e Rotas
 * /agendamentos — Controle de solicitações de retirada e dispensações (ADMIN, FARMACEUTICO, MEDICO)
 * /calendario — Grade de horários e gestão de capacidade (ADMIN, FARMACEUTICO, MEDICO)
 * /pacientes — Cadastro de pacientes e histórico de retiradas (ADMIN, FARMACEUTICO)
-* /administracao — Gestão de operadores e visualização de auditoria (ADMIN)
+* /administracao (ou /usuarios) — Gestão de usuários e contas de acesso (ADMIN, FARMACEUTICO, ALUNO, MEDICO)
 * /configuracoes — Configurações institucionais da plataforma (ADMIN)
 * /profile — Dados cadastrais e alteração de senha do usuário conectado (Todos)
 

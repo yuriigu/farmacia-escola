@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { UserRepository } from '../repositories/user-repository';
 import { ActivityLogService } from './activity-log-service';
 import { Role } from '../types/enums';
+import { prisma } from '../utils/prisma';
 
 export class UserService {
   private userRepo: UserRepository;
@@ -212,6 +213,70 @@ export class UserService {
       throw { statusCode: 404, message: 'Usuário não encontrado' };
     }
 
+    if (adminId === id) {
+      if (data.registerDoc !== undefined) {
+        let currentDoc = '';
+        if (user.registerDoc) {
+          currentDoc = user.registerDoc.trim();
+        } else {
+          currentDoc = '';
+        }
+
+        let requestedDoc = '';
+        if (data.registerDoc) {
+          requestedDoc = data.registerDoc.trim();
+        } else {
+          requestedDoc = '';
+        }
+
+        if (currentDoc !== requestedDoc) {
+          throw { statusCode: 400, message: 'O identificador não pode ser alterado na auto-edição de perfil' };
+        }
+      }
+    }
+
+    if (user.role === Role.ADMIN) {
+      if (user.active) {
+        let isDemotingRole = false;
+        if (data.role !== undefined) {
+          if (data.role !== Role.ADMIN) {
+            isDemotingRole = true;
+          }
+        }
+
+        let isDeactivating = false;
+        if (data.active !== undefined) {
+          if (Boolean(data.active) === false) {
+            isDeactivating = true;
+          }
+        }
+
+        if (isDemotingRole) {
+          const activeAdminsCount = await prisma.user.count({
+            where: {
+              role: Role.ADMIN,
+              active: true,
+            },
+          });
+          if (activeAdminsCount <= 1) {
+            throw { statusCode: 400, message: 'Não é possível rebaixar a role do único administrador ativo do sistema' };
+          }
+        } else {
+          if (isDeactivating) {
+            const activeAdminsCount = await prisma.user.count({
+              where: {
+                role: Role.ADMIN,
+                active: true,
+              },
+            });
+            if (activeAdminsCount <= 1) {
+              throw { statusCode: 400, message: 'Não é possível desativar o único administrador ativo do sistema' };
+            }
+          }
+        }
+      }
+    }
+
     const updateData: any = {};
 
     if (data.name !== undefined) {
@@ -311,6 +376,22 @@ export class UserService {
     const user = await this.userRepo.findById(id);
     if (!user) {
       throw { statusCode: 404, message: 'Usuário não encontrado' };
+    }
+
+    if (user.role === Role.ADMIN) {
+      if (user.active) {
+        if (Boolean(active) === false) {
+          const activeAdminsCount = await prisma.user.count({
+            where: {
+              role: Role.ADMIN,
+              active: true,
+            },
+          });
+          if (activeAdminsCount <= 1) {
+            throw { statusCode: 400, message: 'Não é possível desativar o único administrador ativo do sistema' };
+          }
+        }
+      }
     }
 
     const updated = await this.userRepo.update(id, { active: Boolean(active) });

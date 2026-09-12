@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   Package, Calendar, ArrowUpRight, Trash2, Clock,
   CalendarDays, CheckCircle2, AlertTriangle, AlertCircle, Plus, Search,
-  Boxes, ShieldAlert, Sparkles, User, FileText, ChevronRight, CheckCircle
+  ShieldAlert, User, FileText, ChevronRight, CheckCircle
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
@@ -137,54 +137,6 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
   if (isPatient) {
     return (
       <div className="space-y-6 max-w-7xl mx-auto page-enter">
-        {/* Welcome Banner for Patient */}
-        <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 p-6 sm:p-8 rounded-3xl text-white shadow-xl shadow-emerald-900/10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-          <div className="space-y-2">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-xs font-semibold backdrop-blur-sm">
-              <Sparkles className="w-3.5 h-3.5" />
-              Portal do Paciente
-            </div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Olá, {(() => {
-                if (user) {
-                  if (user.name) {
-                    const parts = user.name.split(' ');
-                    if (parts.length > 0) {
-                      return parts[0];
-                    }
-                  }
-                }
-                return 'Paciente';
-              })()}!
-            </h1>
-            <p className="text-emerald-100 text-sm max-w-xl">
-              Consulte medicamentos gratuitos disponíveis e agende sua retirada com facilidade.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap gap-3">
-            <Button
-              asChild
-              className="bg-white text-emerald-800 hover:bg-emerald-50 rounded-xl font-bold shadow-md shadow-black/10 gap-2"
-            >
-              <Link href="/appointments?new=1">
-                <Calendar className="w-4 h-4" />
-                Novo Agendamento
-              </Link>
-            </Button>
-            <Button
-              asChild
-              variant="outline"
-              className="border-white/40 text-white hover:bg-white/10 rounded-xl font-bold gap-2"
-            >
-              <Link href="/medicines">
-                <Search className="w-4 h-4" />
-                Buscar Medicamentos
-              </Link>
-            </Button>
-          </div>
-        </div>
-
         {/* Quick Stats Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card className="rounded-2xl border-slate-200 dark:border-slate-700 p-5 shadow-sm bg-white dark:bg-slate-800">
@@ -339,99 +291,9 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
     );
   }
 
-  // Staff Dashboard (ADMIN, FARMACEUTICO, ALUNO)
+  // Staff Dashboard (ADMIN, FARMACEUTICO, PACIENTE, ALUNO e MEDICO)
   return (
     <div className="space-y-6 max-w-7xl mx-auto page-enter">
-      {/* Top Banner with Quick Actions */}
-      <div className="bg-gradient-to-r from-emerald-600 via-teal-600 to-slate-800 p-6 sm:p-8 rounded-3xl text-white shadow-xl shadow-slate-900/10 flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="space-y-2">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 text-xs font-semibold backdrop-blur-sm">
-            <Sparkles className="w-3.5 h-3.5" />
-            Painel Geral Farmacêutico
-          </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-            Olá, {(() => {
-              if (user) {
-                if (user.name) {
-                  const parts = user.name.split(' ');
-                  if (parts.length > 0) {
-                    return parts[0];
-                  }
-                }
-              }
-              return 'Usuário';
-            })()}!
-          </h1>
-          <p className="text-emerald-100 text-sm max-w-xl">
-            Visão consolidada do estoque, agendamentos e atendimento universitário com taxonomia unificada.
-          </p>
-        </div>
-
-        <div className="flex flex-wrap gap-2.5">
-          <Button
-            asChild
-            className="bg-white text-emerald-800 hover:bg-emerald-50 rounded-xl font-bold shadow-md shadow-black/10 text-xs"
-          >
-            <Link href="/medicines">
-              <Package className="w-4 h-4 mr-1.5" />
-              Medicamentos
-            </Link>
-          </Button>
-
-          <Button
-            asChild
-            className="bg-white/20 hover:bg-white/30 text-white rounded-xl font-bold text-xs"
-          >
-            <Link href="/estoque">
-              <Boxes className="w-4 h-4 mr-1.5" />
-              Estoque de Lotes
-            </Link>
-          </Button>
-
-          <Button
-            asChild
-            className="bg-emerald-500 hover:bg-emerald-400 text-white rounded-xl font-bold text-xs"
-          >
-            <Link href="/appointments?new=1">
-              <Plus className="w-4 h-4 mr-1.5" />
-              Agendar Atendimento
-            </Link>
-          </Button>
-        </div>
-      </div>
-
-      {/* Sanitary Block Alert Banner */}
-      {(() => {
-        const blockedBatches = batches.filter((b) => b.isBlocked);
-        if (blockedBatches.length > 0) {
-          let pluralText = 'lotes com bloqueio ativo';
-          if (blockedBatches.length === 1) {
-            pluralText = 'lote com bloqueio ativo';
-          }
-          return (
-            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <div className="p-2 bg-rose-100 dark:bg-rose-900/50 text-rose-600 rounded-xl">
-                  <ShieldAlert className="w-5 h-5" />
-                </div>
-                <div>
-                  <p className="text-sm font-bold text-rose-800 dark:text-rose-200">
-                    Atenção Sanitária: {blockedBatches.length} {pluralText}
-                  </p>
-                  <p className="text-xs text-rose-600 dark:text-rose-300">
-                    Estes lotes estão retidos e impedidos de dispensação pelo algoritmo FEFO.
-                  </p>
-                </div>
-              </div>
-              <Button asChild variant="outline" size="sm" className="border-rose-300 text-rose-700 hover:bg-rose-100 rounded-xl text-xs">
-                <Link href="/estoque">Gerenciar Lotes</Link>
-              </Button>
-            </div>
-          );
-        }
-        return null;
-      })()}
-
       {/* Unified Stock Taxonomy KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Stock */}
@@ -512,6 +374,38 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
           </div>
         </Link>
       </div>
+
+      {/* Sanitary Block Alert Banner */}
+      {(() => {
+        const blockedBatches = batches.filter((b) => b.isBlocked);
+        if (blockedBatches.length > 0) {
+          let pluralText = 'lotes com bloqueio ativo';
+          if (blockedBatches.length === 1) {
+            pluralText = 'lote com bloqueio ativo';
+          }
+          return (
+            <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-rose-100 dark:bg-rose-900/50 text-rose-600 rounded-xl">
+                  <ShieldAlert className="w-5 h-5" />
+                </div>
+                <div>
+                  <p className="text-sm font-bold text-rose-800 dark:text-rose-200">
+                    Atenção Sanitária: {blockedBatches.length} {pluralText}
+                  </p>
+                  <p className="text-xs text-rose-600 dark:text-rose-300">
+                    Estes lotes estão retidos e impedidos de dispensação pelo algoritmo FEFO.
+                  </p>
+                </div>
+              </div>
+              <Button asChild variant="outline" size="sm" className="border-rose-300 text-rose-700 hover:bg-rose-100 rounded-xl text-xs">
+                <Link href="/estoque">Gerenciar Lotes</Link>
+              </Button>
+            </div>
+          );
+        }
+        return null;
+      })()}
 
       {/* Charts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

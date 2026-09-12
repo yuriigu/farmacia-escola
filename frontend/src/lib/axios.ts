@@ -1,6 +1,7 @@
 // IMPORTS DE BIBLIOTECAS
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
+import { toast } from 'sonner';
 
 // DEFINICAO DA URL BASE DA API
 let API_BASE_URL = '';
@@ -56,6 +57,13 @@ apiClient.interceptors.response.use(
     // VERIFICANDO SE OCORREU ERRO DE STATUS 401
     if (error) {
       if (error.response) {
+        if (error.response.status === 403) {
+          if (typeof window !== 'undefined') {
+            toast.error('Você não tem permissão para realizar esta ação.');
+          }
+          return Promise.reject(new Error('Você não tem permissão para realizar esta ação.'));
+        }
+
         if (error.response.status === 401) {
           if (typeof window !== 'undefined') {
             const isLogin = window.location.pathname.startsWith('/login');

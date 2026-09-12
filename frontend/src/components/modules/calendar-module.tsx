@@ -4,17 +4,12 @@
 import { useState, useEffect } from 'react';
 import type { ReactNode } from 'react';
 
-// IMPORTS DE BIBLIOTECAS
-import { CalendarDays, Clock } from 'lucide-react';
-
 // IMPORTS LOCAIS
 import { TabBar } from '@/components/shared/tab-bar';
 import type { ModuleConfig } from '@/lib/constants';
 import { AppointmentsOverviewPage } from '@/components/pages/appointments-overview-page';
 import { AppointmentsPage } from '@/components/pages/appointments-page';
 import { ScheduleSlotsPage } from '@/components/pages/schedule-slots-page';
-import { usePermission } from '@/hooks/use-permission';
-import { Button } from '@/components/ui/button';
 
 // INTERFACE DAS PROPRIEDADES DO MODULO DE CALENDARIO
 interface CalendarModuleProps {
@@ -25,8 +20,6 @@ interface CalendarModuleProps {
 
 // COMPONENTE DO MODULO DE CALENDARIO
 export function CalendarModule({ module, activeTab, onTabChange }: CalendarModuleProps) {
-  const isAdminOrFarm = usePermission('SCHEDULES_CREATE');
-
   const [showSchedule, setShowSchedule] = useState(false);
 
   // ESCUTANDO EVENTO PARA IR PARA ABA DE AGENDAMENTOS
@@ -53,52 +46,10 @@ export function CalendarModule({ module, activeTab, onTabChange }: CalendarModul
     activeTabContent = <AppointmentsPage />;
   }
 
-  // BOTAO DE GERENCIAR ESCALAS OU VOLTAR
-  let scheduleToggleButton: ReactNode = null;
-  if (activeTab === 'agenda') {
-    if (isAdminOrFarm) {
-      let buttonLabel: ReactNode = null;
-      if (showSchedule) {
-        buttonLabel = (
-          <>
-            <CalendarDays className="w-4 h-4" />
-            Voltar para Agenda
-          </>
-        );
-      } else {
-        buttonLabel = (
-          <>
-            <Clock className="w-4 h-4" />
-            Gerenciar Escalas
-          </>
-        );
-      }
-
-      scheduleToggleButton = (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={() => {
-              if (showSchedule) {
-                setShowSchedule(false);
-              } else {
-                setShowSchedule(true);
-              }
-            }}
-            className="rounded-xl gap-2"
-          >
-            {buttonLabel}
-          </Button>
-        </div>
-      );
-    }
-  }
-
   return (
     <div className="space-y-6 max-w-7xl mx-auto page-enter">
       <TabBar tabs={module.tabs} activeTab={activeTab} onTabChange={onTabChange} />
       {activeTabContent}
-      {scheduleToggleButton}
     </div>
   );
 }

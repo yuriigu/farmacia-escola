@@ -185,10 +185,19 @@ export class UserController {
         return;
       }
 
-      const payload = { ...validationResult.data };
+      const payload: Record<string, any> = { ...validationResult.data };
       if (role !== 'ADMIN') {
-        delete payload.role;
-        delete payload.permissions;
+        if ('role' in payload) {
+          delete payload.role;
+        }
+
+        if ('permissions' in payload) {
+          delete payload.permissions;
+        }
+
+        if ('active' in payload) {
+          delete payload.active;
+        }
       }
 
       const updated = await this.userService.updateUser(adminId, id, payload as any);

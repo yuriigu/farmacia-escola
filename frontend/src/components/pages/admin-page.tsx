@@ -4,7 +4,6 @@ import { useState, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { toast } from 'sonner';
 import {
-  ShieldCheck,
   Plus,
   Pencil,
   Power,
@@ -18,10 +17,12 @@ import {
   FileText,
   Download,
   AlertCircle,
+  Users,
 } from 'lucide-react';
 
 import type { User } from '@/lib/types';
 import { getAvatarColor, downloadCSV } from '@/lib/constants';
+import { useAuthStore } from '@/lib/auth-store';
 import {
   useUsers,
   useCreateUser,
@@ -59,7 +60,7 @@ const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Administrador',
   FARMACEUTICO: 'Farmacêutico',
   MEDICO: 'Médico',
-  ALUNO: 'Aluno / Estagiário',
+  ALUNO: 'Aluno',
   PACIENTE: 'Paciente',
 };
 
@@ -88,6 +89,14 @@ const initialFormData: UserFormData = {
 };
 
 export function AdminPage() {
+  const currentUser = useAuthStore((state) => state.user);
+  let isCurrentAdmin = false;
+  if (currentUser) {
+    if (currentUser.role === 'ADMIN') {
+      isCurrentAdmin = true;
+    }
+  }
+
   const { data: users = [], isLoading } = useUsers();
   const createUserMutation = useCreateUser();
   const updateUserMutation = useUpdateUser();
@@ -606,6 +615,12 @@ export function AdminPage() {
       width: '130px',
       align: 'right',
       cell: (u) => {
+        if (!isCurrentAdmin) {
+          return (
+            <span className="text-xs text-slate-400 italic">Somente leitura</span>
+          );
+        }
+
         let toggleClass = 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30';
         let toggleTitle = 'Ativar usuário';
         if (u.active) {
@@ -655,32 +670,43 @@ export function AdminPage() {
 
   const docInfo = getDocInfo(form.role);
 
+  let isSelfEditing = false;
+  if (editingUser) {
+    if (currentUser) {
+      if (editingUser.id === currentUser.id) {
+        isSelfEditing = true;
+      }
+    }
+  }
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto page-enter pb-10">
       {/* Header with quick stats */}
       <PageHeader
-        title="Administração e Usuários"
+        title="Usuários"
         description="Gestão centralizada de contas de acesso, perfis de operadores e registros da Farmácia Escola."
-        icon={ShieldCheck}
+        icon={Users}
         actions={
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={handleExportCSV}
-              disabled={filteredUsers.length === 0}
-              className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
-            >
-              <Download className="w-4 h-4" />
-              <span>Exportar CSV</span>
-            </Button>
-            <Button
-              onClick={handleOpenCreate}
-              className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition-all active:scale-[0.98]"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Novo Usuário</span>
-            </Button>
-          </div>
+          isCurrentAdmin ? (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                onClick={handleExportCSV}
+                disabled={filteredUsers.length === 0}
+                className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
+              >
+                <Download className="w-4 h-4" />
+                <span>Exportar CSV</span>
+              </Button>
+              <Button
+                onClick={handleOpenCreate}
+                className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition-all active:scale-[0.98]"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Novo Usuário</span>
+              </Button>
+            </div>
+          ) : undefined
         }
       />
 
@@ -759,7 +785,7 @@ export function AdminPage() {
         columns={columns}
         data={filteredUsers}
         isLoading={isLoading}
-        emptyIcon={ShieldCheck}
+        emptyIcon={Users}
         emptyTitle="Nenhum usuário encontrado"
         emptyDescription={(() => {
           if (search.length > 0) {
@@ -771,13 +797,15 @@ export function AdminPage() {
           return 'Cadastre um novo usuário para iniciar.';
         })()}
         emptyAction={
-          <Button
-            onClick={handleOpenCreate}
-            className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Novo Usuário
-          </Button>
+          isCurrentAdmin ? (
+            <Button
+              onClick={handleOpenCreate}
+              className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Novo Usuário
+            </Button>
+          ) : undefined
         }
       />
 
@@ -787,7 +815,7 @@ export function AdminPage() {
           <DialogHeader>
             <div className="flex items-center gap-2.5">
               <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900">
-                <ShieldCheck className="w-5 h-5" />
+                <Users className="w-5 h-5" />
               </div>
               <div>
                 <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
@@ -847,7 +875,7 @@ export function AdminPage() {
                 <Label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
                   Tipo / Perfil de Usuário <span className="text-rose-500">*</span>
                 </Label>
-                <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
+                <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })} disabled={isSelfEditing}>
                   <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 h-10">
                     <SelectValue placeholder="Selecione o perfil" />
                   </SelectTrigger>
@@ -861,6 +889,12 @@ export function AdminPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {(() => {
+                  if (isSelfEditing) {
+                    return <p className="text-[10px] text-amber-500 mt-1">O próprio perfil de administrador não pode ser rebaixado.</p>;
+                  }
+                  return null;
+                })()}
               </div>
 
               <div>
@@ -871,9 +905,17 @@ export function AdminPage() {
                   value={form.registerDoc}
                   onChange={(e) => setForm({ ...form, registerDoc: e.target.value })}
                   placeholder={docInfo.placeholder}
+                  disabled={isSelfEditing}
                   className="rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 h-10"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">{docInfo.helper}</p>
+                <p className="text-[10px] text-slate-400 mt-1">
+                  {(() => {
+                    if (isSelfEditing) {
+                      return 'O próprio identificador não pode ser alterado no perfil.';
+                    }
+                    return docInfo.helper;
+                  })()}
+                </p>
               </div>
             </div>
 
@@ -1006,6 +1048,9 @@ export function AdminPage() {
                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Status da Conta</p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400">
                   {(() => {
+                    if (isSelfEditing) {
+                      return 'A própria conta de administrador não pode ser desativada.';
+                    }
                     if (form.active) {
                       return 'Usuário ativo e autorizado a acessar o sistema.';
                     }
@@ -1015,6 +1060,7 @@ export function AdminPage() {
               </div>
               <Switch
                 checked={form.active}
+                disabled={isSelfEditing}
                 onCheckedChange={(checked) => setForm({ ...form, active: checked })}
               />
             </div>
@@ -1107,3 +1153,5 @@ export function AdminPage() {
     </div>
   );
 }
+
+export const UsersPage = AdminPage;

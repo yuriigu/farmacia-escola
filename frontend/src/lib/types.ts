@@ -16,7 +16,8 @@ export type StockStatus =
   | 'ok'
   | 'low'
   | 'critical'
-  | 'expired';
+  | 'expired'
+  | 'Venc. Próx';
 
 export interface Medicine {
   id: number;

@@ -78,8 +78,23 @@ export default function MedicinesPage() {
     canCreateMedicine = false;
   }
 
-  const normalizedRole = user?.role?.toUpperCase();
-  const canExport = normalizedRole === 'ADMIN' || normalizedRole === 'FARMACEUTICO';
+  let normalizedRole = '';
+  if (user) {
+    if (user.role) {
+      normalizedRole = user.role.toUpperCase();
+    }
+  }
+
+  let canExport = false;
+  if (normalizedRole === 'ADMIN') {
+    canExport = true;
+  } else {
+    if (normalizedRole === 'FARMACEUTICO') {
+      canExport = true;
+    } else {
+      canExport = false;
+    }
+  }
 
   const { data: rawMedicines, isLoading } = useMedicines();
   let medicines: Medicine[] = [];
@@ -172,6 +187,8 @@ export default function MedicinesPage() {
         name: data.name.trim(),
         activeIngredient: activeIngredientVal,
         dosage: formattedDosage,
+        dosageValue: data.dosageValue,
+        dosageUnit: data.dosageUnit,
         accessibleDesc: accessibleDescVal,
         category: data.category,
       },
@@ -181,12 +198,35 @@ export default function MedicinesPage() {
           resetMedicineForm();
           let createdObj: Medicine = createdMed;
           if (!createdObj) {
+            let safeActiveIngredient = '';
+            if (activeIngredientVal) {
+              safeActiveIngredient = activeIngredientVal;
+            } else {
+              safeActiveIngredient = '';
+            }
+
+            let safeDosage = '';
+            if (formattedDosage) {
+              safeDosage = formattedDosage;
+            } else {
+              safeDosage = '';
+            }
+
+            let safeAccessibleDesc = '';
+            if (accessibleDescVal) {
+              safeAccessibleDesc = accessibleDescVal;
+            } else {
+              safeAccessibleDesc = '';
+            }
+
             createdObj = {
               id: Date.now(),
               name: data.name.trim(),
-              activeIngredient: activeIngredientVal || '',
-              dosage: formattedDosage || '',
-              accessibleDesc: accessibleDescVal || '',
+              activeIngredient: safeActiveIngredient,
+              dosage: safeDosage,
+              dosageValue: data.dosageValue,
+              dosageUnit: data.dosageUnit,
+              accessibleDesc: safeAccessibleDesc,
               category: data.category,
               totalQuantity: 0,
               physicalQuantity: 0,

@@ -133,6 +133,9 @@ export const api = {
       name: string;
       activeIngredient?: string;
       dosage?: string;
+      dosageValue?: number | null;
+      dosageUnit?: string | null;
+      minQuantity?: number;
       accessibleDesc?: string;
       category?: string;
     }) => {

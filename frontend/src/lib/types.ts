@@ -1,9 +1,10 @@
 // Types matching the corrected API responses
 
-export type Role = 'ADMIN' | 'FARMACEUTICO' | 'MEDICO' | 'ALUNO' | 'PACIENTE';
+export type Role = 'ADMIN' | 'FARMACEUTICO' | 'MEDICO' | 'ALUNO' | 'PACIENTE' | 'ATENDENTE';
 export type AppointmentStatus = 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
 export type StockStatus =
   | 'IN_STOCK'
+  | 'LOW_STOCK'
   | 'CRITICAL_EXPIRATION'
   | 'EXPIRED'
   | 'OUT_OF_STOCK'
@@ -22,6 +23,9 @@ export interface Medicine {
   name: string;
   activeIngredient: string;
   dosage: string;
+  dosageValue?: number | null;
+  dosageUnit?: string | null;
+  minQuantity?: number;
   accessibleDesc: string;
   category?: string | null;
   totalQuantity: number;
@@ -33,6 +37,7 @@ export interface Medicine {
   batches?: Batch[];
   createdAt: string;
   updatedAt?: string;
+  deletedAt?: string | null;
 }
 
 export interface Batch {

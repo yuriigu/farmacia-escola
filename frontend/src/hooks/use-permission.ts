@@ -84,11 +84,11 @@ export function hasPermission(action: PermissionAction, role?: string | null, pe
 
 export function usePermission(action: PermissionAction): boolean {
   const user = useAuthStore((state) => state.user);
-  let userRole = null;
+  let userRole: string | null = null;
   if (user) {
     userRole = user.role;
   }
-  let userPerms = null;
+  let userPerms: Record<string, boolean> | null = null;
   if (user) {
     if (user.permissions) {
       userPerms = user.permissions;

@@ -35,7 +35,16 @@ export function SettingsPage() {
     }
   }
   const [email, setEmail] = useState(initialEmail);
-  const [phone, setPhone] = useState('');
+
+  let initialPhone = '';
+  if (user) {
+    if (user.phone) {
+      initialPhone = user.phone;
+    }
+  }
+  const [phone, setPhone] = useState(initialPhone);
+
+  const [address, setAddress] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
   // Password fields
@@ -46,8 +55,6 @@ export function SettingsPage() {
   const [showNewPw, setShowNewPw] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
-
-
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -55,7 +62,10 @@ export function SettingsPage() {
 
     setSavingProfile(true);
     try {
-      const updatedUser = await api.updateUser(user.id, { email, phone });
+      const updatedUser = await api.updateUser(user.id, { email, phone, address });
+      if (user.patientId) {
+        await api.updatePatient(user.patientId, { phone, address });
+      }
       let authToken = '';
       if (token) {
         authToken = token;
@@ -63,6 +73,7 @@ export function SettingsPage() {
       setAuth(authToken, {
         ...user,
         email: updatedUser.email,
+        phone: phone,
       });
       toast.success('Perfil atualizado com sucesso!');
     } catch (err: unknown) {
@@ -158,7 +169,7 @@ export function SettingsPage() {
             <div className="space-y-6">
               {/* User Profile Header Card */}
               <div className="glass-card rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
-                <div className="h-24 sm:h-28 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 relative">
+                <div className="h-24 sm:h-28 bg-linear-to-r from-emerald-600 via-teal-600 to-emerald-700 relative">
                   <div
                     className="absolute inset-0 opacity-20"
                     style={{
@@ -299,6 +310,19 @@ export function SettingsPage() {
                           value={phone}
                           onChange={(e) => setPhone(e.target.value)}
                           placeholder="(00) 00000-0000"
+                          className="rounded-xl border-slate-200 dark:border-slate-700 text-xs"
+                        />
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                          Endereço Completo
+                        </Label>
+                        <Input
+                          type="text"
+                          value={address}
+                          onChange={(e) => setAddress(e.target.value)}
+                          placeholder="Rua, número, bairro, cidade - UF"
                           className="rounded-xl border-slate-200 dark:border-slate-700 text-xs"
                         />
                       </div>

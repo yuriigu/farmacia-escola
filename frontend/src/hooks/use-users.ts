@@ -1,6 +1,6 @@
 // IMPORTS DE BIBLIOTECAS
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 
 // IMPORTS LOCAIS
 import { api } from '@/services/api';

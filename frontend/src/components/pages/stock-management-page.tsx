@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import { z } from 'zod';
 import {
   Boxes, Plus, Search, Pencil, Trash2, Eye, X, Calendar, Download,
@@ -741,7 +741,7 @@ export function StockManagementPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Medicamento *
               </Label>
               <Select
@@ -773,7 +773,7 @@ export function StockManagementPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                   Número do Lote *
                 </Label>
                 <Input
@@ -786,7 +786,7 @@ export function StockManagementPage() {
               </div>
 
               <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                   Quantidade Recebida *
                 </Label>
                 <Input
@@ -808,7 +808,7 @@ export function StockManagementPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                   Data de Validade *
                 </Label>
                 <Input
@@ -821,7 +821,7 @@ export function StockManagementPage() {
               </div>
 
               <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                   Data de Fabricação
                 </Label>
                 <Input
@@ -839,7 +839,7 @@ export function StockManagementPage() {
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Fornecedor / Origem *
               </Label>
               <Input
@@ -1073,7 +1073,7 @@ export function StockManagementPage() {
           </DialogHeader>
           <form onSubmit={handleEdit} className="space-y-4 pt-1">
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Número do Lote
               </Label>
               <Input
@@ -1084,7 +1084,7 @@ export function StockManagementPage() {
               />
             </div>
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Quantidade em Estoque
               </Label>
               <Input
@@ -1097,7 +1097,7 @@ export function StockManagementPage() {
               />
             </div>
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Data de Validade
               </Label>
               <Input
@@ -1168,7 +1168,7 @@ export function StockManagementPage() {
                 if (!batchToBlock.isBlocked) {
                   return (
                     <div>
-                      <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                      <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                         Motivo do Bloqueio Sanitário *
                       </Label>
                       <Input
@@ -1238,7 +1238,7 @@ export function StockManagementPage() {
 
           <form onSubmit={handleAdjustConfirm} className="space-y-4 pt-1">
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Nova Quantidade em Estoque *
               </Label>
               <Input
@@ -1252,7 +1252,7 @@ export function StockManagementPage() {
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Justificativa Obrigatória *
               </Label>
               <Input

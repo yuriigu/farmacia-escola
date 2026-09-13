@@ -91,9 +91,7 @@ export class AppointmentService {
       throw { statusCode: 400, message: 'Data de agendamento inválida' };
     }
 
-    if (!slotId) {
-      throw { statusCode: 400, message: 'Uma escala de atendimento é obrigatória' };
-    }
+    // Escala opcional: registro avulso/presencial (dispensacao imediata) nao exige horario reservado.
 
     if (!items) {
       throw { statusCode: 400, message: 'Ao menos um medicamento deve ser adicionado ao agendamento' };
@@ -184,29 +182,24 @@ export class AppointmentService {
       }
       targetPatientId = patient.id;
     } else {
-      if (user.role === 'MEDICO') {
-        if (patientCpf) {
-          const cleanCpf = patientCpf.replace(/\D/g, '');
-          let patient = await this.patientRepo.findByCpf(cleanCpf);
-          if (!patient) {
-            if (patientName) {
-              patient = await this.patientRepo.create({
-                name: patientName.trim(),
-                cpf: cleanCpf,
-              });
-            } else {
-              throw { statusCode: 400, message: 'Nome do paciente é obrigatório para cadastrar novo prontuário' };
-            }
-          }
-          targetPatientId = patient.id;
-        } else {
-          if (!targetPatientId) {
-            throw { statusCode: 400, message: 'CPF ou ID do paciente é obrigatório' };
+      // ADMIN, FARMACEUTICO, ALUNO, MEDICO: podem criar agendamento para qualquer paciente
+      if (patientCpf) {
+        const cleanCpf = patientCpf.replace(/\D/g, '');
+        let patient = await this.patientRepo.findByCpf(cleanCpf);
+        if (!patient) {
+          if (patientName) {
+            patient = await this.patientRepo.create({
+              name: patientName.trim(),
+              cpf: cleanCpf,
+            });
+          } else {
+            throw { statusCode: 400, message: 'Nome do paciente é obrigatório para cadastrar novo prontuário' };
           }
         }
+        targetPatientId = patient.id;
       } else {
         if (!targetPatientId) {
-          throw { statusCode: 400, message: 'ID do paciente é obrigatório' };
+          throw { statusCode: 400, message: 'CPF ou ID do paciente é obrigatório' };
         }
       }
     }
@@ -252,7 +245,7 @@ export class AppointmentService {
     return appointment;
   }
 
-  async updateStatus(userId: number, role: string, id: number, status: string, notes?: string) {
+  async updateStatus(userId: number, role: string, id: number, status: string, notes?: string, batchSelections?: Array<{ medicineId: number; batchId: number; quantity: number }>) {
     const numericId = Number(id);
     if (!numericId) {
       throw { statusCode: 400, message: 'ID de agendamento inválido' };
@@ -306,21 +299,49 @@ export class AppointmentService {
     }
 
     if (normalizedStatus === 'COMPLETED') {
+      console.log('🔍 [DEBUG] Criando withdrawal para agendamento:', numericId);
+      
       if (!appt.patient) {
         throw { statusCode: 400, message: 'O paciente do agendamento não foi encontrado' };
       }
       if (!appt.items || appt.items.length === 0) {
         throw { statusCode: 400, message: 'O agendamento não possui medicamentos para dispensação' };
       }
+      
+      console.log('🔍 [DEBUG] Items para dispensação:', appt.items.map(i => ({ medicineId: i.medicineId, quantity: i.quantity })));
+      
+      const dispenseItems = this.resolveDispenseItems(appt.items, batchSelections);
+
       const withdrawal = await this.withdrawalService.create(userId, role, {
         patientId: appt.patientId,
         patientCpf: appt.patient.cpf,
         patientName: appt.patient.name,
         appointmentId: numericId,
         notes: cleanNotes,
-        items: appt.items.map((item) => ({ medicineId: item.medicineId, quantity: item.quantity })),
+        items: dispenseItems,
       });
-      return withdrawal;
+      
+      console.log('✅ [DEBUG] Withdrawal criado:', withdrawal?.id);
+
+      // Atualiza o status do agendamento para COMPLETED
+      console.log('🔍 [DEBUG] Atualizando status do agendamento para COMPLETED...');
+      const updatedAppointment = await this.appointmentRepo.updateStatus(numericId, normalizedStatus, cleanNotes);
+      
+      console.log('✅ [DEBUG] Status atualizado. Agendamento:', { id: updatedAppointment.id, status: updatedAppointment.status });
+
+      await this.logService.log(
+        userId,
+        'update_status',
+        'appointments',
+        numericId,
+        `Atualizou status do agendamento #${numericId} para ${normalizedStatus}`
+      );
+      
+      // Retorna o withdrawal com informações do agendamento atualizado
+      return {
+        ...withdrawal,
+        appointment: updatedAppointment,
+      };
     }
 
     const updated = await this.appointmentRepo.updateStatus(numericId, normalizedStatus, cleanNotes);
@@ -451,6 +472,73 @@ export class AppointmentService {
     );
 
     return { message: 'Agendamento cancelado/excluído com sucesso' };
+  }
+
+  private resolveDispenseItems(
+    appointmentItems: Array<{ medicineId: number; quantity: number }>,
+    batchSelections?: Array<{ medicineId: number; batchId: number; quantity: number }>
+  ): Array<{ medicineId?: number; batchId?: number; quantity: number }> {
+    if (!batchSelections || batchSelections.length === 0) {
+      return appointmentItems.map((item) => ({ medicineId: item.medicineId, quantity: item.quantity }));
+    }
+    const normalized = batchSelections.map((s) => ({
+      medicineId: Number(s.medicineId),
+      batchId: Number(s.batchId),
+      quantity: Number(s.quantity),
+    }));
+    for (const item of appointmentItems) {
+      const total = normalized.filter((s) => s.medicineId === Number(item.medicineId)).reduce((acc, s) => acc + s.quantity, 0);
+      if (total !== Number(item.quantity)) {
+        throw { statusCode: 400, message: 'A quantidade dispensada por lote deve corresponder a quantidade do agendamento' };
+      }
+    }
+    if (normalized.length !== appointmentItems.length && normalized.length > 0) {
+      const expected = appointmentItems.reduce((acc, i) => acc + Number(i.quantity), 0);
+      const got = normalized.reduce((acc, s) => acc + s.quantity, 0);
+      if (got !== expected) {
+        throw { statusCode: 400, message: 'A quantidade total dos lotes deve corresponder ao agendamento' };
+      }
+    }
+    return normalized;
+  }
+
+  async revertDispense(userId: number, role: string, id: number, reason: string) {
+    const numericId = Number(id);
+    if (!numericId || isNaN(numericId)) {
+      throw { statusCode: 400, message: 'ID de agendamento invalido' };
+    }
+    const cleanReason = (reason || '').trim();
+    if (!cleanReason) {
+      throw { statusCode: 400, message: 'O motivo do estorno e obrigatorio' };
+    }
+    const allowed = role === 'ADMIN' || role === 'FARMACEUTICO';
+    if (!allowed) {
+      throw { statusCode: 403, message: 'Apenas administradores e farmaceuticos podem estornar retiradas' };
+    }
+    const appt = await this.appointmentRepo.findById(numericId);
+    if (!appt) {
+      throw { statusCode: 404, message: 'Agendamento nao encontrado' };
+    }
+    if (appt.status !== 'COMPLETED') {
+      throw { statusCode: 400, message: 'Somente agendamentos concluidos podem ser estornados' };
+    }
+    const withdrawals = (appt as any).withdrawals || [];
+    const active = withdrawals.filter((w: any) => w.status !== 'CANCELLED');
+    if (active.length === 0) {
+      throw { statusCode: 400, message: 'Nenhuma dispensacao ativa vinculada a este agendamento' };
+    }
+    for (const w of active) {
+      await this.withdrawalService.cancel(userId, role, w.id, 'Estorno do agendamento #' + numericId + '. Motivo: ' + cleanReason);
+    }
+    const updated = await this.appointmentRepo.updateStatus(numericId, 'CONFIRMED', 'Estornada dispensacao em ' + new Date().toISOString() + '. Motivo: ' + cleanReason);
+    await this.logService.log(
+      userId,
+      'revert_dispense',
+      'appointments',
+      numericId,
+      'Estornou dispensacao do agendamento #' + numericId + '. Motivo: ' + cleanReason
+    );
+    return updated;
   }
 
   async calculateRealAvailableStock(medicineId: number): Promise<{

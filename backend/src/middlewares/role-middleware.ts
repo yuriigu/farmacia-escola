@@ -119,6 +119,22 @@ export function authorizeRoles(...allowedRoles: string[]) {
   };
 }
 
+export function requireAnyPermission(...permissionKeys: string[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+    if (req.user) {
+      for (const key of permissionKeys) {
+        if (hasPermission(req, key)) {
+          next();
+          return;
+        }
+      }
+      res.status(403).json({ error: 'Acesso negado' });
+    } else {
+      res.status(401).json({ error: 'Não autenticado' });
+    }
+  };
+}
+
 export function requirePermission(permissionKey: string) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
     if (req.user) {

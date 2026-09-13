@@ -6,7 +6,7 @@ import { useState, useEffect, ReactNode, Suspense } from 'react';
 // IMPORTS DE BIBLIOTECAS
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { Toaster, toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import {
   Pill, LogOut, Menu, XIcon, Sun, Moon, UserRound, ChevronRight, Settings, ShieldAlert
 } from 'lucide-react';
@@ -32,7 +32,6 @@ const PATH_MODULE_MAP: Record<string, ModuleId> = {
   '/dashboard': 'dashboard',
   '/medicines': 'medicines',
   '/estoque': 'estoque',
-  '/retiradas': 'retiradas',
   '/descartes': 'descartes',
   '/agendamentos': 'agendamentos',
   '/appointments': 'agendamentos',
@@ -47,7 +46,6 @@ const PATH_MODULE_MAP: Record<string, ModuleId> = {
   '/profile': 'settings',
   '/settings': 'settings',
   '/my-appointments': 'agendamentos',
-  '/my-withdrawals': 'retiradas',
 };
 
 // INTERFACE DAS PROPRIEDADES DO COMPONENTE
@@ -296,7 +294,8 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex">
-      <Toaster position="top-right" richColors />
+      {/* O <Toaster> global fica em app/layout.tsx (visibleToasts={1}).
+          Nao montar outro aqui: duplicaria cada toast renderizado. */}
 
       {/* OVERLAY PARA MOBILE */}
       {mobileOverlay}
@@ -304,10 +303,10 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
       {/* ==================== BARRA LATERAL ==================== */}
       <aside className={sidebarClasses}>
         {/* LOGO */}
-        <div className="h-1 bg-gradient-to-r from-emerald-500 via-teal-400 to-emerald-600" />
+        <div className="h-1 bg-linear-to-r from-emerald-500 via-teal-400 to-emerald-600" />
         <div className="p-5 flex items-center justify-between gap-3 border-b border-slate-800">
           <Link href="/dashboard" className="flex items-center gap-3">
-            <div className="p-2.5 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl text-white shadow-lg shadow-emerald-900/30">
+            <div className="p-2.5 bg-linear-to-br from-emerald-500 to-teal-600 rounded-xl text-white shadow-lg shadow-emerald-900/30">
               <Pill className="w-6 h-6" />
             </div>
             <div>
@@ -405,7 +404,7 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <div className="flex items-center gap-2.5 cursor-pointer select-none">
-                  <div className="hidden sm:flex flex-col items-end text-right min-w-0 max-w-[140px] md:max-w-[200px]">
+                  <div className="hidden sm:flex flex-col items-end text-right min-w-0 max-w-35 md:max-w-50">
                     <p className="text-xs font-bold text-slate-800 dark:text-slate-100 leading-tight truncate w-full">
                       {userName}
                     </p>
@@ -413,7 +412,7 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
                       <RoleBadge role={userRoleProp} className="text-[10px] py-0 px-2" />
                     </div>
                   </div>
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/50 dark:to-teal-900/50 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-sm ring-2 ring-emerald-200 dark:ring-emerald-800 hover:shadow-lg hover:shadow-emerald-500/20 transition-all shrink-0">
+                  <div className="w-9 h-9 rounded-full bg-linear-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/50 dark:to-teal-900/50 text-emerald-800 dark:text-emerald-300 flex items-center justify-center font-bold text-sm ring-2 ring-emerald-200 dark:ring-emerald-800 hover:shadow-lg hover:shadow-emerald-500/20 transition-all shrink-0">
                     {userInitial}
                   </div>
                 </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import { Trash2, Plus, Undo2, Download, Package, Calendar, User, Search, X } from 'lucide-react';
 import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/pharmacy-store';
 import type { DisposalDraft, Disposal } from '@/lib/types';
@@ -180,11 +180,48 @@ export function DisposalsPage() {
       toast.error('Informe a justificativa da reversão.');
       return;
     }
+    const reasonText = revertReason.trim();
     try {
-      await api.revertDisposal(id, revertReason.trim());
+      await api.revertDisposal(id, reasonText);
+      usePharmacyStore.setState((state) => {
+        const updatedList = state.disposals.map((item) => {
+          if (item.id === id) {
+            return {
+              ...item,
+              status: 'REVERTED',
+              revertReason: reasonText,
+              revertedAt: new Date().toISOString(),
+            };
+          }
+          return item;
+        });
+        return { disposals: updatedList };
+      });
       toast.success('Descarte revertido com sucesso.');
+      // Fecha APENAS o modal de justificativa. Se o comprovante estiver
+      // aberto, ele permanece e passa a exibir o status REVERTED.
       setReverting(null);
       setRevertReason('');
+      setSelectedDisposal((current) => {
+        if (current) {
+          if (current.id === id) {
+            return {
+              ...current,
+              status: 'REVERTED',
+              revertReason: reasonText,
+              revertedAt: new Date().toISOString(),
+            };
+          }
+        }
+        return current;
+      });
+      try {
+        const freshDisposals = await api.getDisposals();
+        usePharmacyStore.setState({ disposals: freshDisposals });
+        const freshBatches = await api.getBatches();
+        usePharmacyStore.setState({ batches: freshBatches });
+      } catch {
+      }
       fetchAllData();
     } catch (err: unknown) {
       const error = err as { error?: string };
@@ -297,22 +334,28 @@ export function DisposalsPage() {
       width: '100px',
       align: 'right',
       cell: (d) => {
-        if (canWrite && d.status !== 'REVERTED') {
-          return (
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setRevertReason('');
-                setReverting(d.id);
-              }}
-              className="h-8 px-2 rounded-lg text-xs gap-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-              title="Reverter descarte"
-            >
-              <Undo2 className="w-3.5 h-3.5" />
-              <span>Reverter</span>
-            </Button>
-          );
+        if (canWrite) {
+          if (d.status !== 'REVERTED') {
+            return (
+              <div onClick={(e) => e.stopPropagation()}>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setSelectedDisposal(null);
+                    setRevertReason('');
+                    setReverting(d.id);
+                  }}
+                  className="h-8 px-2 rounded-lg text-xs gap-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
+                  title="Reverter descarte"
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                  <span>Reverter</span>
+                </Button>
+              </div>
+            );
+          }
         }
         return null;
       },
@@ -328,25 +371,39 @@ export function DisposalsPage() {
         icon={Trash2}
         actions={
           <>
-            {canWrite && <Button
-              variant="outline"
-              onClick={handleExportCSV}
-              disabled={filteredDisposals.length === 0}
-              className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
-            >
-              <Download className="w-4 h-4" />
-              <span>Exportar CSV</span>
-            </Button>}
-            {canWrite && <Button
-              onClick={() => {
-                setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
-                setModalOpen(true);
-              }}
-              className="h-10 rounded-xl gap-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Novo Descarte</span>
-            </Button>}
+            {(() => {
+              if (canWrite) {
+                return (
+                  <Button
+                    variant="outline"
+                    onClick={handleExportCSV}
+                    disabled={filteredDisposals.length === 0}
+                    className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Exportar CSV</span>
+                  </Button>
+                );
+              }
+              return null;
+            })()}
+            {(() => {
+              if (canWrite) {
+                return (
+                  <Button
+                    onClick={() => {
+                      setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
+                      setModalOpen(true);
+                    }}
+                    className="h-10 rounded-xl gap-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Novo Descarte</span>
+                  </Button>
+                );
+              }
+              return null;
+            })()}
           </>
         }
       />
@@ -386,24 +443,29 @@ export function DisposalsPage() {
         emptyIcon={Trash2}
         emptyTitle="Nenhum descarte registrado"
         emptyDescription="Não há registros de descarte correspondentes aos filtros aplicados."
-        emptyAction={canWrite ? (
-          <Button
-            onClick={() => {
-              setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
-              setModalOpen(true);
-            }}
-            className="h-9 rounded-xl gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            Novo Descarte
-          </Button>
-        ) : undefined}
+        emptyAction={(() => {
+          if (canWrite) {
+            return (
+              <Button
+                onClick={() => {
+                  setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
+                  setModalOpen(true);
+                }}
+                className="h-9 rounded-xl gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Novo Descarte
+              </Button>
+            );
+          }
+          return undefined;
+        })()}
         onRowClick={(disposal) => setSelectedDisposal(disposal)}
       />
 
       {/* Create Disposal Dialog */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-[480px] rounded-3xl">
+        <DialogContent className="sm:max-w-120 rounded-3xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
               <Trash2 className="w-5 h-5 text-rose-600" />
@@ -416,7 +478,7 @@ export function DisposalsPage() {
 
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                 Lote de Origem *
               </Label>
               {(() => {
@@ -461,7 +523,7 @@ export function DisposalsPage() {
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                 Quantidade a Descartar *
               </Label>
               {(() => {
@@ -510,7 +572,7 @@ export function DisposalsPage() {
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                 Motivo do Descarte *
               </Label>
               <Select value={form.reason} onValueChange={(v) => setForm({ ...form, reason: v })}>
@@ -556,45 +618,10 @@ export function DisposalsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Revert Dialog */}
-      <Dialog open={reverting !== null} onOpenChange={() => setReverting(null)}>
-        <DialogContent className="rounded-2xl max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-amber-600 flex items-center gap-2">
-              <Undo2 className="w-5 h-5" />
-              Reverter Descarte
-            </DialogTitle>
-            <DialogDescription>
-              Deseja reverter este descarte? A quantidade de unidades retornará automaticamente ao saldo do lote de origem.
-            </DialogDescription>
-          </DialogHeader>
-          <Textarea
-            value={revertReason}
-            onChange={(event) => setRevertReason(event.target.value)}
-            placeholder="Justificativa obrigatória da reversão"
-            rows={4}
-          />
-          <DialogFooter className="pt-2">
-            <Button variant="outline" onClick={() => setReverting(null)} className="rounded-xl">
-              Cancelar
-            </Button>
-            <Button
-              onClick={() => {
-                if (reverting) {
-                  handleRevert(reverting);
-                }
-              }}
-              className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold"
-            >
-              Sim, Reverter
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <Dialog
         open={selectedDisposal !== null}
         onOpenChange={(open) => {
+          // O X do comprovante fecha APENAS o comprovante.
           if (!open) {
             setSelectedDisposal(null);
           }
@@ -682,9 +709,88 @@ export function DisposalsPage() {
                   <p className="mb-1 text-[10px] font-bold uppercase text-slate-400">Observações</p>
                   <p className="text-xs text-slate-700 dark:text-slate-300">{notes}</p>
                 </div>
+                <DialogFooter className="pt-2 gap-2 sm:gap-0">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setSelectedDisposal(null)}
+                    className="rounded-xl"
+                  >
+                    Fechar
+                  </Button>
+                  {(() => {
+                    if (canWrite) {
+                      if (selectedDisposal.status !== 'REVERTED') {
+                        return (
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              // Abre a justificativa POR CIMA do comprovante
+                              // (o Revert Dialog e renderizado por ultimo no JSX).
+                              // O comprovante permanece aberto por tras.
+                              setRevertReason('');
+                              setReverting(selectedDisposal.id);
+                            }}
+                            className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5"
+                          >
+                            <Undo2 className="w-4 h-4" />
+                            Reverter Descarte
+                          </Button>
+                        );
+                      }
+                    }
+                    return null;
+                  })()}
+                </DialogFooter>
               </div>
             );
           })()}
+        </DialogContent>
+      </Dialog>
+
+      {/* Revert Dialog — sempre o ULTIMO no JSX: quando aberto junto com o
+          comprovante, fica deterministamente POR CIMA dele. */}
+      <Dialog
+        open={reverting !== null}
+        onOpenChange={(open) => {
+          // Fechar a justificativa (X/ESC/Cancelar) NAO fecha o comprovante
+          // que estiver aberto por baixo.
+          if (!open) {
+            setReverting(null);
+          }
+        }}
+      >
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-amber-600 flex items-center gap-2">
+              <Undo2 className="w-5 h-5" />
+              Reverter Descarte
+            </DialogTitle>
+            <DialogDescription>
+              Deseja reverter este descarte? A quantidade de unidades retornará automaticamente ao saldo do lote de origem.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={revertReason}
+            onChange={(event) => setRevertReason(event.target.value)}
+            placeholder="Justificativa obrigatória da reversão"
+            rows={4}
+          />
+          <DialogFooter className="pt-2">
+            <Button variant="outline" onClick={() => setReverting(null)} className="rounded-xl">
+              Cancelar
+            </Button>
+            <Button
+              onClick={() => {
+                if (reverting) {
+                  handleRevert(reverting);
+                }
+              }}
+              className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold"
+            >
+              Sim, Reverter
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

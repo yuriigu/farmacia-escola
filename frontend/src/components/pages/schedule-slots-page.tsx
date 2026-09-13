@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import type { EventClickArg } from '@fullcalendar/core';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import { CalendarDays, Plus, Trash2, Edit3, Clock, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
@@ -342,7 +342,7 @@ export function ScheduleSlotsPage() {
                 </DialogHeader>
                 <div className="space-y-4 pt-1">
                   <div>
-                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                       Farmacêutico responsável
                     </Label>
                     <Select
@@ -359,7 +359,7 @@ export function ScheduleSlotsPage() {
                     </Select>
                   </div>
                   <div>
-                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                       Data
                     </Label>
                     <Input
@@ -371,7 +371,7 @@ export function ScheduleSlotsPage() {
                     />
                   </div>
                   <div>
-                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                       Horário
                     </Label>
                     <select
@@ -388,7 +388,7 @@ export function ScheduleSlotsPage() {
                     </select>
                   </div>
                   <div>
-                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                       Capacidade Máxima (Vagas)
                     </Label>
                     <Input

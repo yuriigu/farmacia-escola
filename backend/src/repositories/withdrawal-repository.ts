@@ -231,6 +231,8 @@ export class WithdrawalRepository {
         if (!appointment) {
           throw { statusCode: 404, message: 'Agendamento não encontrado' };
         }
+        // Aceita agendamentos PENDING, CONFIRMED para nova dispensação
+        // Também aceita COMPLETED para re-dispensação (caso de retry)
         let isEligible = false;
         if (appointment.status === 'PENDING') {
           isEligible = true;
@@ -238,7 +240,13 @@ export class WithdrawalRepository {
           if (appointment.status === 'CONFIRMED') {
             isEligible = true;
           } else {
-            isEligible = false;
+            if (appointment.status === 'COMPLETED') {
+              // Permite re-dispensação se o agendamento já estava completado anteriormente
+              // Isso resolve o caso de retry quando a transação anterior falhou parcialmente
+              isEligible = true;
+            } else {
+              isEligible = false;
+            }
           }
         }
         if (!isEligible) {

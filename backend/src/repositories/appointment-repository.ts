@@ -37,6 +37,22 @@ export class AppointmentRepository {
             },
           },
         },
+        withdrawals: {
+          include: {
+            user: { select: { name: true } },
+            patient: { select: { id: true, name: true, cpf: true } },
+            items: {
+              include: {
+                batch: {
+                  include: {
+                    medicine: { select: { id: true, name: true, dosage: true } },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { date: 'desc' },
+        },
       },
       orderBy: { scheduledDate: 'asc' },
     });
@@ -56,6 +72,22 @@ export class AppointmentRepository {
           include: {
             medicine: true,
           },
+        },
+        withdrawals: {
+          include: {
+            user: { select: { name: true } },
+            patient: { select: { id: true, name: true, cpf: true } },
+            items: {
+              include: {
+                batch: {
+                  include: {
+                    medicine: { select: { id: true, name: true, dosage: true } },
+                  },
+                },
+              },
+            },
+          },
+          orderBy: { date: 'desc' },
         },
       },
     });

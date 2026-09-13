@@ -8,7 +8,7 @@ export const api = {
   register: (data: { name: string; email: string; password: string; cpf: string; phone?: string; birthDate?: string; address?: string }) =>
     serviceApi.auth.register(data),
   me: () => serviceApi.auth.me(),
-  updateProfilePassword: (data: { currentPassword?: string; newPassword?: string; name?: string; phone?: string }) =>
+  updateProfilePassword: (data: { currentPassword?: string; newPassword?: string; name?: string; phone?: string; address?: string }) =>
     serviceApi.auth.updateProfile(data),
 
   // Medicines
@@ -67,6 +67,9 @@ export const api = {
   }) => serviceApi.appointments.create(data),
   confirmAppointment: (id: number) => serviceApi.appointments.updateStatus(id, 'CONFIRMED'),
   completeAppointment: (id: number) => serviceApi.appointments.updateStatus(id, 'COMPLETED'),
+  dispenseAppointment: (id: number, data: { batchSelections?: Array<{ medicineId: number; batchId: number; quantity: number }>; notes?: string }) =>
+    serviceApi.appointments.dispense(id, data),
+  revertAppointmentDispense: (id: number, reason: string) => serviceApi.appointments.revertDispense(id, reason),
   cancelAppointment: (id: number, cancelReason?: string) => {
     let reason = 'Cancelamento solicitado pelo usuário';
     if (cancelReason) {

@@ -24,8 +24,44 @@ export class UserController {
       const role = req.user.role;
 
       if (role !== 'ADMIN') {
-        res.status(403).json({ error: 'Apenas administradores podem listar usuários do sistema' });
-        return;
+        if (role === 'FARMACEUTICO') {
+          const allUsers = await this.userService.getAllUsers();
+          const patientUsers = allUsers.filter((u) => {
+            if (u.role === 'PACIENTE') {
+              return true;
+            }
+            return false;
+          });
+          res.json(patientUsers);
+          return;
+        } else {
+          if (role === 'MEDICO') {
+            const allUsers = await this.userService.getAllUsers();
+            const patientUsers = allUsers.filter((u) => {
+              if (u.role === 'PACIENTE') {
+                return true;
+              }
+              return false;
+            });
+            res.json(patientUsers);
+            return;
+          } else {
+            if (role === 'ALUNO') {
+              const allUsers = await this.userService.getAllUsers();
+              const patientUsers = allUsers.filter((u) => {
+                if (u.role === 'PACIENTE') {
+                  return true;
+                }
+                return false;
+              });
+              res.json(patientUsers);
+              return;
+            } else {
+              res.status(403).json({ error: 'Apenas administradores podem listar usuários do sistema' });
+              return;
+            }
+          }
+        }
       }
 
       const users = await this.userService.getAllUsers();
@@ -161,8 +197,30 @@ export class UserController {
 
       if (role !== 'ADMIN') {
         if (id !== adminId) {
-          res.status(403).json({ error: 'Acesso não autorizado para modificar outro usuário' });
-          return;
+          let isStaff = false;
+          if (role === 'FARMACEUTICO') {
+            isStaff = true;
+          } else {
+            if (role === 'MEDICO') {
+              isStaff = true;
+            } else {
+              if (role === 'ALUNO') {
+                isStaff = true;
+              } else {
+                isStaff = false;
+              }
+            }
+          }
+
+          if (isStaff) {
+            if (userRecord.role !== 'PACIENTE') {
+              res.status(403).json({ error: 'Acesso não autorizado para modificar este usuário' });
+              return;
+            }
+          } else {
+            res.status(403).json({ error: 'Acesso não autorizado para modificar outro usuário' });
+            return;
+          }
         }
       }
 
@@ -189,6 +247,10 @@ export class UserController {
       if (role !== 'ADMIN') {
         if ('role' in payload) {
           delete payload.role;
+        }
+
+        if ('registerDoc' in payload) {
+          delete payload.registerDoc;
         }
 
         if ('permissions' in payload) {

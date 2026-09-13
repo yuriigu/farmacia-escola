@@ -6,7 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation } from '@tanstack/react-query';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import { Pill, Eye, EyeOff, Shield, LogIn } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { api } from '@/services/api';
@@ -61,7 +61,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 px-4 relative overflow-hidden">
+    <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 px-4 relative overflow-hidden">
       {/* Background blobs */}
       <div className="mesh-blob mesh-blob-1" style={{ top: '-10%', left: '-5%' }} />
       <div className="mesh-blob mesh-blob-2" style={{ top: '50%', right: '-10%' }} />
@@ -70,7 +70,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
       <div className="w-full max-w-md p-8 bg-white/90 dark:bg-slate-800/90 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-emerald-500/5 border border-white/60 dark:border-slate-700/60 animate-fade-in-slide-up relative z-10">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 via-teal-500 to-emerald-600 text-white mb-4 shadow-xl shadow-emerald-500/25">
+          <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-linear-to-br from-emerald-500 via-teal-500 to-emerald-600 text-white mb-4 shadow-xl shadow-emerald-500/25">
             <Pill className="w-10 h-10" />
           </div>
           <h1 className="text-3xl font-extrabold tracking-tight">
@@ -177,7 +177,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
           <Button
             type="submit"
             disabled={loginMutation.isPending}
-            className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all active:scale-[0.98] mt-2"
+            className="w-full h-11 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md shadow-emerald-600/20 transition-all active:scale-[0.98] mt-2"
           >
             {(() => {
               if (loginMutation.isPending) {

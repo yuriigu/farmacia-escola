@@ -165,7 +165,7 @@ export default function MedicineDetailsPage() {
   // DETERMINANDO BOTAO DE AGENDAMENTO
   let ctaButtonClass = 'w-full rounded-xl font-bold py-6 gap-2 shadow-md ';
   if (isAvailable) {
-    ctaButtonClass = ctaButtonClass + 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-emerald-600/20';
+    ctaButtonClass = ctaButtonClass + 'bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white shadow-emerald-600/20';
   } else {
     ctaButtonClass = ctaButtonClass + 'bg-slate-200 dark:bg-slate-700 text-slate-400 pointer-events-none';
   }

@@ -285,7 +285,7 @@ export const MODULES: ModuleConfig[] = [
     label: 'Calendário',
     path: '/calendario',
     icon: CalendarDays,
-    forbiddenRoles: ['PACIENTE'],
+    forbiddenRoles: [],
     tabs: [],
     defaultTab: '',
     actionLabels: {},

@@ -112,6 +112,7 @@ export interface Withdrawal {
   cancelReason?: string | null;
   quantity: number;
   notes?: string | null;
+  patientId?: number;
   allocatedItems?: Array<{
     batchId: number;
     batchNumber: string;
@@ -218,6 +219,25 @@ export interface Appointment {
   };
   slot?: ScheduleSlot | null;
   items?: AppointmentItem[];
+  withdrawals?: Array<{
+    id: number;
+    status?: string;
+    date?: string;
+    createdAt?: string;
+    notes?: string | null;
+    cancelReason?: string | null;
+    user?: { name?: string } | null;
+    patient?: { id: number; name: string; cpf: string } | null;
+    items?: Array<{
+      quantity: number;
+      batch?: {
+        id: number;
+        batchNumber: string;
+        expirationDate?: string;
+        medicine?: { id: number; name: string; dosage?: string | null } | null;
+      } | null;
+    }>; 
+  }>;
 }
 
 export interface AuthUser {
@@ -226,6 +246,8 @@ export interface AuthUser {
   email: string;
   role: string;
   active?: boolean;
+  phone?: string | null;
+  registerDoc?: string | null;
   patientId?: number | null;
   permissions?: Record<string, boolean>;
 }

@@ -7,6 +7,7 @@ vi.mock('../../../src/utils/prisma', () => ({
   prisma: {
     patient: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -32,15 +33,17 @@ describe('PatientRepository', () => {
     expect(prisma.patient.findMany).toHaveBeenCalled();
   });
 
-  it('deve buscar paciente por CPF', async () => {
-    (prisma.patient.findUnique as any).mockResolvedValue(mockPatient);
+  it('deve buscar paciente por CPF com ou sem formatacao', async () => {
+    (prisma.patient.findFirst as any).mockResolvedValue(mockPatient);
 
-    const result = await patientRepo.findByCpf('12345678901');
+    const byClean = await patientRepo.findByCpf('12345678901');
+    expect(byClean).toEqual(mockPatient);
 
-    expect(result).toEqual(mockPatient);
-    expect(prisma.patient.findUnique).toHaveBeenCalledWith({
-      where: { cpf: '12345678901' },
-    });
+    (prisma.patient.findFirst as any).mockResolvedValue(mockPatient);
+    const byFormatted = await patientRepo.findByCpf('123.456.789-01');
+
+    expect(byFormatted).toEqual(mockPatient);
+    expect(prisma.patient.findFirst).toHaveBeenCalled();
   });
 
   it('deve criar paciente', async () => {

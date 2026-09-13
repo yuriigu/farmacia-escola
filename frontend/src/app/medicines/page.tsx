@@ -4,14 +4,14 @@ import { useState, useMemo } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import {
   Package, Search, Plus, Calendar,
   Pill, X, Eye, HeartPulse, ShieldCheck,
   Layers, Clock, User, Download, Boxes, AlertCircle, CheckCircle2
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
-import { useMedicines, useCreateMedicine, useCreateAppointment, usePatients, useCreateBatch } from '@/services/queries';
+import { useMedicines, useCreateMedicine, useCreateAppointment, usePatients, useBatches } from '@/services/queries';
 import { useAuthStore } from '@/lib/auth-store';
 import { MEDICINE_CATEGORIES, downloadCSV } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
@@ -27,7 +27,7 @@ import {
   DialogHeader, DialogTitle
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { computeStockStatus, type Medicine, type StockStatus } from '@/lib/types';
+import { computeStockStatus, type Medicine, type Batch, type StockStatus } from '@/lib/types';
 
 export const DOSAGE_UNITS = ['MG', 'ML', 'G', 'MCG', 'UI'] as const;
 export type DosageUnit = typeof DOSAGE_UNITS[number];
@@ -114,7 +114,6 @@ export default function MedicinesPage() {
 
   const createMedicineMutation = useCreateMedicine();
   const createAppointmentMutation = useCreateAppointment();
-  const createBatchMutation = useCreateBatch();
 
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -125,12 +124,13 @@ export default function MedicinesPage() {
   const [selectedMedicineForDetails, setSelectedMedicineForDetails] = useState<Medicine | null>(null);
   const [selectedMedicineForAppointment, setSelectedMedicineForAppointment] = useState<Medicine | null>(null);
 
-  // Guided Initial Batch Modal state
-  const [isInitialBatchModalOpen, setIsInitialBatchModalOpen] = useState(false);
-  const [newlyCreatedMedicine, setNewlyCreatedMedicine] = useState<Medicine | null>(null);
-  const [initialBatchNumber, setInitialBatchNumber] = useState('');
-  const [initialBatchQuantity, setInitialBatchQuantity] = useState(100);
-  const [initialBatchExpiration, setInitialBatchExpiration] = useState('');
+  let selectedMedDetailsId: number | undefined = undefined;
+  if (selectedMedicineForDetails) {
+    selectedMedDetailsId = selectedMedicineForDetails.id;
+  } else {
+    selectedMedDetailsId = undefined;
+  }
+  const { data: queriedBatches } = useBatches(selectedMedDetailsId);
 
   // Appointment Form State
   const [appointmentDate, setAppointmentDate] = useState('');
@@ -193,56 +193,10 @@ export default function MedicinesPage() {
         category: data.category,
       },
       {
-        onSuccess: (createdMed: any) => {
+        onSuccess: () => {
           setIsCreateMedicineOpen(false);
           resetMedicineForm();
-          let createdObj: Medicine = createdMed;
-          if (!createdObj) {
-            let safeActiveIngredient = '';
-            if (activeIngredientVal) {
-              safeActiveIngredient = activeIngredientVal;
-            } else {
-              safeActiveIngredient = '';
-            }
-
-            let safeDosage = '';
-            if (formattedDosage) {
-              safeDosage = formattedDosage;
-            } else {
-              safeDosage = '';
-            }
-
-            let safeAccessibleDesc = '';
-            if (accessibleDescVal) {
-              safeAccessibleDesc = accessibleDescVal;
-            } else {
-              safeAccessibleDesc = '';
-            }
-
-            createdObj = {
-              id: Date.now(),
-              name: data.name.trim(),
-              activeIngredient: safeActiveIngredient,
-              dosage: safeDosage,
-              dosageValue: data.dosageValue,
-              dosageUnit: data.dosageUnit,
-              accessibleDesc: safeAccessibleDesc,
-              category: data.category,
-              totalQuantity: 0,
-              physicalQuantity: 0,
-              reservedQuantity: 0,
-              availableQuantity: 0,
-              batchesCount: 0,
-              createdAt: new Date().toISOString(),
-            };
-          }
-          setNewlyCreatedMedicine(createdObj);
-          setInitialBatchNumber('LOT-' + new Date().getFullYear() + '-001');
-          setInitialBatchQuantity(100);
-          const nextYear = new Date();
-          nextYear.setFullYear(nextYear.getFullYear() + 1);
-          setInitialBatchExpiration(nextYear.toISOString().split('T')[0]);
-          setIsInitialBatchModalOpen(true);
+          toast.success('Medicamento cadastrado com sucesso!');
         },
         onError: (err: any) => {
           let msg = 'Erro ao cadastrar medicamento.';
@@ -256,54 +210,6 @@ export default function MedicinesPage() {
             msg = 'Erro ao cadastrar medicamento.';
           }
           toast.error(msg);
-        },
-      }
-    );
-  };
-
-  const handleCreateInitialBatch = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newlyCreatedMedicine) {
-      toast.error('Nenhum medicamento selecionado.');
-      return;
-    }
-    if (!initialBatchNumber.trim()) {
-      toast.error('Informe o número do lote.');
-      return;
-    }
-    if (!initialBatchExpiration) {
-      toast.error('Informe a data de validade do lote.');
-      return;
-    }
-    if (initialBatchQuantity <= 0) {
-      toast.error('A quantidade do lote deve ser maior que zero.');
-      return;
-    }
-
-    createBatchMutation.mutate(
-      {
-        medicineId: newlyCreatedMedicine.id,
-        batchNumber: initialBatchNumber.trim(),
-        currentQuantity: initialBatchQuantity,
-        expirationDate: new Date(initialBatchExpiration).toISOString(),
-      },
-      {
-        onSuccess: () => {
-          toast.success('Primeiro lote ' + initialBatchNumber.trim() + ' cadastrado com sucesso!');
-          setIsInitialBatchModalOpen(false);
-          setNewlyCreatedMedicine(null);
-          setInitialBatchNumber('');
-          setInitialBatchQuantity(100);
-          setInitialBatchExpiration('');
-        },
-        onError: (err: any) => {
-          let errorMsg = 'Erro ao cadastrar lote inicial.';
-          if (err) {
-            if (err.message) {
-              errorMsg = err.message;
-            }
-          }
-          toast.error(errorMsg);
         },
       }
     );
@@ -1145,57 +1051,108 @@ export default function MedicinesPage() {
                   </div>
 
                   {/* Lotes Registrados */}
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                        <Layers className="w-4 h-4 text-teal-600" />
-                        Lotes Registrados ({batchesCount})
-                      </h4>
-                      {(() => {
-                        if (canCreateMedicine) {
-                          return (
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                const currentMed = med;
-                                setSelectedMedicineForDetails(null);
-                                setNewlyCreatedMedicine(currentMed);
-                                setInitialBatchNumber('LOT-' + new Date().getFullYear() + '-001');
-                                setInitialBatchQuantity(100);
-                                const nextYear = new Date();
-                                nextYear.setFullYear(nextYear.getFullYear() + 1);
-                                setInitialBatchExpiration(nextYear.toISOString().split('T')[0]);
-                                setIsInitialBatchModalOpen(true);
-                              }}
-                              className="h-7 px-2 text-xs font-semibold gap-1 text-emerald-700 dark:text-emerald-400 border-emerald-300 dark:border-emerald-800 rounded-lg"
-                            >
-                              <Plus className="w-3 h-3" />
-                              Novo Lote
-                            </Button>
-                          );
+                  {(() => {
+                    let displayBatches: Batch[] = [];
+                    if (queriedBatches) {
+                      if (queriedBatches.length > 0) {
+                        displayBatches = queriedBatches;
+                      } else {
+                        if (med.batches) {
+                          if (Array.isArray(med.batches)) {
+                            displayBatches = med.batches;
+                          }
                         }
-                        return null;
-                      })()}
-                    </div>
-                    {(() => {
-                      if (batchesCount === 0) {
-                        return (
-                          <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
-                            <span>Nenhum lote cadastrado para este medicamento.</span>
-                          </div>
-                        );
                       }
-                      return (
-                        <div className="p-3 bg-teal-50/60 dark:bg-teal-950/20 border border-teal-100 dark:border-teal-900/40 rounded-xl text-xs text-slate-700 dark:text-slate-300">
-                          <div className="flex items-center justify-between">
-                            <span className="font-semibold">Estoque Físico Total:</span>
-                            <span className="font-bold text-teal-700 dark:text-teal-300">{physicalQty} unidades</span>
-                          </div>
+                    } else {
+                      if (med.batches) {
+                        if (Array.isArray(med.batches)) {
+                          displayBatches = med.batches;
+                        }
+                      }
+                    }
+
+                    return (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <Layers className="w-4 h-4 text-teal-600" />
+                            Lotes Registrados ({displayBatches.length})
+                          </h4>
                         </div>
-                      );
-                    })()}
-                  </div>
+                        {(() => {
+                          if (displayBatches.length === 0) {
+                            return (
+                              <div className="p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/40 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-center justify-between">
+                                <span>Nenhum lote cadastrado para este medicamento.</span>
+                              </div>
+                            );
+                          }
+                          return (
+                            <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                              {displayBatches.map((batch) => {
+                                let expStr = '—';
+                                if (batch.expirationDate) {
+                                  expStr = new Date(batch.expirationDate).toLocaleDateString('pt-BR');
+                                }
+
+                                let isExpired = false;
+                                if (batch.expirationDate) {
+                                  const expDate = new Date(batch.expirationDate);
+                                  const now = new Date();
+                                  if (expDate.getTime() < now.getTime()) {
+                                    isExpired = true;
+                                  }
+                                }
+
+                                return (
+                                  <div
+                                    key={batch.id}
+                                    className="flex items-center justify-between p-2.5 bg-white dark:bg-slate-800 border border-slate-200/80 dark:border-slate-700/80 rounded-xl text-xs"
+                                  >
+                                    <div className="space-y-0.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono font-bold text-slate-800 dark:text-slate-100">
+                                          {batch.batchNumber}
+                                        </span>
+                                        {(() => {
+                                          if (batch.isBlocked) {
+                                            return (
+                                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300">
+                                                Bloqueado
+                                              </span>
+                                            );
+                                          }
+                                          if (isExpired) {
+                                            return (
+                                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-300">
+                                                Vencido
+                                              </span>
+                                            );
+                                          }
+                                          return null;
+                                        })()}
+                                      </div>
+                                      <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                                        Validade: <span className="font-medium text-slate-700 dark:text-slate-300">{expStr}</span>
+                                      </p>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="font-black text-sm text-slate-800 dark:text-slate-100">
+                                        {batch.currentQuantity} un.
+                                      </span>
+                                      <p className="text-[10px] text-slate-400">
+                                        Quantidade
+                                      </p>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    );
+                  })()}
 
                   {/* Footer Ações */}
                   <DialogFooter className="pt-2 gap-2 sm:gap-0">
@@ -1627,106 +1584,6 @@ export default function MedicinesPage() {
                     } else {
                       return 'Salvar Medicamento';
                     }
-                  })()}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
-
-        {/* ==================== MODAL GUIADO DE LOTE INICIAL ==================== */}
-        <Dialog
-          open={isInitialBatchModalOpen}
-          onOpenChange={(open) => {
-            setIsInitialBatchModalOpen(open);
-          }}
-        >
-          <DialogContent className="sm:max-w-md rounded-3xl">
-            <DialogHeader>
-              <div className="w-10 h-10 rounded-2xl bg-amber-50 dark:bg-amber-950/40 text-amber-600 flex items-center justify-center mb-1">
-                <Boxes className="w-5 h-5" />
-              </div>
-              <DialogTitle className="text-xl font-bold text-slate-900 dark:text-slate-100">
-                Adicionar Primeiro Lote
-              </DialogTitle>
-              <DialogDescription className="text-xs text-slate-600 dark:text-slate-400">
-                {(() => {
-                  let medName = 'o medicamento';
-                  if (newlyCreatedMedicine) {
-                    medName = newlyCreatedMedicine.name;
-                  }
-                  return (
-                    <span>
-                      O medicamento <strong className="text-slate-900 dark:text-slate-100">{medName}</strong> foi cadastrado com sucesso! Cadastre agora o lote inicial para disponibilizar saldo físico para agendamentos e dispensações.
-                    </span>
-                  );
-                })()}
-              </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleCreateInitialBatch} className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                  Número do Lote *
-                </Label>
-                <Input
-                  required
-                  placeholder="Ex: LOT-2026-001"
-                  value={initialBatchNumber}
-                  onChange={(e) => setInitialBatchNumber(e.target.value)}
-                  className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs font-mono"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                    Quantidade Inicial (Un.) *
-                  </Label>
-                  <Input
-                    type="number"
-                    required
-                    min={1}
-                    value={initialBatchQuantity}
-                    onChange={(e) => setInitialBatchQuantity(Math.max(1, Number(e.target.value)))}
-                    className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
-                  />
-                </div>
-
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                    Data de Validade *
-                  </Label>
-                  <Input
-                    type="date"
-                    required
-                    value={initialBatchExpiration}
-                    onChange={(e) => setInitialBatchExpiration(e.target.value)}
-                    className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
-                  />
-                </div>
-              </div>
-
-              <DialogFooter className="pt-3 gap-2 sm:gap-0">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsInitialBatchModalOpen(false)}
-                  className="rounded-xl text-xs"
-                >
-                  Pular por enquanto
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={createBatchMutation.isPending}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs gap-1.5"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  {(() => {
-                    if (createBatchMutation.isPending) {
-                      return 'Salvando Lote...';
-                    }
-                    return 'Adicionar Primeiro Lote';
                   })()}
                 </Button>
               </DialogFooter>

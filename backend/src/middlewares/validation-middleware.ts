@@ -19,6 +19,7 @@ export const registerPatientSchema = z.object({
 export const updateProfileSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').optional(),
   phone: z.string().optional(),
+  address: z.string().optional(),
   currentPassword: z.string().min(1, 'Senha atual é obrigatória para alteração de senha').optional(),
   newPassword: z.string().min(6, 'Nova senha deve ter no mínimo 6 caracteres').optional(),
 }).strict();
@@ -198,6 +199,19 @@ export const appointmentUpdateStatusSchema = z.object({
   notes: z.string().optional(),
 }).strict();
 
+export const appointmentDispenseSchema = z.object({
+  batchSelections: z.array(z.object({
+    medicineId: z.number().int().positive('ID do medicamento deve ser positivo'),
+    batchId: z.number().int().positive('ID do lote deve ser positivo'),
+    quantity: z.number().int().positive('Quantidade deve ser maior que zero'),
+  }).strict()).min(1, 'Selecione ao menos um lote para dispensação').optional(),
+  notes: z.string().optional(),
+}).strict();
+
+export const appointmentRevertDispenseSchema = z.object({
+  reason: z.string().trim().min(1, 'O motivo do estorno é obrigatório'),
+}).strict();
+
 export const userCreateSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
   email: z.string().email('Formato de email inválido'),
@@ -215,6 +229,9 @@ export const userUpdateSchema = z.object({
   role: z.string().optional(),
   registerDoc: z.string().optional(),
   phone: z.string().optional(),
+  address: z.string().optional(),
+  birthDate: z.string().optional(),
+  active: z.boolean().optional(),
   permissions: z.record(z.string(), z.boolean()).optional(),
 }).strict();
 

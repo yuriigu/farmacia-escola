@@ -80,6 +80,7 @@ export const rolePermissions: Record<AppRole, string[]> = {
     'medicines',
     'agendamentos',
     'appointments',
+    'calendario',
     'retiradas',
     'profile',
     'configuracoes',

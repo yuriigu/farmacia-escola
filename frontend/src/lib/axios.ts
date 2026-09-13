@@ -1,7 +1,7 @@
 // IMPORTS DE BIBLIOTECAS
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 
 // DEFINICAO DA URL BASE DA API
 let API_BASE_URL = '';
@@ -57,12 +57,10 @@ apiClient.interceptors.response.use(
     // VERIFICANDO SE OCORREU ERRO DE STATUS 401
     if (error) {
       if (error.response) {
-        if (error.response.status === 403) {
-          if (typeof window !== 'undefined') {
-            toast.error('Você não tem permissão para realizar esta ação.');
-          }
-          return Promise.reject(new Error('Você não tem permissão para realizar esta ação.'));
-        }
+        // NOTA: Toasts de permissão NÃO são exibidos globalmente aqui.
+        // O tratamento de 403/401 deve ser feito nos componentes individuais
+        // para evitar spam durante carregamento de dados em background.
+        // Toasts só devem aparecer após AÇÃO DIRETA do usuário.
 
         if (error.response.status === 401) {
           if (typeof window !== 'undefined') {

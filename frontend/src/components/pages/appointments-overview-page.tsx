@@ -1,12 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { CalendarDays, Clock, Plus, Eye, Check, CircleCheckBig, X } from 'lucide-react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import { useAuthStore } from '@/lib/auth-store';
-import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
+import { usePharmacyStore, fetchAllData, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
 import type { Appointment } from '@/lib/types';
+import { QUERY_KEYS } from '@/services/queries';
 import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS } from '@/lib/constants';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
@@ -20,6 +22,7 @@ import { StandardCalendar } from '@/components/shared/standard-calendar';
 
 export function AppointmentsOverviewPage() {
   const { appointments, scheduleSlots } = usePharmacyStore();
+  const queryClient = useQueryClient();
   const user = useAuthStore((s) => {
     return s.user;
   });
@@ -427,9 +430,82 @@ export function AppointmentsOverviewPage() {
                             </div>
                             <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
                               <Button variant="ghost" size="sm" title="Visualizar" onClick={() => setSelectedAppointment(app)}><Eye className="h-4 w-4" /></Button>
-                              {!isPatient && app.status === 'PENDING' && <Button variant="ghost" size="sm" title="Confirmar" onClick={async () => { await api.confirmAppointment(app.id); toast.success('Agendamento confirmado.'); fetchScheduleSlotsData(); }}><Check className="h-4 w-4 text-blue-600" /></Button>}
-                              {!isPatient && app.status === 'CONFIRMED' && <Button variant="ghost" size="sm" title="Concluir/Dispensar" onClick={async () => { const withdrawal = await api.completeAppointment(app.id); setReceipt(withdrawal); toast.success('Atendimento concluído e dispensado.'); fetchScheduleSlotsData(); }}><CircleCheckBig className="h-4 w-4 text-green-600" /></Button>}
-                              {app.status !== 'CANCELLED' && <Button variant="ghost" size="sm" title="Cancelar" onClick={() => { setCancelTarget(app); setCancelReason(''); }}><X className="h-4 w-4 text-red-600" /></Button>}
+                              {(() => {
+                                if (!isPatient) {
+                                  if (app.status === 'PENDING') {
+                                    return (
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        title="Confirmar"
+                                        onClick={async () => {
+                                          await api.confirmAppointment(app.id);
+                                          toast.success('Agendamento confirmado.');
+                                          fetchScheduleSlotsData();
+                                        }}
+                                      >
+                                        <Check className="h-4 w-4 text-blue-600" />
+                                      </Button>
+                                    );
+                                  }
+                                }
+                                return null;
+                              })()}
+                              {(() => {
+                                if (!isPatient) {
+                                  // Show complete button for all non-patient roles
+                                  // Allow completion regardless of scheduled date/time
+                                  return (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Concluir Agendamento"
+                                      onClick={async () => {
+                                        try {
+                                          const withdrawal = await api.completeAppointment(app.id);
+                                          setReceipt(withdrawal);
+                                          toast.success('Atendimento concluído e dispensado.');
+                                          fetchScheduleSlotsData();
+                                          fetchAllData();
+                                          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
+                                          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
+                                          queryClient.invalidateQueries({ queryKey: ['batches'] });
+                                        } catch (err: unknown) {
+                                          const error = err as { message?: string };
+                                          let errorMsg = 'Erro ao concluir atendimento.';
+                                          if (error) {
+                                            if (error.message) {
+                                              errorMsg = error.message;
+                                            }
+                                          }
+                                          toast.error(errorMsg);
+                                        }
+                                      }}
+                                    >
+                                      <CircleCheckBig className="h-4 w-4 text-green-600" />
+                                    </Button>
+                                  );
+                                }
+                                return null;
+                              })()}
+                              {(() => {
+                                if (app.status !== 'CANCELLED') {
+                                  return (
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      title="Cancelar"
+                                      onClick={() => {
+                                        setCancelTarget(app);
+                                        setCancelReason('');
+                                      }}
+                                    >
+                                      <X className="h-4 w-4 text-red-600" />
+                                    </Button>
+                                  );
+                                }
+                                return null;
+                              })()}
                             </div>
                           </div>
                         );
@@ -453,7 +529,68 @@ export function AppointmentsOverviewPage() {
       <Dialog open={selectedAppointment !== null} onOpenChange={(open) => { if (!open) setSelectedAppointment(null); }}>
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader><DialogTitle>Detalhes do Agendamento</DialogTitle><DialogDescription>Informações do atendimento selecionado.</DialogDescription></DialogHeader>
-          {selectedAppointment && <div className="space-y-2 text-sm"><p>Paciente: <strong>{selectedAppointment.patient?.name ?? 'Não informado'}</strong></p><p>Status: {APPOINTMENT_STATUS_LABELS[selectedAppointment.status]}</p><p>Horário: {selectedAppointment.scheduledTime ?? 'Não informado'}</p></div>}
+          {(() => {
+            if (selectedAppointment) {
+              let patientName = 'Não informado';
+              if (selectedAppointment.patient) {
+                if (selectedAppointment.patient.name) {
+                  patientName = selectedAppointment.patient.name;
+                }
+              }
+              let timeStr = 'Não informado';
+              if (selectedAppointment.scheduledTime) {
+                timeStr = selectedAppointment.scheduledTime;
+              }
+              // Allow completion for non-patient roles regardless of date/time
+              return (
+                <div className="space-y-4">
+                  <div className="space-y-2 text-sm">
+                    <p>Paciente: <strong>{patientName}</strong></p>
+                    <p>Status: {APPOINTMENT_STATUS_LABELS[selectedAppointment.status]}</p>
+                    <p>Horário: {timeStr}</p>
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2 border-t">
+                    <Button variant="outline" onClick={() => setSelectedAppointment(null)}>Fechar</Button>
+                    {(() => {
+                      if (!isPatient) {
+                        return (
+                          <Button
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
+                            onClick={async () => {
+                              try {
+                                const withdrawal = await api.completeAppointment(selectedAppointment.id);
+                                setReceipt(withdrawal);
+                                setSelectedAppointment(null);
+                                toast.success('Atendimento concluído e dispensado.');
+                                fetchScheduleSlotsData();
+                                fetchAllData();
+                                queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
+                                queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
+                                queryClient.invalidateQueries({ queryKey: ['batches'] });
+                              } catch (err: unknown) {
+                                const error = err as { message?: string };
+                                let errorMsg = 'Erro ao concluir atendimento.';
+                                if (error) {
+                                  if (error.message) {
+                                    errorMsg = error.message;
+                                  }
+                                }
+                                toast.error(errorMsg);
+                              }
+                            }}
+                          >
+                            Concluir Agendamento
+                          </Button>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
+                </div>
+              );
+            }
+            return null;
+          })()}
         </DialogContent>
       </Dialog>
 

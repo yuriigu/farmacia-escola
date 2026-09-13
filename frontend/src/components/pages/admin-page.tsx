@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import {
   Plus,
   Pencil,
@@ -94,6 +94,23 @@ export function AdminPage() {
   if (currentUser) {
     if (currentUser.role === 'ADMIN') {
       isCurrentAdmin = true;
+    }
+  }
+
+  let isRestrictedStaff = false;
+  if (currentUser) {
+    if (currentUser.role === 'FARMACEUTICO') {
+      isRestrictedStaff = true;
+    } else {
+      if (currentUser.role === 'MEDICO') {
+        isRestrictedStaff = true;
+      } else {
+        if (currentUser.role === 'ALUNO') {
+          isRestrictedStaff = true;
+        } else {
+          isRestrictedStaff = false;
+        }
+      }
     }
   }
 
@@ -386,6 +403,12 @@ export function AdminPage() {
   };
 
   const filteredUsers = users.filter((u) => {
+    if (isRestrictedStaff) {
+      if (u.role !== 'PACIENTE') {
+        return false;
+      }
+    }
+
     let matchSearch = false;
     if (search.trim() === '') {
       matchSearch = true;
@@ -615,7 +638,18 @@ export function AdminPage() {
       width: '130px',
       align: 'right',
       cell: (u) => {
-        if (!isCurrentAdmin) {
+        let canEditThis = false;
+        if (isCurrentAdmin) {
+          canEditThis = true;
+        } else {
+          if (isRestrictedStaff) {
+            if (u.role === 'PACIENTE') {
+              canEditThis = true;
+            }
+          }
+        }
+
+        if (!canEditThis) {
           return (
             <span className="text-xs text-slate-400 italic">Somente leitura</span>
           );
@@ -635,33 +669,42 @@ export function AdminPage() {
               variant="ghost"
               onClick={() => handleOpenEdit(u)}
               className="h-8 w-8 p-0 rounded-lg text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-slate-300 dark:hover:bg-emerald-950/40"
-              title="Editar dados completos do usuário"
+              title="Editar dados do paciente"
             >
               <Pencil className="w-4 h-4" />
             </Button>
 
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => handleToggleActive(u)}
-              className={`h-8 w-8 p-0 rounded-lg ${toggleClass}`}
-              title={toggleTitle}
-            >
-              <Power className="w-4 h-4" />
-            </Button>
+            {(() => {
+              if (isRestrictedStaff) {
+                return null;
+              }
+              return (
+                <>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => handleToggleActive(u)}
+                    className={`h-8 w-8 p-0 rounded-lg ${toggleClass}`}
+                    title={toggleTitle}
+                  >
+                    <Power className="w-4 h-4" />
+                  </Button>
 
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={() => {
-                setUserToDelete(u);
-                setDeleteConfirmOpen(true);
-              }}
-              className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
-              title="Excluir usuário"
-            >
-              <Trash2 className="w-4 h-4" />
-            </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => {
+                      setUserToDelete(u);
+                      setDeleteConfirmOpen(true);
+                    }}
+                    className="h-8 w-8 p-0 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40"
+                    title="Excluir usuário"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </>
+              );
+            })()}
           </div>
         );
       },
@@ -762,22 +805,29 @@ export function AdminPage() {
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full sm:w-auto">
-          <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">Filtrar por Perfil:</span>
-          <Select value={selectedRoleFilter} onValueChange={setSelectedRoleFilter}>
-            <SelectTrigger className="w-full sm:w-48 rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 text-sm h-10">
-              <SelectValue placeholder="Todos os Perfis" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Todos os Perfis</SelectItem>
-              {ROLES.map((r) => (
-                <SelectItem key={r} value={r}>
-                  {ROLE_LABEL[r]}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
+        {(() => {
+          if (isRestrictedStaff) {
+            return null;
+          }
+          return (
+            <div className="flex items-center gap-2 w-full sm:w-auto">
+              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">Filtrar por Perfil:</span>
+              <Select value={selectedRoleFilter} onValueChange={setSelectedRoleFilter}>
+                <SelectTrigger className="w-full sm:w-48 rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 text-sm h-10">
+                  <SelectValue placeholder="Todos os Perfis" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">Todos os Perfis</SelectItem>
+                  {ROLES.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {ROLE_LABEL[r]}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Users Table */}
@@ -875,7 +925,19 @@ export function AdminPage() {
                 <Label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
                   Tipo / Perfil de Usuário <span className="text-rose-500">*</span>
                 </Label>
-                <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })} disabled={isSelfEditing}>
+                <Select
+                  value={form.role}
+                  onValueChange={(v) => setForm({ ...form, role: v })}
+                  disabled={(() => {
+                    if (isSelfEditing) {
+                      return true;
+                    }
+                    if (isRestrictedStaff) {
+                      return true;
+                    }
+                    return false;
+                  })()}
+                >
                   <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 h-10">
                     <SelectValue placeholder="Selecione o perfil" />
                   </SelectTrigger>
@@ -893,6 +955,9 @@ export function AdminPage() {
                   if (isSelfEditing) {
                     return <p className="text-[10px] text-amber-500 mt-1">O próprio perfil de administrador não pode ser rebaixado.</p>;
                   }
+                  if (isRestrictedStaff) {
+                    return <p className="text-[10px] text-slate-400 mt-1">O perfil não pode ser alterado por este perfil de usuário.</p>;
+                  }
                   return null;
                 })()}
               </div>
@@ -905,13 +970,24 @@ export function AdminPage() {
                   value={form.registerDoc}
                   onChange={(e) => setForm({ ...form, registerDoc: e.target.value })}
                   placeholder={docInfo.placeholder}
-                  disabled={isSelfEditing}
+                  disabled={(() => {
+                    if (isSelfEditing) {
+                      return true;
+                    }
+                    if (isRestrictedStaff) {
+                      return true;
+                    }
+                    return false;
+                  })()}
                   className="rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 h-10"
                 />
                 <p className="text-[10px] text-slate-400 mt-1">
                   {(() => {
                     if (isSelfEditing) {
                       return 'O próprio identificador não pode ser alterado no perfil.';
+                    }
+                    if (isRestrictedStaff) {
+                      return 'O CPF/documento não pode ser alterado por este usuário.';
                     }
                     return docInfo.helper;
                   })()}
@@ -1060,7 +1136,15 @@ export function AdminPage() {
               </div>
               <Switch
                 checked={form.active}
-                disabled={isSelfEditing}
+                disabled={(() => {
+                  if (isSelfEditing) {
+                    return true;
+                  }
+                  if (isRestrictedStaff) {
+                    return true;
+                  }
+                  return false;
+                })()}
                 onCheckedChange={(checked) => setForm({ ...form, active: checked })}
               />
             </div>

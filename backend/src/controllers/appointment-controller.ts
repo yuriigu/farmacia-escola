@@ -4,6 +4,8 @@ import { AppointmentService } from '../services/appointment-service';
 import { prisma } from '../utils/prisma';
 import {
   appointmentCreateSchema,
+  appointmentDispenseSchema,
+  appointmentRevertDispenseSchema,
   appointmentUpdateSchema,
   appointmentUpdateStatusSchema,
 } from '../middlewares/validation-middleware';
@@ -217,15 +219,6 @@ export class AppointmentController {
       }
 
       const currentStatus = appointmentRecord.status;
-      if (currentStatus === 'CANCELLED') {
-        res.status(400).json({ error: 'Agendamento cancelado não pode ter seus dados ou status modificados' });
-        return;
-      } else {
-        if (currentStatus === 'COMPLETED') {
-          res.status(400).json({ error: 'Agendamento já finalizado não pode ter seus dados ou status modificados' });
-          return;
-        }
-      }
 
       const validationResult = appointmentUpdateSchema.safeParse(req.body);
       if (!validationResult.success) {
@@ -246,6 +239,21 @@ export class AppointmentController {
         return;
       }
 
+      // Allow updates to cancelled/completed appointments only for status changes to COMPLETED
+      // (for re-completion scenarios, e.g., if user accidentally clicked cancel or needs to re-complete)
+      // Only block updates if status is COMPLETED and target is not COMPLETED (already completed)
+      if (currentStatus === 'CANCELLED') {
+        // Cancelled appointments can still be re-completed if needed (allow COMPLETED transition)
+        // No blocking - just let the update proceed
+      } else if (currentStatus === 'COMPLETED') {
+        // Already completed - only allow if target is also COMPLETED (no-op)
+        // If target is different, block it
+        if (validationResult.data.status && validationResult.data.status.toUpperCase() !== 'COMPLETED') {
+          res.status(400).json({ error: 'Agendamento já finalizado não pode ter seus dados ou status modificados' });
+          return;
+        }
+      }
+
       if (validationResult.data.status) {
         const targetStatus = validationResult.data.status.toUpperCase();
         if (currentStatus !== targetStatus) {
@@ -257,11 +265,15 @@ export class AppointmentController {
               if (targetStatus === 'CANCELLED') {
                 isValid = true;
               } else {
-                isValid = false;
+                if (targetStatus === 'COMPLETED') {
+                  isValid = true;
+                } else {
+                  isValid = false;
+                }
               }
             }
             if (!isValid) {
-              res.status(400).json({ error: 'Transição de status inválida: agendamento pendente só pode ser confirmado ou cancelado' });
+              res.status(400).json({ error: 'Transição de status inválida: agendamento pendente só pode ser confirmado, concluído ou cancelado' });
               return;
             }
           } else {
@@ -308,6 +320,13 @@ export class AppointmentController {
 
   updateStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
+      console.log('🔍 [DEBUG] updateStatus chamado:', { 
+        userId: req.user?.userId, 
+        role: req.user?.role, 
+        id: req.params.id,
+        body: req.body 
+      });
+      
       if (!req.user) {
         res.status(401).json({ error: 'Não autenticado' });
         return;
@@ -329,6 +348,8 @@ export class AppointmentController {
       const appointmentRecord = await prisma.appointment.findUnique({
         where: { id: id },
       });
+
+      console.log('🔍 [DEBUG] appointmentRecord:', appointmentRecord ? { id: appointmentRecord.id, status: appointmentRecord.status, patientId: appointmentRecord.patientId } : 'NÃO ENCONTRADO');
 
       if (!appointmentRecord) {
         res.status(404).json({ error: 'Agendamento não encontrado' });
@@ -365,22 +386,26 @@ export class AppointmentController {
             }
           }
         }
+        console.log('🔍 [DEBUG] validação falhou:', errorMsg);
         res.status(400).json({ error: errorMsg, details: validationResult.error.issues });
         return;
       }
 
       const currentStatus = appointmentRecord.status;
       const targetStatus = validationResult.data.status.toUpperCase();
+      
+      console.log('🔍 [DEBUG] transition:', { currentStatus, targetStatus });
 
+      // Allow completion of cancelled appointments (re-completion scenario)
+      // Only block transitions from CANCELLED to non-COMPLETED statuses
       if (currentStatus === 'CANCELLED') {
-        res.status(400).json({ error: 'Transição inválida: um agendamento cancelado não pode voltar a nenhum outro status' });
-        return;
-      } else {
-        if (currentStatus === 'COMPLETED') {
-          res.status(400).json({ error: 'Transição inválida: um agendamento finalizado não pode ter seu status modificado' });
+        if (targetStatus !== 'COMPLETED') {
+          res.status(400).json({ error: 'Transição inválida: um agendamento cancelado só pode ser re-concluído' });
           return;
         }
       }
+      // Allow all transitions from COMPLETED (including re-completion as no-op)
+      // Removed: block if already completed
 
       if (currentStatus !== targetStatus) {
         if (currentStatus === 'PENDING') {
@@ -391,11 +416,15 @@ export class AppointmentController {
             if (targetStatus === 'CANCELLED') {
               isValid = true;
             } else {
-              isValid = false;
+              if (targetStatus === 'COMPLETED') {
+                isValid = true;
+              } else {
+                isValid = false;
+              }
             }
           }
           if (!isValid) {
-            res.status(400).json({ error: 'Transição de status inválida: agendamento pendente só pode ir para confirmado ou cancelado' });
+            res.status(400).json({ error: 'Transição de status inválida: agendamento pendente só pode ir para confirmado, concluído ou cancelado' });
             return;
           }
         } else {
@@ -415,8 +444,16 @@ export class AppointmentController {
               return;
             }
           } else {
-            res.status(400).json({ error: 'Transição inválida a partir do status atual' });
-            return;
+            // Allow any transition from CANCELLED to COMPLETED (handled above)
+            // Allow any other unexpected status to transition to COMPLETED
+            let isValid = false;
+            if (targetStatus === 'COMPLETED') {
+              isValid = true;
+            }
+            if (!isValid) {
+              res.status(400).json({ error: 'Transição inválida a partir do status atual' });
+              return;
+            }
           }
         }
       }
@@ -428,21 +465,112 @@ export class AppointmentController {
         }
       }
 
+      console.log('🔍 [DEBUG] chamando appointmentService.updateStatus...');
+      
+      const dispenseParsed = appointmentDispenseSchema.safeParse(req.body);
+      let batchSelections: Array<{ medicineId: number; batchId: number; quantity: number }> | undefined = undefined;
+      if (dispenseParsed.success && dispenseParsed.data.batchSelections) {
+        batchSelections = dispenseParsed.data.batchSelections;
+      }
+
       const updated = await this.appointmentService.updateStatus(
         userId,
         role,
         id,
         targetStatus,
-        validationResult.data.notes
+        validationResult.data.notes,
+        batchSelections
       );
+      
+      console.log('✅ [DEBUG] updateStatus concluído:', updated);
+      
       res.json(updated);
+      return;
+    } catch (err: any) {
+      console.error('❌ [DEBUG] ERRO em updateStatus:', err);
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao atualizar status do agendamento' });
+        return;
+      }
+    }
+  };
+
+  dispense = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Nao autenticado' });
+        return;
+      }
+      const userId = req.user.userId;
+      const role = req.user.role;
+      const id = Number(req.params.id);
+      if (!id || isNaN(id)) {
+        res.status(400).json({ error: 'ID de agendamento invalido' });
+        return;
+      }
+      const allowed = role === 'ADMIN' || role === 'FARMACEUTICO' || role === 'ALUNO';
+      if (!allowed) {
+        res.status(403).json({ error: 'Acesso negado para este perfil de usuario' });
+        return;
+      }
+      const parsed = appointmentDispenseSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        const first = parsed.error.issues[0];
+        res.status(400).json({ error: first ? first.message : 'Dados invalidos na requisicao', details: parsed.error.issues });
+        return;
+      }
+      const result = await this.appointmentService.updateStatus(
+        userId,
+        role,
+        id,
+        'COMPLETED',
+        parsed.data.notes,
+        parsed.data.batchSelections
+      );
+      res.json(result);
       return;
     } catch (err: any) {
       if (err.statusCode) {
         res.status(err.statusCode).json({ error: err.message });
         return;
       } else {
-        res.status(500).json({ error: 'Erro ao atualizar status do agendamento' });
+        res.status(500).json({ error: 'Erro ao dispensar agendamento' });
+        return;
+      }
+    }
+  };
+
+  revertDispense = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    try {
+      if (!req.user) {
+        res.status(401).json({ error: 'Nao autenticado' });
+        return;
+      }
+      const userId = req.user.userId;
+      const role = req.user.role;
+      const id = Number(req.params.id);
+      if (!id || isNaN(id)) {
+        res.status(400).json({ error: 'ID de agendamento invalido' });
+        return;
+      }
+      const parsed = appointmentRevertDispenseSchema.safeParse(req.body ?? {});
+      if (!parsed.success) {
+        const first = parsed.error.issues[0];
+        res.status(400).json({ error: first ? first.message : 'Dados invalidos na requisicao', details: parsed.error.issues });
+        return;
+      }
+      const result = await this.appointmentService.revertDispense(userId, role, id, parsed.data.reason);
+      res.json(result);
+      return;
+    } catch (err: any) {
+      if (err.statusCode) {
+        res.status(err.statusCode).json({ error: err.message });
+        return;
+      } else {
+        res.status(500).json({ error: 'Erro ao estornar dispensacao' });
         return;
       }
     }

@@ -110,7 +110,7 @@ export const api = {
       const result = response.data;
       return result;
     },
-    updateProfile: async (data: { currentPassword?: string; newPassword?: string; name?: string; phone?: string }) => {
+    updateProfile: async (data: { currentPassword?: string; newPassword?: string; name?: string; phone?: string; address?: string }) => {
       const response = await apiClient.put<{ message: string }>('/api/auth/profile', data);
       const result = response.data;
       return result;
@@ -238,12 +238,26 @@ export const api = {
       return result;
     },
     updateStatus: async (id: number, status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED', notes?: string) => {
-      const response = await apiClient.put<Appointment>(`/api/appointments/${id}/status`, { status, notes });
+      const payload: { status: string; notes?: string } = { status };
+      if (notes !== undefined && notes !== null) {
+        payload.notes = notes;
+      }
+      const response = await apiClient.put<Appointment>(`/api/appointments/${id}/status`, payload);
       const result = response.data;
       return result;
     },
     cancel: async (id: number, cancelReason: string) => {
       const response = await apiClient.put<Appointment>(`/api/appointments/${id}/status`, { status: 'CANCELLED', notes: cancelReason });
+      const result = response.data;
+      return result;
+    },
+    dispense: async (id: number, data: { batchSelections?: Array<{ medicineId: number; batchId: number; quantity: number }>; notes?: string }) => {
+      const response = await apiClient.post<Appointment>(`/api/appointments/${id}/dispense`, data);
+      const result = response.data;
+      return result;
+    },
+    revertDispense: async (id: number, reason: string) => {
+      const response = await apiClient.post<Appointment>(`/api/appointments/${id}/revert-dispense`, { reason });
       const result = response.data;
       return result;
     },

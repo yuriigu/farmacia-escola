@@ -203,7 +203,7 @@ export class AuthService {
     };
   }
 
-  async updateProfile(userId: number, data: { currentPassword?: string; newPassword?: string; name?: string; phone?: string }) {
+  async updateProfile(userId: number, data: { currentPassword?: string; newPassword?: string; name?: string; phone?: string; address?: string }) {
     const user = await this.userRepo.findById(userId);
     if (!user) {
       throw { statusCode: 404, message: 'Usuário não encontrado' };
@@ -215,6 +215,9 @@ export class AuthService {
     }
     if (data.phone !== undefined) {
       updateData.phone = data.phone;
+    }
+    if (data.address !== undefined) {
+      updateData.address = data.address;
     }
 
     if (data.newPassword) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import { Pill, Eye, EyeOff, UserPlus, Shield } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { api } from '@/lib/api';
@@ -110,7 +110,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 px-4 py-10 relative overflow-hidden">
+    <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 px-4 py-10 relative overflow-hidden">
       {/* Animated mesh background blobs */}
       <div className="mesh-blob mesh-blob-1" style={{ top: '-5%', right: '-10%' }} />
       <div className="mesh-blob mesh-blob-2" style={{ bottom: '10%', left: '-5%' }} />
@@ -124,7 +124,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
 
       <div className="w-full max-w-lg p-8 bg-white/80 dark:bg-slate-800/80 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-teal-500/5 border border-white/50 dark:border-slate-700/50 animate-fade-in-slide-up relative z-10">
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-18 h-18 rounded-2xl bg-gradient-to-br from-teal-500 via-emerald-500 to-teal-600 text-white mb-4 shadow-xl shadow-teal-500/25">
+          <div className="inline-flex items-center justify-center w-18 h-18 rounded-2xl bg-linear-to-br from-teal-500 via-emerald-500 to-teal-600 text-white mb-4 shadow-xl shadow-teal-500/25">
             <UserPlus className="w-8 h-8" />
           </div>
           <h1 className="text-2xl font-extrabold tracking-tight">
@@ -214,7 +214,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
             <Input value={form.address} onChange={handleChange('address')} placeholder="Rua, número, bairro, cidade" className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full h-12 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm active:scale-[0.98] transition-all shadow-lg shadow-emerald-600/20 hover:shadow-xl hover:shadow-emerald-600/30">
+          <Button type="submit" disabled={loading} className="w-full h-12 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm active:scale-[0.98] transition-all shadow-lg shadow-emerald-600/20 hover:shadow-xl hover:shadow-emerald-600/30">
             {(() => {
               if (loading) {
                 return (

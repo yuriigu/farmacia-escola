@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import {
   Calendar, Plus, Clock, Pill, Search, X, Check, XCircle,
   Eye, RefreshCw, CalendarDays, User, FileText, HeartPulse, ShieldCheck
@@ -543,36 +543,49 @@ function AppointmentsContent() {
             </Button>
 
             {/* Staff status updates */}
-            {isStaff && app.status === 'PENDING' && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'CONFIRMED' })}
-                disabled={updateStatusMutation.isPending}
-                className="h-8 w-8 p-0 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
-                title="Confirmar Agendamento"
-              >
-                <Check className="w-4 h-4" />
-              </Button>
-            )}
+            {(() => {
+              if (isStaff) {
+                if (app.status === 'PENDING') {
+                  return (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'CONFIRMED' })}
+                      disabled={updateStatusMutation.isPending}
+                      className="h-8 w-8 p-0 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
+                      title="Confirmar Agendamento"
+                    >
+                      <Check className="w-4 h-4" />
+                    </Button>
+                  );
+                }
+              }
+              return null;
+            })()}
 
-            {isStaff && app.status === 'CONFIRMED' && (
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' }, {
-                  onSuccess: (withdrawal) => {
-                    setReceipt(withdrawal);
-                    refetch();
-                  },
-                })}
-                disabled={updateStatusMutation.isPending}
-                className="h-8 w-8 p-0 rounded-lg text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/30"
-                title="Concluir Atendimento"
-              >
-                <Check className="w-4 h-4" />
-              </Button>
-            )}
+            {(() => {
+              if (isStaff) {
+                // Show complete button for staff - allow completion regardless of date/time
+                return (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' }, {
+                      onSuccess: (withdrawal) => {
+                        setReceipt(withdrawal);
+                        refetch();
+                      },
+                    })}
+                    disabled={updateStatusMutation.isPending}
+                    className="h-8 w-8 p-0 rounded-lg text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/30"
+                    title="Concluir Agendamento"
+                  >
+                    <Check className="w-4 h-4" />
+                  </Button>
+                );
+              }
+              return null;
+            })()}
 
             {/* Cancel action (strictly isolated to owner or staff) */}
             {canCancel && (
@@ -722,7 +735,7 @@ function AppointmentsContent() {
 
         {/* ==================== CREATE APPOINTMENT MODAL ==================== */}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogContent className="sm:max-w-[500px] rounded-3xl">
+          <DialogContent className="sm:max-w-125 rounded-3xl">
             <DialogHeader>
               <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
                 <Calendar className="w-5 h-5 text-emerald-600" />
@@ -874,7 +887,7 @@ function AppointmentsContent() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-[500px] rounded-3xl">
+          <DialogContent className="sm:max-w-125 rounded-3xl">
             {(() => {
               if (!selectedAppointmentForDetails) {
                 return null;
@@ -1030,7 +1043,7 @@ function AppointmentsContent() {
                     })()}
                   </div>
 
-                  <DialogFooter className="pt-2">
+                  <DialogFooter className="pt-2 flex items-center justify-between sm:justify-between gap-2 border-t border-slate-100 dark:border-slate-800">
                     <Button
                       type="button"
                       variant="outline"
@@ -1039,6 +1052,30 @@ function AppointmentsContent() {
                     >
                       Fechar
                     </Button>
+                    {(() => {
+                      if (isStaff) {
+                        // Show complete button for staff - allow completion regardless of date/time
+                        return (
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' }, {
+                                onSuccess: (withdrawal) => {
+                                  setReceipt(withdrawal);
+                                  setSelectedAppointmentForDetails(null);
+                                  refetch();
+                                },
+                              });
+                            }}
+                            disabled={updateStatusMutation.isPending}
+                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold"
+                          >
+                            Concluir Agendamento
+                          </Button>
+                        );
+                      }
+                      return null;
+                    })()}
                   </DialogFooter>
                 </div>
               );

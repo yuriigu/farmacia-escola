@@ -34,7 +34,7 @@ export default function RootLayout({
         >
           <QueryProvider>
             {children}
-            <Toaster richColors position="top-right" closeButton />
+            <Toaster richColors position="top-right" closeButton visibleToasts={1} />
           </QueryProvider>
         </ThemeProvider>
       </body>

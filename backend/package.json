@@ -21,14 +21,14 @@
     "knip:verbose": "knip --reporter verbose"
   },
   "dependencies": {
-    "@prisma/client": "^5.22.0",
+    "@prisma/adapter-libsql": "^7.10.0",
+    "@prisma/client": "^7.10.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "express-rate-limit": "^8.7.0",
     "jsonwebtoken": "^9.0.3",
-    "prisma": "^5.22.0",
     "zod": "^4.5.4"
   },
   "devDependencies": {
@@ -37,9 +37,11 @@
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^22.0.0",
     "@types/supertest": "^7.2.1",
+    "@vitest/coverage-v8": "^3.2.7",
     "deepmerge-ts": "^8.0.2",
     "knip": "^6.34.0",
     "nodemon": "^3.1.9",
+    "prisma": "^7.10.0",
     "supertest": "^7.2.2",
     "ts-node": "^10.9.2",
     "typescript": "5.8.2",

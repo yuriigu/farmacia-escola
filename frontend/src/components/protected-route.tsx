@@ -12,7 +12,7 @@ import { useAuthStore } from '@/lib/auth-store';
 import { hasRouteAccess, AppRole } from '@/config/rbac';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 
 interface ProtectedRouteProps {
   children: ReactNode;

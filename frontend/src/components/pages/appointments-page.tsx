@@ -2,13 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import {
   Calendar, Plus, Check, X, Clock, Download, CircleCheckBig,
   Eye, Pill, User, FileText, Info, Search, CalendarDays
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
-import { usePharmacyStore, fetchAllData, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
+import { usePharmacyStore, fetchAllData, fetchBatchesData, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
 import type { Appointment, AppointmentDraft, AppointmentItem } from '@/lib/types';
 import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS, downloadCSV, getAvatarColor } from '@/lib/constants';
 import { api } from '@/lib/api';
@@ -17,7 +17,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/page-header';
 import { DataTable, Column } from '@/components/shared/data-table';
@@ -228,7 +228,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
           {/* CPF with Autocomplete */}
           <div className="relative" ref={suggestionsRef}>
-            <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+            <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
               CPF do Paciente
             </Label>
             <div className="relative">
@@ -282,7 +282,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
 
           {/* Nome do Paciente */}
           <div>
-            <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+            <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
               Nome do Paciente
             </Label>
             <Input
@@ -336,7 +336,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
 
           {/* Data e Horário */}
           <div>
-            <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+            <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
               Data e Horário (Slot)
             </Label>
             <Input type="date" required value={scheduledDate} onChange={(e) => { setScheduledDate(e.target.value); setSlotId(0); }} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
@@ -371,7 +371,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
 
           {/* Observações */}
           <div>
-            <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+            <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
               Observações (opcional)
             </Label>
             <Textarea
@@ -1044,7 +1044,7 @@ export function AppointmentsPage() {
                         }
                       }}
                       className="h-8 w-8 p-0 rounded-lg text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/30"
-                      title="Concluir Atendimento"
+                      title="Concluir Agendamento"
                     >
                       <CircleCheckBig className="w-4 h-4" />
                     </Button>
@@ -1427,6 +1427,55 @@ export function AppointmentsPage() {
                     }
                     return null;
                   })()}
+
+                  <DialogFooter className="pt-3 flex items-center justify-between sm:justify-between gap-2 border-t border-slate-100 dark:border-slate-800">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setSelectedAppointment(null)}
+                      className="rounded-xl text-xs"
+                    >
+                      Fechar
+                    </Button>
+                    {(() => {
+                      if (!isPatient) {
+                        if (!isMedico) {
+                          let canComplete = false;
+                          if (selectedAppointment.status === 'PENDING') {
+                            canComplete = true;
+                          } else {
+                            if (selectedAppointment.status === 'CONFIRMED') {
+                              canComplete = true;
+                            } else {
+                              canComplete = false;
+                            }
+                          }
+                          if (canComplete) {
+                            return (
+                              <Button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    await api.completeAppointment(selectedAppointment.id);
+                                    toast.success('Agendamento concluído com sucesso!');
+                                    setSelectedAppointment(null);
+                                    fetchAllData();
+                                  } catch {
+                                    toast.error('Erro ao concluir agendamento.');
+                                  }
+                                }}
+                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold gap-1.5"
+                              >
+                                <CircleCheckBig className="w-4 h-4" />
+                                Concluir Agendamento
+                              </Button>
+                            );
+                          }
+                        }
+                      }
+                      return null;
+                    })()}
+                  </DialogFooter>
                 </div>
               );
             }
@@ -1447,7 +1496,7 @@ export function AppointmentsPage() {
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div>
-                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Medicamento</Label>
+                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Medicamento</Label>
                     <Select value={formMedVal} onValueChange={(v) => setForm({ ...form, items: [{ ...form.items[0], medicineId: Number(v) }] })}>
                       <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"><SelectValue placeholder="Selecione um medicamento..." /></SelectTrigger>
                       <SelectContent>
@@ -1518,7 +1567,7 @@ export function AppointmentsPage() {
                     return null;
                   })()}
                   <div>
-                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Quantidade</Label>
+                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Quantidade</Label>
                     <Input type="number" min={1} value={formQtyVal} onChange={(e) => setForm({ ...form, items: [{ ...form.items[0], quantity: Math.max(1, Number(e.target.value)) }] })} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
                   </div>
                   {(() => {
@@ -1529,7 +1578,7 @@ export function AppointmentsPage() {
                       }
                       return (
                         <div>
-                          <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Paciente</Label>
+                          <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Paciente</Label>
                           <Select value={formPatientVal} onValueChange={(v) => setForm({ ...form, patientId: Number(v) })}>
                             <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" disabled={loadingPatients}>
                               <SelectValue placeholder={patientPlaceholder} />
@@ -1552,11 +1601,11 @@ export function AppointmentsPage() {
                     return null;
                   })()}
                   <div>
-                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Data</Label>
+                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Data</Label>
                     <Input type="date" required value={form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledDate: e.target.value, scheduledTime: '', slotId: undefined })} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
                   </div>
                   <div>
-                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Horário da escala</Label>
+                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Horário da escala</Label>
                     <Select value={form.slotId ? String(form.slotId) : ''} onValueChange={(value) => {
                       const selectedSlot = availableSlotsForDate.find((slot) => slot.id === Number(value));
                       if (selectedSlot) {
@@ -1589,7 +1638,7 @@ export function AppointmentsPage() {
                     })()}
                   </div>
                   <div>
-                    <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">Observações (opcional)</Label>
+                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Observações (opcional)</Label>
                     <Textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Orientações..." className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
                   </div>
                   <div className="flex justify-end gap-3 pt-2">

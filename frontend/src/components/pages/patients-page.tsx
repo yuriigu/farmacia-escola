@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import {
   Users, Search, Plus, Pencil, Trash2, Download, Clock, ArrowUpRight, Calendar, Eye, X
 } from 'lucide-react';
@@ -23,6 +23,22 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 
 export function PatientsPage() {
   const user = useAuthStore((state) => state.user);
+  let isRestrictedStaff = false;
+  if (user) {
+    if (user.role === 'FARMACEUTICO') {
+      isRestrictedStaff = true;
+    } else {
+      if (user.role === 'MEDICO') {
+        isRestrictedStaff = true;
+      } else {
+        if (user.role === 'ALUNO') {
+          isRestrictedStaff = true;
+        } else {
+          isRestrictedStaff = false;
+        }
+      }
+    }
+  }
   const canWrite = usePermission('PATIENTS_CREATE');
   const { patients, withdrawals, appointments } = usePharmacyStore();
   const [searchInput, setSearchInput] = useState('');
@@ -242,7 +258,7 @@ export function PatientsPage() {
         }
         let addressEl: ReactNode = null;
         if (p.address) {
-          addressEl = <p className="text-[11px] text-slate-400 truncate max-w-[200px] mt-0.5">{p.address}</p>;
+          addressEl = <p className="text-[11px] text-slate-400 truncate max-w-50 mt-0.5">{p.address}</p>;
         }
 
         return (
@@ -489,7 +505,7 @@ export function PatientsPage() {
 
       {/* Create / Edit Patient Dialog */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-[480px] rounded-3xl">
+        <DialogContent className="sm:max-w-120 rounded-3xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
               <Users className="w-5 h-5 text-emerald-600" />
@@ -502,7 +518,7 @@ export function PatientsPage() {
 
           <form onSubmit={handleSave} className="space-y-4 pt-1">
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                 Nome Completo *
               </Label>
               <Input
@@ -516,7 +532,7 @@ export function PatientsPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                   CPF *
                 </Label>
                 <Input
@@ -524,12 +540,32 @@ export function PatientsPage() {
                   onChange={(e) => setForm({ ...form, cpf: e.target.value })}
                   placeholder="000.000.000-00"
                   required
+                  disabled={(() => {
+                    if (editing) {
+                      if (isRestrictedStaff) {
+                        return true;
+                      }
+                    }
+                    return false;
+                  })()}
                   className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
                 />
+                {(() => {
+                  if (editing) {
+                    if (isRestrictedStaff) {
+                      return (
+                        <p className="text-[10px] text-slate-400 mt-1">
+                          O CPF do paciente não pode ser alterado por este perfil.
+                        </p>
+                      );
+                    }
+                  }
+                  return null;
+                })()}
               </div>
 
               <div>
-                <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                   Telefone
                 </Label>
                 <Input
@@ -542,7 +578,7 @@ export function PatientsPage() {
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                 Data de Nascimento
               </Label>
               <Input
@@ -554,7 +590,7 @@ export function PatientsPage() {
             </div>
 
             <div>
-              <Label className="mb-1 block text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                 Endereço
               </Label>
               <Input

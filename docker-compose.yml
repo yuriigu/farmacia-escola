@@ -24,7 +24,7 @@ services:
       - backend-prisma-data:/app/prisma
     networks:
       - farmacia-network
-    command: sh -c "npx prisma db push && npm run dev"
+    command: sh -c "npx prisma db push --accept-data-loss && npm run dev"
 
   # Container do servidor frontend
   frontend:

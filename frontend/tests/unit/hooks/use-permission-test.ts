@@ -3,10 +3,10 @@ import { hasPermission } from '@/hooks/use-permission';
 import { hasRouteAccess } from '@/config/rbac';
 
 describe('permission contract', () => {
-  it('allows patients to schedule and view their withdrawals without admin calendar access', () => {
+  it('allows patients to schedule, view calendar, and view their withdrawals', () => {
     expect(hasPermission('APPOINTMENTS_CREATE', 'PACIENTE', null)).toBe(true);
     expect(hasPermission('MY_WITHDRAWALS_READ', 'PACIENTE', null)).toBe(true);
-    expect(hasRouteAccess('PACIENTE', '/calendario')).toBe(false);
+    expect(hasRouteAccess('PACIENTE', '/calendario')).toBe(true);
   });
 
   it('does not expose sensitive operational actions to patients', () => {

@@ -1,8 +1,14 @@
 import { PrismaClient } from '@prisma/client';
+import { PrismaLibSql } from '@prisma/adapter-libsql';
 import { Role } from '../types/enums';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+// LibSQL: adapter pure JS, compatível com Alpine/Docker sem compilação nativa
+const adapter = new PrismaLibSql({
+  url: process.env.DATABASE_URL ?? 'file:./prisma/dev.db',
+});
+
+const prisma = new PrismaClient({ adapter });
 
 async function main() {
   await prisma.appointmentItem.deleteMany();

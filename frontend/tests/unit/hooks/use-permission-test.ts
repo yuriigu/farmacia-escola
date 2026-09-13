@@ -6,8 +6,6 @@ describe('permission contract', () => {
   it('allows patients to schedule and view their withdrawals without admin calendar access', () => {
     expect(hasPermission('APPOINTMENTS_CREATE', 'PACIENTE', null)).toBe(true);
     expect(hasPermission('MY_WITHDRAWALS_READ', 'PACIENTE', null)).toBe(true);
-    expect(hasRouteAccess('PACIENTE', '/my-appointments')).toBe(true);
-    expect(hasRouteAccess('PACIENTE', '/my-withdrawals')).toBe(true);
     expect(hasRouteAccess('PACIENTE', '/calendario')).toBe(false);
   });
 

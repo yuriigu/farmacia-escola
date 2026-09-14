@@ -12,9 +12,9 @@ interface AuthState {
   token: string | null;
   user: AuthUser | null;
   loading: boolean;
-  setAuth: (token: string, user: AuthUser) => void;
+  setAuth: (_token: string, _user: AuthUser) => void;
   logout: () => void;
-  setLoading: (loading: boolean) => void;
+  setLoading: (_loading: boolean) => void;
   hydrate: () => void;
 }
 
@@ -115,30 +115,3 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ token: token, user: user, loading: false });
   },
 }));
-
-// FUNCAO PARA RECUPERAR USUARIO DO ARMAZENAMENTO
-function getStoredUser(): AuthUser | null {
-  const cookieUser = Cookies.get('user_info');
-  if (cookieUser) {
-    try {
-      const parsed = JSON.parse(cookieUser);
-      return parsed;
-    } catch {
-      // IGNORA ERRO DE PARSE
-    }
-  }
-
-  if (typeof window !== 'undefined') {
-    const raw = localStorage.getItem('user');
-    if (!raw) {
-      return null;
-    }
-    try {
-      const parsed = JSON.parse(raw);
-      return parsed;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}

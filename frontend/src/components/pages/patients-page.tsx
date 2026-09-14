@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { toast } from '@/lib/toast-handler';
 import {
-  Users, Search, Plus, Pencil, Trash2, Download, Clock, ArrowUpRight, Calendar, Eye, X
+  Users, Search, Plus, Pencil, Trash2, Download, ArrowUpRight, Calendar, Eye, X
 } from 'lucide-react';
 import { usePharmacyStore } from '@/lib/pharmacy-store';
 import type { Patient } from '@/lib/types';

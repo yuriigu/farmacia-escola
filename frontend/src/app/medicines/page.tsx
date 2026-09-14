@@ -8,7 +8,7 @@ import { toast } from '@/lib/toast-handler';
 import {
   Package, Search, Plus, Calendar,
   Pill, X, Eye, HeartPulse, ShieldCheck,
-  Layers, Clock, User, Download, Boxes, AlertCircle, CheckCircle2
+  Layers, User, Download, AlertCircle
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import { useMedicines, useCreateMedicine, useCreateAppointment, usePatients, useBatches } from '@/services/queries';
@@ -27,7 +27,7 @@ import {
   DialogHeader, DialogTitle
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { computeStockStatus, type Medicine, type Batch, type StockStatus } from '@/lib/types';
+import { computeStockStatus, type Medicine, type Batch } from '@/lib/types';
 
 export const DOSAGE_UNITS = ['MG', 'ML', 'G', 'MCG', 'UI'] as const;
 export type DosageUnit = typeof DOSAGE_UNITS[number];

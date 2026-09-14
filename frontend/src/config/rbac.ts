@@ -1,9 +1,7 @@
 // DEFINICAO DOS PAPEIS DO SISTEMA
 export type AppRole = 'ADMIN' | 'FARMACEUTICO' | 'MEDICO' | 'ALUNO' | 'PACIENTE';
 
-export const ALL_ROLES: AppRole[] = ['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO', 'PACIENTE'];
 
-export const FARMACY_STAFF_ROLES: AppRole[] = ['FARMACEUTICO', 'ALUNO'];
 
 // MAPEAMENTO DE PERMISSOES POR PAPEL
 export const rolePermissions: Record<AppRole, string[]> = {

@@ -4,16 +4,8 @@ import { toast } from '@/lib/toast-handler';
 
 // IMPORTS LOCAIS
 import { api } from './api';
-import type {
-  Medicine,
-  Batch,
-  Patient,
-  Appointment,
-  ScheduleSlot,
-  Withdrawal,
-  Disposal,
-  User,
-} from '@/lib/types';
+
+
 
 // CHAVES DAS CONSULTAS DO REACT QUERY
 export const QUERY_KEYS = {
@@ -243,39 +235,8 @@ export function useUpdateAppointmentStatus() {
 }
 
 // HOOK PARA DISPENSAR AGENDAMENTO (LOTE + ESTOQUE)
-export function useDispenseAppointment() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, batchSelections, notes }: { id: number; batchSelections?: Array<{ medicineId: number; batchId: number; quantity: number }>; notes?: string }) =>
-      api.appointments.dispense(id, { batchSelections, notes }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.withdrawals });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
-      toast.success('Retirada dispensada e estoque atualizado!');
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao dispensar retirada.');
-    },
-  });
-}
 
 // HOOK PARA ESTORNAR DISPENSACAO DO AGENDAMENTO
-export function useRevertAppointmentDispense() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: ({ id, reason }: { id: number; reason: string }) => api.appointments.revertDispense(id, reason),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.withdrawals });
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
-      toast.success('Retirada estornada e estoque restaurado!');
-    },
-    onError: (err: Error) => {
-      toast.error(err.message || 'Erro ao estornar retirada.');
-    },
-  });
-}
 
 // HOOK PARA CANCELAR AGENDAMENTO
 export function useCancelAppointment() {

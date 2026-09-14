@@ -5,14 +5,13 @@ import { ReactNode, useEffect } from 'react';
 
 // IMPORTS DE BIBLIOTECAS
 import { useRouter, usePathname } from 'next/navigation';
-import { ShieldAlert, ArrowLeft, Lock } from 'lucide-react';
+import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
 // IMPORTS LOCAIS
 import { useAuthStore } from '@/lib/auth-store';
 import { hasRouteAccess, AppRole } from '@/config/rbac';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { toast } from '@/lib/toast-handler';
 
 interface ProtectedRouteProps {
   children: ReactNode;

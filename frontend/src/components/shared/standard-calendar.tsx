@@ -20,9 +20,9 @@ const FullCalendar = dynamic(() => import('@fullcalendar/react'), {
 
 interface StandardCalendarProps {
   events: EventInput[];
-  onDateClick?: (info: DateClickArg) => void;
-  onEventClick?: (info: EventClickArg) => void;
-  onDatesSet?: (info: DatesSetArg) => void;
+  onDateClick?: (_info: DateClickArg) => void;
+  onEventClick?: (_info: EventClickArg) => void;
+  onDatesSet?: (_info: DatesSetArg) => void;
   initialDate?: string;
 }
 

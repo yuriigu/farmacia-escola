@@ -1,7 +1,6 @@
 import { MedicineRepository } from '../repositories/medicine-repository';
 import { ActivityLogService } from './activity-log-service';
 import { StockStatusService } from './stock-status-service';
-import { StockStatus } from '../types/enums';
 import { prisma } from '../utils/prisma';
 
 export class MedicineService {

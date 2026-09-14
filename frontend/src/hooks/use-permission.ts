@@ -1,6 +1,5 @@
 'use client';
 
-import { ReactNode } from 'react';
 import { useAuthStore } from '@/lib/auth-store';
 import { canWriteClient, checkPermission, type PermissionKey } from '@/lib/constants';
 
@@ -97,11 +96,3 @@ export function usePermission(action: PermissionAction): boolean {
   return hasPermission(action, userRole, userPerms);
 }
 
-export function Can({ permission, children }: { permission: PermissionAction; children: ReactNode }) {
-  const authorized = usePermission(permission);
-  if (authorized) {
-    return children as any;
-  } else {
-    return null;
-  }
-}

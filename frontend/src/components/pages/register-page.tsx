@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from '@/lib/toast-handler';
-import { Pill, Eye, EyeOff, UserPlus, Shield } from 'lucide-react';
+import { Eye, EyeOff, UserPlus, Shield } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';

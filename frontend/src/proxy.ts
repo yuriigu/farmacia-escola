@@ -1,6 +1,5 @@
 // IMPORTS DE BIBLIOTECAS
 import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
 
 // IMPORTS LOCAIS
 import { hasRouteAccess } from './config/rbac';

@@ -7,24 +7,6 @@ export enum Role {
   ALUNO = 'ALUNO',
 }
 
-export enum AppointmentStatus {
-  PENDING = 'PENDING',
-  CONFIRMED = 'CONFIRMED',
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-}
-
-export enum WithdrawalStatus {
-  COMPLETED = 'COMPLETED',
-  CANCELLED = 'CANCELLED',
-  REVERTED = 'REVERTED',
-}
-
-export enum DisposalStatus {
-  DISPOSED = 'DISPOSED',
-  REVERTED = 'REVERTED',
-}
-
 export enum StockMovementType {
   ENTRY = 'ENTRY',
   WITHDRAWAL = 'WITHDRAWAL',

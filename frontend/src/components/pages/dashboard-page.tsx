@@ -4,9 +4,9 @@ import { useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  Package, Calendar, ArrowUpRight, Trash2, Clock,
-  CalendarDays, CheckCircle2, AlertTriangle, AlertCircle, Plus, Search,
-  ShieldAlert, User, FileText, ChevronRight, CheckCircle
+  Package, Calendar, Clock,
+  CalendarDays, AlertTriangle, AlertCircle, Plus,
+  ShieldAlert, ChevronRight, CheckCircle
 } from 'lucide-react';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
@@ -15,7 +15,7 @@ import {
 import { useAuthStore } from '@/lib/auth-store';
 import { useMedicines, useAppointments, useBatches } from '@/services/queries';
 import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES, CHART_COLORS } from '@/lib/constants';
-import { computeStockStatus, type StockStatus } from '@/lib/types';
+import { computeStockStatus } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';

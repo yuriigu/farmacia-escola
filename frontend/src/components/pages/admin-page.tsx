@@ -1238,4 +1238,3 @@ export function AdminPage() {
   );
 }
 
-export const UsersPage = AdminPage;

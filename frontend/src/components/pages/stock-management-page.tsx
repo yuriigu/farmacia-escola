@@ -8,7 +8,7 @@ import {
   ShieldAlert, ShieldCheck, SlidersHorizontal, AlertTriangle
 } from 'lucide-react';
 import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/pharmacy-store';
-import { computeStockStatus, type BatchEntryDraft, type Batch, type StockStatus } from '@/lib/types';
+import { type BatchEntryDraft, type Batch, type StockStatus } from '@/lib/types';
 import { StockStatusBadge } from '@/components/shared/stock-status-badge';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { PageHeader } from '@/components/shared/page-header';

@@ -21,18 +21,6 @@ export const PERMISSION_KEYS = {
 export type PermissionKey = keyof typeof PERMISSION_KEYS;
 
 // Default permissions for ALUNO (matches spec: full access to inventory tabs)
-export const DEFAULT_ALUNO_PERMISSIONS: Record<PermissionKey, boolean> = {
-  inventory: true,
-  patients: true,
-  appointments: true,
-  appointmentsOverview: true,
-  batches: true,
-  stockManagement: true,
-  withdrawals: true,
-  disposals: true,
-  users: false,
-  scheduleSlots: false,
-};
 
 /**
  * Check frontend permission for current user
@@ -89,7 +77,7 @@ export function checkPermission(
  * Entity identifiers that map to permission keys.
  * Must stay in sync with ENTITY_PERMISSION_MAP in role-guard.ts
  */
-const ENTITY_PERMISSION_MAP: Record<string, PermissionKey> = {
+const _ENTITY_PERMISSION_MAP: Record<string, PermissionKey> = {
   medicines: 'inventory',
   batches: 'batches',
   withdrawals: 'withdrawals',

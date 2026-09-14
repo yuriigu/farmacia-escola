@@ -262,16 +262,6 @@ export interface BatchEntryDraft {
   supplier: string;
 }
 
-export interface WithdrawalDraft {
-  patientId?: number;
-  patientName: string;
-  patientCpf: string;
-  medicineId?: number;
-  batchId: number;
-  quantity: number;
-  appointmentId?: number;
-  notes: string;
-}
 
 export interface DisposalDraft {
   batchId: number;

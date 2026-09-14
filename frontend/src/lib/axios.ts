@@ -1,7 +1,6 @@
 // IMPORTS DE BIBLIOTECAS
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
-import { toast } from '@/lib/toast-handler';
 
 // DEFINICAO DA URL BASE DA API
 let API_BASE_URL = '';

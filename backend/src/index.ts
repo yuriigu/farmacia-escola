@@ -52,14 +52,7 @@ app.use(express.json());
 app.use('/api', globalRateLimiter);
 app.use('/api', apiRoutes);
 
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString()
-  });
-  return;
-});
+;
 
 app.use(errorMiddleware);
 

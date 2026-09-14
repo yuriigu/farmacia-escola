@@ -1,14 +1,14 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from '@/lib/toast-handler';
 import {
   Calendar, Plus, Check, X, Clock, Download, CircleCheckBig,
-  Eye, Pill, User, FileText, Info, Search, CalendarDays
+  Eye, Pill, FileText, Search, CalendarDays
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
-import { usePharmacyStore, fetchAllData, fetchBatchesData, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
+import { usePharmacyStore, fetchAllData, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
 import type { Appointment, AppointmentDraft, AppointmentItem } from '@/lib/types';
 import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS, downloadCSV, getAvatarColor } from '@/lib/constants';
 import { api } from '@/lib/api';

@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { toast } from '@/lib/toast-handler';
 import {
   Calendar, Plus, Clock, Pill, Search, X, Check, XCircle,
-  Eye, RefreshCw, CalendarDays, User, FileText, HeartPulse, ShieldCheck
+  Eye, RefreshCw, CalendarDays, User
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import {

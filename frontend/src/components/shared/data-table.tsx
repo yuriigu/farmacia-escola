@@ -14,7 +14,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 export interface Column<T = any> {
   header: ReactNode;
   accessorKey?: keyof T | string;
-  cell?: (item: T, index: number) => ReactNode;
+  cell?: (_item: T, _index: number) => ReactNode;
   className?: string;
   headerClassName?: string;
   align?: 'left' | 'center' | 'right';
@@ -30,11 +30,11 @@ export interface DataTableProps<T = any> {
   emptyTitle?: string;
   emptyDescription?: string;
   emptyAction?: ReactNode;
-  onRowClick?: (item: T, index: number) => void;
+  onRowClick?: (_item: T, _index: number) => void;
   minWidth?: string;
   className?: string;
   footer?: ReactNode;
-  keyExtractor?: (item: T, index: number) => string | number;
+  keyExtractor?: (_item: T, _index: number) => string | number;
 }
 
 // COMPONENTE DA TABELA DE DADOS REUTILIZAVEL

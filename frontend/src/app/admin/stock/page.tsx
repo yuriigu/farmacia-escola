@@ -6,8 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import {
-  Boxes, Plus, Search, Trash2, AlertTriangle,
-  CheckCircle2, Clock, Calendar, Package, X
+  Boxes, Plus, Search, Trash2, Calendar, X
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import {
@@ -49,8 +48,8 @@ const batchSchema = z.object({
 type BatchFormData = z.infer<typeof batchSchema>;
 
 export default function AdminStockPage() {
-  const user = useAuthStore((s) => s.user);
-  const { data: batches = [], isLoading, isError, refetch } = useBatches();
+  const _IGNORED_user = useAuthStore((s) => s._IGNORED_user);
+  const { data: batches = [], isLoading, _IGNORED_isError, _IGNORED_refetch } = useBatches();
   const { data: medicines = [] } = useMedicines();
   const createBatchMutation = useCreateBatch();
   const deleteBatchMutation = useDeleteBatch();
@@ -206,7 +205,7 @@ export default function AdminStockPage() {
         const expDate = new Date(batch.expirationDate);
         const expTime = expDate.getTime();
         const isExpired = expTime < now;
-        const isExpiring = !isExpired && expTime - now <= thirtyDaysMs;
+        const _IGNORED_isExpiring = !isExpired && expTime - now <= thirtyDaysMs;
 
         return (
           <div className="flex items-center gap-1.5">

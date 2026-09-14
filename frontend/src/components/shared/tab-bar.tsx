@@ -19,7 +19,7 @@ export interface TabItem {
 interface TabBarProps {
   tabs: (ModuleTab | TabItem)[];
   activeTab: string;
-  onTabChange: (tabId: string) => void;
+  onTabChange: (_tabId: string) => void;
   className?: string;
 }
 

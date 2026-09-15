@@ -6,7 +6,6 @@ import type {
   Batch,
   Patient,
   User,
-  Withdrawal,
   Disposal,
   Appointment,
   ScheduleSlot,
@@ -314,38 +313,6 @@ export const api = {
     },
     delete: async (id: number) => {
       const response = await apiClient.delete<{ message: string }>(`/api/schedule-slots/${id}`);
-      const result = response.data;
-      return result;
-    },
-  },
-
-  // Withdrawals
-  withdrawals: {
-    getAll: async () => {
-      const response = await apiClient.get<Withdrawal[]>('/api/withdrawals');
-      const result = response.data;
-      return result;
-    },
-    create: async (data: {
-      patientId?: number;
-      patientName?: string;
-      patientCpf: string;
-      batchId: number;
-      quantity: number;
-      medicineId?: number;
-      appointmentId?: number;
-      notes?: string;
-    }) => {
-      const response = await apiClient.post<{
-        message: string;
-        withdrawal: Withdrawal;
-        allocatedItems?: Array<{ batchId: number; batchNumber: string; quantity: number }>;
-      }>('/api/withdrawals', data);
-      const result = response.data;
-      return result;
-    },
-    cancel: async (id: number, cancelReason: string) => {
-      const response = await apiClient.post<Withdrawal>(`/api/withdrawals/${id}/cancel`, { cancelReason });
       const result = response.data;
       return result;
     },

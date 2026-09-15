@@ -18,12 +18,12 @@ model User {
   permissions String?
   createdAt   DateTime @default(now())
 
-  withdrawals    Withdrawal[]
   disposals      Disposal[]
   patient        Patient?
   activityLogs   ActivityLog[]
   scheduleSlots  ScheduleSlot[]
   movements      StockMovement[]
+  dispensedAppointments Appointment[] @relation("DispensedAppointments")
 }
 
 model ActivityLog {
@@ -54,7 +54,6 @@ model Patient {
   userId    Int?      @unique
 
   user         User?        @relation(fields: [userId], references: [id])
-  withdrawals  Withdrawal[]
   appointments Appointment[]
 }
 
@@ -88,37 +87,12 @@ model StockBatch {
   receivedAt        DateTime  @default(now())
 
   medicine          Medicine        @relation(fields: [medicineId], references: [id])
-  withdrawalItems   WithdrawalItem[]
   disposals         Disposal[]
   movements         StockMovement[]
+  appointmentItems  AppointmentItem[]
+  appointments      Appointment[]
 
   @@unique([medicineId, batchNumber])
-}
-
-model Withdrawal {
-  id             Int      @id @default(autoincrement())
-  patientId      Int
-  userId         Int
-  date           DateTime @default(now())
-  status         String   @default("COMPLETED")
-  cancelReason   String?
-  notes          String?
-  appointmentId  Int?
-
-  patient     Patient          @relation(fields: [patientId], references: [id])
-  user        User             @relation(fields: [userId], references: [id])
-  items       WithdrawalItem[]
-  appointment Appointment?     @relation(fields: [appointmentId], references: [id])
-}
-
-model WithdrawalItem {
-  id           Int  @id @default(autoincrement())
-  withdrawalId Int
-  batchId      Int
-  quantity     Int
-
-  withdrawal Withdrawal @relation(fields: [withdrawalId], references: [id])
-  batch      StockBatch @relation(fields: [batchId], references: [id])
 }
 
 model Disposal {
@@ -171,33 +145,39 @@ model ScheduleSlot {
 }
 
 model Appointment {
-  id             Int      @id @default(autoincrement())
-  patientId      Int
-  scheduledDate  DateTime
-  scheduledTime  String?
-  slotId         Int?
-  status         String   @default("PENDING")
-  notes          String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                Int       @id @default(autoincrement())
+  patientId         Int
+  scheduledDate     DateTime
+  scheduledTime     String?
+  slotId            Int?
+  status            String    @default("PENDING")
+  notes             String?
+  batchId           Int?
+  dispensedByUserId Int?
+  dispensedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
-  patient     Patient          @relation(fields: [patientId], references: [id])
-  slot        ScheduleSlot?    @relation(fields: [slotId], references: [id])
-  items       AppointmentItem[]
-  withdrawals Withdrawal[]
+  patient         Patient           @relation(fields: [patientId], references: [id])
+  slot            ScheduleSlot?     @relation(fields: [slotId], references: [id])
+  batch           StockBatch?       @relation(fields: [batchId], references: [id])
+  dispensedByUser User?             @relation("DispensedAppointments", fields: [dispensedByUserId], references: [id])
+  items           AppointmentItem[]
 
   @@index([scheduledDate, status])
   @@index([patientId])
 }
 
 model AppointmentItem {
-  id             Int  @id @default(autoincrement())
+  id             Int         @id @default(autoincrement())
   appointmentId  Int
   medicineId     Int
   quantity       Int
+  batchId        Int?
 
   appointment Appointment @relation(fields: [appointmentId], references: [id])
   medicine    Medicine    @relation(fields: [medicineId], references: [id])
+  batch       StockBatch? @relation(fields: [batchId], references: [id])
 
   @@index([appointmentId])
 }

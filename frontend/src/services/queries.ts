@@ -16,7 +16,6 @@ export const QUERY_KEYS = {
   appointment: (id: number) => ['appointments', id] as const,
   patients: (search?: string) => ['patients', search] as const,
   scheduleSlots: (params?: { startDate?: string; endDate?: string }) => ['scheduleSlots', params] as const,
-  withdrawals: ['withdrawals'] as const,
   disposals: ['disposals'] as const,
   users: ['users'] as const,
   activityLogs: (params?: Record<string, unknown>) => ['activityLogs', params] as const,

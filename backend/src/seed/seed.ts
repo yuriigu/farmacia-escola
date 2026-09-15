@@ -13,8 +13,6 @@ const prisma = new PrismaClient({ adapter });
 async function main() {
   await prisma.appointmentItem.deleteMany();
   await prisma.disposal.deleteMany();
-  await prisma.withdrawalItem.deleteMany();
-  await prisma.withdrawal.deleteMany();
   await prisma.appointment.deleteMany();
   await prisma.scheduleSlot.deleteMany();
   await prisma.stockBatch.deleteMany();
@@ -114,27 +112,6 @@ async function main() {
     data: { medicineId: med6.id, batchNumber: 'LOT-2024-006', currentQuantity: 3, expirationDate: new Date(now.getFullYear() + 1, 7, 18) }, // estoque baixo
   });
 
-  await prisma.withdrawal.create({
-    data: {
-      patientId: pac1.id, userId: farmaceutico.id, notes: 'Orientacoes de uso fornecidas',
-      items: { create: { batchId: batch1b.id, quantity: 10 } },
-    },
-  });
-
-  await prisma.withdrawal.create({
-    data: {
-      patientId: pac2.id, userId: farmaceutico.id, notes: 'Paciente com dor de cabeca persistente',
-      items: { create: { batchId: batch2.id, quantity: 20 } },
-    },
-  });
-
-  await prisma.withdrawal.create({
-    data: {
-      patientId: pac1.id, userId: aluno.id, notes: 'Retirada mensal',
-      items: { create: { batchId: batch4.id, quantity: 15 } },
-    },
-  });
-
   await prisma.disposal.create({
     data: { batchId: batch3.id, userId: farmaceutico.id, quantity: 5, reason: 'Medicamento Vencido' },
   });
@@ -210,8 +187,9 @@ async function main() {
     apptCompleted = await prisma.appointment.create({
       data: {
         patientId: pac1.id, scheduledDate: today, scheduledTime: '15:00', slotId: slotToday15.id,
-        status: 'COMPLETED', notes: 'Retirada ja concluida no balcao',
-        items: { create: [{ medicineId: med1.id, quantity: 5 }] },
+        status: 'COMPLETED', notes: 'Dispensação já concluída no balcão',
+        dispensedByUserId: farmaceutico.id, dispensedAt: today, batchId: batch1a.id,
+        items: { create: [{ medicineId: med1.id, quantity: 5, batchId: batch1a.id }] },
       },
     });
   }
@@ -220,22 +198,8 @@ async function main() {
     await prisma.appointment.create({
       data: {
         patientId: pac2.id, scheduledDate: day3, scheduledTime: '10:00', slotId: slotDay3_10.id,
-        status: 'CANCELLED', notes: 'Paciente desistiu da retirada',
+        status: 'CANCELLED', notes: 'Paciente desistiu da consulta/retirada',
         items: { create: [{ medicineId: med3.id, quantity: 2 }] },
-      },
-    });
-  }
-
-  // Retirada vinculada a um agendamento já concluído — valida o elo
-  // agendamento -> retirada apontado nas revisões anteriores. Usa
-  // propositalmente o lote com vencimento mais próximo (batch1a) para
-  // também exercitar a prioridade do FEFO.
-  if (apptCompleted) {
-    await prisma.withdrawal.create({
-      data: {
-        patientId: pac1.id, userId: farmaceutico.id, appointmentId: apptCompleted.id,
-        notes: 'Retirada gerada a partir do agendamento concluido',
-        items: { create: { batchId: batch1a.id, quantity: 5 } },
       },
     });
   }
@@ -254,7 +218,6 @@ async function main() {
   console.log('Patients:', 3, '(1 com login, 2 sem login)');
   console.log('Schedule Slots: ~20 (todos sob o unico farmaceutico)');
   console.log('Appointments: 5 (PENDING x2, CONFIRMED, COMPLETED, CANCELLED)');
-  console.log('Withdrawals: 4 (2 por Farmaceutico, 1 por Aluno, 1 vinculada a agendamento concluido)');
   console.log('Disposals: 2 (1 por Farmaceutico, 1 por Aluno)');
 }
 

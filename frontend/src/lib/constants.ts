@@ -12,7 +12,6 @@ export const PERMISSION_KEYS = {
   appointmentsOverview: 'appointmentsOverview',
   batches: 'batches',
   stockManagement: 'stockManagement',
-  withdrawals: 'withdrawals',
   disposals: 'disposals',
   users: 'users',
   scheduleSlots: 'scheduleSlots',
@@ -61,8 +60,6 @@ export function checkPermission(
       isPacienteAllowed = true;
     } else if (key === 'appointmentsOverview') {
       isPacienteAllowed = true;
-    } else if (key === 'withdrawals') {
-      isPacienteAllowed = true;
     } else {
       isPacienteAllowed = false;
     }
@@ -80,7 +77,6 @@ export function checkPermission(
 const _ENTITY_PERMISSION_MAP: Record<string, PermissionKey> = {
   medicines: 'inventory',
   batches: 'batches',
-  withdrawals: 'withdrawals',
   disposals: 'disposals',
   patients: 'patients',
   appointments: 'appointments',
@@ -169,7 +165,6 @@ export type ModuleId =
   | 'dashboard'
   | 'medicines'
   | 'estoque'
-  | 'retiradas'
   | 'descartes'
   | 'agendamentos'
   | 'calendario'
@@ -180,8 +175,7 @@ export type ModuleId =
   | 'configuracoes'
   | 'profile'
   | 'settings'
-  | 'my-appointments'
-  | 'my-withdrawals';
+  | 'my-appointments';
 
 export type TabId = string;
 
@@ -235,16 +229,6 @@ export const MODULES: ModuleConfig[] = [
     path: '/estoque',
     icon: Boxes,
     forbiddenRoles: ['PACIENTE', 'MEDICO'],
-    tabs: [],
-    defaultTab: '',
-    actionLabels: {},
-  },
-  {
-    id: 'retiradas',
-    label: 'Retiradas',
-    path: '/retiradas',
-    icon: ArrowUpRight,
-    forbiddenRoles: ['MEDICO'],
     tabs: [],
     defaultTab: '',
     actionLabels: {},

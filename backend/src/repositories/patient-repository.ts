@@ -20,7 +20,7 @@ export class PatientRepository {
       where: where,
       include: {
         _count: {
-          select: { withdrawals: true, appointments: true },
+          select: { appointments: true },
         },
       },
       orderBy: { name: 'asc' },
@@ -38,15 +38,11 @@ export class PatientRepository {
         appointments: {
           include: {
             slot: true,
-            items: { include: { medicine: true } },
+            batch: { include: { medicine: true } },
+            dispensedByUser: { select: { id: true, name: true, role: true } },
+            items: { include: { medicine: true, batch: true } },
           },
           orderBy: { scheduledDate: 'desc' },
-        },
-        withdrawals: {
-          include: {
-            items: { include: { batch: { include: { medicine: true } } } },
-          },
-          orderBy: { date: 'desc' },
         },
       },
     });
@@ -109,7 +105,7 @@ export class PatientRepository {
       },
       include: {
         _count: {
-          select: { withdrawals: true, appointments: true },
+          select: { appointments: true },
         },
       },
     });

@@ -9,7 +9,7 @@ export enum Role {
 
 export enum StockMovementType {
   ENTRY = 'ENTRY',
-  WITHDRAWAL = 'WITHDRAWAL',
+  DISPENSE = 'DISPENSE',
   DISPOSAL = 'DISPOSAL',
   REVERT = 'REVERT',
   ADJUSTMENT = 'ADJUSTMENT',

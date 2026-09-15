@@ -57,30 +57,6 @@ export const dosageSchema = z.union([
   }),
 ]);
 
-export const withdrawalCreateSchema = z.object({
-  patientId: z.number().int().positive().optional(),
-  patientName: z.string().optional(),
-  patientCpf: z.string().min(1, 'CPF do paciente é obrigatório'),
-  medicineId: z.number().int().positive().optional(),
-  batchId: z.number().int().positive().optional(),
-  quantity: z.number().int().positive().optional(),
-  notes: z.string().optional(),
-  appointmentId: z.number().int().positive().optional(),
-  items: z.array(z.object({
-    medicineId: z.number().int().positive().optional(),
-    batchId: z.number().int().positive().optional(),
-    quantity: z.number().int().positive('Quantidade deve ser maior que zero'),
-  }).strict()).optional(),
-}).strict();
-
-export const withdrawalUpdateSchema = z.object({
-  notes: z.string().optional(),
-}).strict();
-
-export const withdrawalCancelSchema = z.object({
-  cancelReason: z.string().trim().min(1, 'O motivo do cancelamento é obrigatório'),
-}).strict();
-
 const disposalReasonSchema = z.enum([
   'EXPIRED',
   'DAMAGED_PACKAGING',

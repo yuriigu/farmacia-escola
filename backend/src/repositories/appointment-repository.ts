@@ -25,6 +25,14 @@ export class AppointmentRepository {
             assignedTo: { select: { id: true, name: true, role: true } },
           },
         },
+        batch: {
+          include: {
+            medicine: { select: { id: true, name: true, dosage: true } },
+          },
+        },
+        dispensedByUser: {
+          select: { id: true, name: true, role: true },
+        },
         items: {
           include: {
             medicine: {
@@ -35,23 +43,12 @@ export class AppointmentRepository {
                 activeIngredient: true,
               },
             },
-          },
-        },
-        withdrawals: {
-          include: {
-            user: { select: { name: true } },
-            patient: { select: { id: true, name: true, cpf: true } },
-            items: {
+            batch: {
               include: {
-                batch: {
-                  include: {
-                    medicine: { select: { id: true, name: true, dosage: true } },
-                  },
-                },
+                medicine: { select: { id: true, name: true, dosage: true } },
               },
             },
           },
-          orderBy: { date: 'desc' },
         },
       },
       orderBy: { scheduledDate: 'asc' },
@@ -68,26 +65,23 @@ export class AppointmentRepository {
             assignedTo: { select: { id: true, name: true, role: true } },
           },
         },
-        items: {
+        batch: {
           include: {
             medicine: true,
           },
         },
-        withdrawals: {
+        dispensedByUser: {
+          select: { id: true, name: true, role: true },
+        },
+        items: {
           include: {
-            user: { select: { name: true } },
-            patient: { select: { id: true, name: true, cpf: true } },
-            items: {
+            medicine: true,
+            batch: {
               include: {
-                batch: {
-                  include: {
-                    medicine: { select: { id: true, name: true, dosage: true } },
-                  },
-                },
+                medicine: true,
               },
             },
           },
-          orderBy: { date: 'desc' },
         },
       },
     });

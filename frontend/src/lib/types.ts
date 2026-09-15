@@ -73,10 +73,8 @@ export interface Patient {
   createdAt?: string;
   updatedAt?: string;
   userId?: number | null;
-  withdrawalsCount?: number;
   appointmentsCount?: number;
   _count?: {
-    withdrawals?: number;
     appointments?: number;
   };
 }
@@ -104,41 +102,6 @@ export interface User {
 }
 
 // Withdrawal matches the formatWithdrawals output from backend
-export interface Withdrawal {
-  id: number;
-  createdAt: string;
-  date?: string;
-  status?: string;
-  cancelReason?: string | null;
-  quantity: number;
-  notes?: string | null;
-  patientId?: number;
-  allocatedItems?: Array<{
-    batchId: number;
-    batchNumber: string;
-    quantity: number;
-  }>;
-  patient: {
-    name: string;
-    cpf: string;
-  };
-  batch: {
-    id: number;
-    medicineId: number;
-    batchNumber: string;
-    code: string;
-    currentQuantity: number;
-    expirationDate: string;
-    medicine: {
-      name: string;
-      dosage: string;
-    };
-  };
-  user: {
-    name: string;
-  };
-}
-
 // Disposal matches the formatDisposals output from backend
 export interface Disposal {
   id: number;
@@ -219,25 +182,15 @@ export interface Appointment {
   };
   slot?: ScheduleSlot | null;
   items?: AppointmentItem[];
-  withdrawals?: Array<{
+  batchId?: number | null;
+  batch?: Batch | null;
+  dispensedByUserId?: number | null;
+  dispensedAt?: string | null;
+  dispensedByUser?: {
     id: number;
-    status?: string;
-    date?: string;
-    createdAt?: string;
-    notes?: string | null;
-    cancelReason?: string | null;
-    user?: { name?: string } | null;
-    patient?: { id: number; name: string; cpf: string } | null;
-    items?: Array<{
-      quantity: number;
-      batch?: {
-        id: number;
-        batchNumber: string;
-        expirationDate?: string;
-        medicine?: { id: number; name: string; dosage?: string | null } | null;
-      } | null;
-    }>; 
-  }>;
+    name: string;
+    role: string;
+  } | null;
 }
 
 export interface AuthUser {

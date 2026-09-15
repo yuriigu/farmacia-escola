@@ -4,7 +4,6 @@ import { MedicineRepository } from '../repositories/medicine-repository';
 import { PatientRepository } from '../repositories/patient-repository';
 import { ActivityLogService } from './activity-log-service';
 import { prisma } from '../utils/prisma';
-import { WithdrawalService } from './withdrawal-service';
 
 export class AppointmentService {
   private appointmentRepo: AppointmentRepository;
@@ -12,7 +11,6 @@ export class AppointmentService {
   private medicineRepo: MedicineRepository;
   private patientRepo: PatientRepository;
   private logService: ActivityLogService;
-  private withdrawalService: WithdrawalService;
 
   constructor() {
     this.appointmentRepo = new AppointmentRepository();
@@ -20,7 +18,6 @@ export class AppointmentService {
     this.medicineRepo = new MedicineRepository();
     this.patientRepo = new PatientRepository();
     this.logService = new ActivityLogService();
-    this.withdrawalService = new WithdrawalService();
   }
 
   async getAll(role: string, userId: number, patientId?: number | null) {
@@ -299,35 +296,198 @@ export class AppointmentService {
     }
 
     if (normalizedStatus === 'COMPLETED') {
-      console.log('🔍 [DEBUG] Criando withdrawal para agendamento:', numericId);
-      
       if (!appt.patient) {
         throw { statusCode: 400, message: 'O paciente do agendamento não foi encontrado' };
       }
-      if (!appt.items || appt.items.length === 0) {
+      if (!appt.items) {
         throw { statusCode: 400, message: 'O agendamento não possui medicamentos para dispensação' };
+      } else {
+        if (appt.items.length === 0) {
+          throw { statusCode: 400, message: 'O agendamento não possui medicamentos para dispensação' };
+        }
       }
-      
-      console.log('🔍 [DEBUG] Items para dispensação:', appt.items.map(i => ({ medicineId: i.medicineId, quantity: i.quantity })));
-      
+
       const dispenseItems = this.resolveDispenseItems(appt.items, batchSelections);
 
-      const withdrawal = await this.withdrawalService.create(userId, role, {
-        patientId: appt.patientId,
-        patientCpf: appt.patient.cpf,
-        patientName: appt.patient.name,
-        appointmentId: numericId,
-        notes: cleanNotes,
-        items: dispenseItems,
-      });
-      
-      console.log('✅ [DEBUG] Withdrawal criado:', withdrawal?.id);
+      const updatedAppointment = await prisma.$transaction(async (tx) => {
+        let firstBatchId: number | null = null;
 
-      // Atualiza o status do agendamento para COMPLETED
-      console.log('🔍 [DEBUG] Atualizando status do agendamento para COMPLETED...');
-      const updatedAppointment = await this.appointmentRepo.updateStatus(numericId, normalizedStatus, cleanNotes);
-      
-      console.log('✅ [DEBUG] Status atualizado. Agendamento:', { id: updatedAppointment.id, status: updatedAppointment.status });
+        for (let i = 0; i < dispenseItems.length; i++) {
+          const item = dispenseItems[i];
+          let chosenBatchId: number | null = null;
+          if (item.batchId) {
+            chosenBatchId = Number(item.batchId);
+          } else {
+            chosenBatchId = null;
+          }
+
+          if (chosenBatchId) {
+            const batch = await tx.stockBatch.findUnique({
+              where: { id: chosenBatchId },
+            });
+            if (!batch) {
+              throw { statusCode: 404, message: `Lote #${chosenBatchId} não encontrado` };
+            }
+            if (batch.isBlocked) {
+              throw { statusCode: 400, message: `Lote ${batch.batchNumber} está bloqueado para uso` };
+            }
+            if (new Date(batch.expirationDate).getTime() < new Date().getTime()) {
+              throw { statusCode: 400, message: `Lote ${batch.batchNumber} está vencido` };
+            }
+            if (batch.currentQuantity < item.quantity) {
+              throw { statusCode: 400, message: `Saldo insuficiente no lote ${batch.batchNumber}. Disponível: ${batch.currentQuantity}, Solicitado: ${item.quantity}` };
+            }
+
+            await tx.stockBatch.update({
+              where: { id: chosenBatchId },
+              data: {
+                currentQuantity: batch.currentQuantity - item.quantity,
+              },
+            });
+
+            await tx.stockMovement.create({
+              data: {
+                batchId: chosenBatchId,
+                type: 'DISPENSE',
+                quantity: item.quantity,
+                notes: `Dispensação agendamento #${numericId} para paciente #${appt.patientId}`,
+                userId: userId,
+              },
+            });
+
+            if (!firstBatchId) {
+              firstBatchId = chosenBatchId;
+            }
+
+            if (appt.items[i]) {
+              await tx.appointmentItem.update({
+                where: { id: appt.items[i].id },
+                data: { batchId: chosenBatchId },
+              });
+            }
+          } else {
+            let medicineId = null;
+            if (item.medicineId) {
+              medicineId = item.medicineId;
+            } else {
+              if (appt.items[i]) {
+                medicineId = appt.items[i].medicineId;
+              }
+            }
+
+            if (!medicineId) {
+              throw { statusCode: 400, message: 'Medicamento não identificado para dispensação' };
+            }
+
+            const activeBatches = await tx.stockBatch.findMany({
+              where: {
+                medicineId: medicineId,
+                currentQuantity: { gt: 0 },
+                isBlocked: false,
+                expirationDate: { gte: new Date() },
+              },
+              orderBy: { expirationDate: 'asc' },
+            });
+
+            let remainingQty = item.quantity;
+            let allocatedBatchId: number | null = null;
+
+            for (let b = 0; b < activeBatches.length; b++) {
+              if (remainingQty <= 0) {
+                break;
+              }
+              const currentBatch = activeBatches[b];
+              let deduct = 0;
+              if (currentBatch.currentQuantity >= remainingQty) {
+                deduct = remainingQty;
+              } else {
+                deduct = currentBatch.currentQuantity;
+              }
+
+              await tx.stockBatch.update({
+                where: { id: currentBatch.id },
+                data: {
+                  currentQuantity: currentBatch.currentQuantity - deduct,
+                },
+              });
+
+              await tx.stockMovement.create({
+                data: {
+                  batchId: currentBatch.id,
+                  type: 'DISPENSE',
+                  quantity: deduct,
+                  notes: `Dispensação FEFO agendamento #${numericId} para paciente #${appt.patientId}`,
+                  userId: userId,
+                },
+              });
+
+              if (!allocatedBatchId) {
+                allocatedBatchId = currentBatch.id;
+              }
+              if (!firstBatchId) {
+                firstBatchId = currentBatch.id;
+              }
+
+              remainingQty = remainingQty - deduct;
+            }
+
+            if (remainingQty > 0) {
+              throw { statusCode: 400, message: `Estoque insuficiente para o medicamento #${medicineId}. Faltam ${remainingQty} unidade(s)` };
+            }
+
+            if (appt.items[i]) {
+              await tx.appointmentItem.update({
+                where: { id: appt.items[i].id },
+                data: { batchId: allocatedBatchId },
+              });
+            }
+          }
+        }
+
+        let updatedNotes = appt.notes;
+        if (cleanNotes) {
+          updatedNotes = cleanNotes;
+        }
+
+        const updated = await tx.appointment.update({
+          where: { id: numericId },
+          data: {
+            status: 'COMPLETED',
+            notes: updatedNotes,
+            dispensedByUserId: userId,
+            dispensedAt: new Date(),
+            batchId: firstBatchId,
+          },
+          include: {
+            patient: true,
+            slot: {
+              include: {
+                assignedTo: { select: { id: true, name: true, role: true } },
+              },
+            },
+            batch: {
+              include: {
+                medicine: true,
+              },
+            },
+            dispensedByUser: {
+              select: { id: true, name: true, role: true },
+            },
+            items: {
+              include: {
+                medicine: true,
+                batch: {
+                  include: {
+                    medicine: true,
+                  },
+                },
+              },
+            },
+          },
+        });
+
+        return updated;
+      });
 
       await this.logService.log(
         userId,
@@ -336,12 +496,8 @@ export class AppointmentService {
         numericId,
         `Atualizou status do agendamento #${numericId} para ${normalizedStatus}`
       );
-      
-      // Retorna o withdrawal com informações do agendamento atualizado
-      return {
-        ...withdrawal,
-        appointment: updatedAppointment,
-      };
+
+      return updatedAppointment;
     }
 
     const updated = await this.appointmentRepo.updateStatus(numericId, normalizedStatus, cleanNotes);
@@ -504,39 +660,121 @@ export class AppointmentService {
 
   async revertDispense(userId: number, role: string, id: number, reason: string) {
     const numericId = Number(id);
-    if (!numericId || isNaN(numericId)) {
-      throw { statusCode: 400, message: 'ID de agendamento invalido' };
+    if (!numericId) {
+      throw { statusCode: 400, message: 'ID de agendamento inválido' };
+    } else {
+      if (isNaN(numericId)) {
+        throw { statusCode: 400, message: 'ID de agendamento inválido' };
+      }
     }
-    const cleanReason = (reason || '').trim();
+    let cleanReason = '';
+    if (reason) {
+      cleanReason = reason.trim();
+    }
     if (!cleanReason) {
-      throw { statusCode: 400, message: 'O motivo do estorno e obrigatorio' };
+      throw { statusCode: 400, message: 'O motivo do estorno é obrigatório' };
     }
-    const allowed = role === 'ADMIN' || role === 'FARMACEUTICO';
+    let allowed = false;
+    if (role === 'ADMIN') {
+      allowed = true;
+    } else {
+      if (role === 'FARMACEUTICO') {
+        allowed = true;
+      }
+    }
     if (!allowed) {
-      throw { statusCode: 403, message: 'Apenas administradores e farmaceuticos podem estornar retiradas' };
+      throw { statusCode: 403, message: 'Apenas administradores e farmacêuticos podem estornar dispensações' };
     }
     const appt = await this.appointmentRepo.findById(numericId);
     if (!appt) {
-      throw { statusCode: 404, message: 'Agendamento nao encontrado' };
+      throw { statusCode: 404, message: 'Agendamento não encontrado' };
     }
     if (appt.status !== 'COMPLETED') {
-      throw { statusCode: 400, message: 'Somente agendamentos concluidos podem ser estornados' };
+      throw { statusCode: 400, message: 'Somente agendamentos concluídos podem ser estornados' };
     }
-    const withdrawals = (appt as any).withdrawals || [];
-    const active = withdrawals.filter((w: any) => w.status !== 'CANCELLED');
-    if (active.length === 0) {
-      throw { statusCode: 400, message: 'Nenhuma dispensacao ativa vinculada a este agendamento' };
-    }
-    for (const w of active) {
-      await this.withdrawalService.cancel(userId, role, w.id, 'Estorno do agendamento #' + numericId + '. Motivo: ' + cleanReason);
-    }
-    const updated = await this.appointmentRepo.updateStatus(numericId, 'CONFIRMED', 'Estornada dispensacao em ' + new Date().toISOString() + '. Motivo: ' + cleanReason);
+
+    const updated = await prisma.$transaction(async (tx) => {
+      if (appt.items) {
+        for (let i = 0; i < appt.items.length; i++) {
+          const item = appt.items[i];
+          let targetBatchId = null;
+          if (item.batchId) {
+            targetBatchId = item.batchId;
+          } else {
+            if (appt.batchId) {
+              targetBatchId = appt.batchId;
+            }
+          }
+
+          if (targetBatchId) {
+            const batch = await tx.stockBatch.findUnique({
+              where: { id: targetBatchId },
+            });
+            if (batch) {
+              await tx.stockBatch.update({
+                where: { id: targetBatchId },
+                data: {
+                  currentQuantity: batch.currentQuantity + item.quantity,
+                },
+              });
+
+              await tx.stockMovement.create({
+                data: {
+                  batchId: targetBatchId,
+                  type: 'REVERT',
+                  quantity: item.quantity,
+                  notes: `Estorno agendamento #${numericId}. Motivo: ${cleanReason}`,
+                  userId: userId,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      return tx.appointment.update({
+        where: { id: numericId },
+        data: {
+          status: 'CONFIRMED',
+          dispensedByUserId: null,
+          dispensedAt: null,
+          notes: `Estornada dispensação em ${new Date().toISOString()}. Motivo: ${cleanReason}`,
+        },
+        include: {
+          patient: true,
+          slot: {
+            include: {
+              assignedTo: { select: { id: true, name: true, role: true } },
+            },
+          },
+          batch: {
+            include: {
+              medicine: true,
+            },
+          },
+          dispensedByUser: {
+            select: { id: true, name: true, role: true },
+          },
+          items: {
+            include: {
+              medicine: true,
+              batch: {
+                include: {
+                  medicine: true,
+                },
+              },
+            },
+          },
+        },
+      });
+    });
+
     await this.logService.log(
       userId,
       'revert_dispense',
       'appointments',
       numericId,
-      'Estornou dispensacao do agendamento #' + numericId + '. Motivo: ' + cleanReason
+      `Estornou dispensação do agendamento #${numericId}. Motivo: ${cleanReason}`
     );
     return updated;
   }

@@ -3,13 +3,12 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import { api } from './api';
-import type { Medicine, Withdrawal, Disposal, Appointment, Batch, Patient, ScheduleSlot } from './types';
+import type { Medicine, Disposal, Appointment, Batch, Patient, ScheduleSlot } from './types';
 import { useAuthStore } from './auth-store';
 
 interface PharmacyState {
   medicines: Medicine[];
   batches: Batch[];
-  withdrawals: Withdrawal[];
   disposals: Disposal[];
   appointments: Appointment[];
   patients: Patient[];
@@ -20,7 +19,6 @@ interface PharmacyState {
 export const usePharmacyStore = create<PharmacyState>(() => ({
   medicines: [],
   batches: [],
-  withdrawals: [],
   disposals: [],
   appointments: [],
   patients: [],
@@ -32,7 +30,6 @@ export const usePharmacyStore = create<PharmacyState>(() => ({
 export function fetchAllData() {
   usePharmacyStore.setState({ loading: true });
   api.getMedicines().then((medicines) => usePharmacyStore.setState({ medicines })).catch(() => {});
-  api.getWithdrawals().then((withdrawals) => usePharmacyStore.setState({ withdrawals })).catch(() => {});
   api.getAppointments().then((appointments) => usePharmacyStore.setState({ appointments })).catch(() => {});
   api.getPatients().then((patients) => usePharmacyStore.setState({ patients })).catch(() => {});
   api.getScheduleSlots().then((scheduleSlots) => usePharmacyStore.setState({ scheduleSlots })).catch(() => {});

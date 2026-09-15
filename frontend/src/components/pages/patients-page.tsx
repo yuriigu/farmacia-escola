@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
 import { toast } from '@/lib/toast-handler';
 import {
-  Users, Search, Plus, Pencil, Trash2, Download, ArrowUpRight, Calendar, Eye, X
+  Users, Search, Plus, Pencil, Trash2, Download, CheckCircle2, Calendar, Eye, X
 } from 'lucide-react';
 import { usePharmacyStore } from '@/lib/pharmacy-store';
 import type { Patient } from '@/lib/types';
@@ -40,7 +40,7 @@ export function PatientsPage() {
     }
   }
   const canWrite = usePermission('PATIENTS_CREATE');
-  const { patients, withdrawals, appointments } = usePharmacyStore();
+  const { patients, appointments } = usePharmacyStore();
   const [searchInput, setSearchInput] = useState('');
   const [appliedSearch, setAppliedSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -178,27 +178,7 @@ export function PatientsPage() {
     if (!selectedPatient) {
       return [];
     }
-    const items: { type: 'withdrawal' | 'appointment'; date: string; description: string; detail: string }[] = [];
-
-    withdrawals
-      .filter((w) => {
-        if (w.patient.name === selectedPatient.name) {
-          return true;
-        }
-        return false;
-      })
-      .forEach((w) => {
-        let dosageText = 'Dose não informada';
-        if (w.batch.medicine.dosage) {
-          dosageText = w.batch.medicine.dosage;
-        }
-        items.push({
-          type: 'withdrawal',
-          date: w.createdAt,
-          description: 'Retirada de medicamento',
-          detail: `${w.batch.medicine.name} (${dosageText}) — ${w.quantity} un.`,
-        });
-      });
+    const items: { type: 'dispense' | 'appointment'; date: string; description: string; detail: string }[] = [];
 
     appointments
       .filter((a) => {
@@ -234,18 +214,35 @@ export function PatientsPage() {
           appTime = a.scheduledTime;
         }
 
-        items.push({
-          type: 'appointment',
-          date: appDate,
-          description: `Atendimento: ${medName}`,
-          detail: `${d.toLocaleDateString('pt-BR')} ${appTime} — Status: ${a.status}`,
-        });
+        if (a.status === 'COMPLETED') {
+          let batchInfo = '';
+          if (a.batch) {
+            batchInfo = ` — Lote: ${a.batch.batchNumber}`;
+          }
+          let dispDate = appDate;
+          if (a.dispensedAt) {
+            dispDate = a.dispensedAt;
+          }
+          items.push({
+            type: 'dispense',
+            date: dispDate,
+            description: `Dispensação: ${medName}`,
+            detail: `${d.toLocaleDateString('pt-BR')} ${appTime}${batchInfo} — Concluído`,
+          });
+        } else {
+          items.push({
+            type: 'appointment',
+            date: appDate,
+            description: `Agendamento: ${medName}`,
+            detail: `${d.toLocaleDateString('pt-BR')} ${appTime} — Status: ${a.status}`,
+          });
+        }
       });
 
     return items.sort((a, b) => {
       return new Date(b.date).getTime() - new Date(a.date).getTime();
     }).slice(0, 10);
-  }, [selectedPatient, withdrawals, appointments]);
+  }, [selectedPatient, appointments]);
 
   const columns: Column<Patient>[] = [
     {

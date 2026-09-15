@@ -71,14 +71,6 @@ vi.mock('@prisma/client', () => {
         update: vi.fn(),
         delete: vi.fn(),
       };
-      withdrawal = {
-        findUnique: vi.fn(),
-        findFirst: vi.fn(),
-        findMany: vi.fn(),
-        create: vi.fn(),
-        update: vi.fn(),
-        delete: vi.fn(),
-      };
       disposal = {
         findUnique: vi.fn(),
         findFirst: vi.fn(),

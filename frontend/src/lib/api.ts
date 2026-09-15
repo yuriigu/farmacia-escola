@@ -40,12 +40,6 @@ export const api = {
     serviceApi.batches.adjust(id, data),
   deleteBatch: (id: number) => serviceApi.batches.delete(id),
 
-  // Withdrawals
-  getWithdrawals: () => serviceApi.withdrawals.getAll(),
-  createWithdrawal: (data: { patientId?: number; patientName?: string; patientCpf: string; batchId: number; quantity: number; medicineId?: number; appointmentId?: number; notes?: string }) =>
-    serviceApi.withdrawals.create(data),
-  cancelWithdrawal: (id: number, cancelReason: string) => serviceApi.withdrawals.cancel(id, cancelReason),
-
   // Disposals
   getDisposals: () => serviceApi.disposals.getAll(),
   createDisposal: (data: { batchId: number; quantity: number; reason: string; notes?: string }) =>

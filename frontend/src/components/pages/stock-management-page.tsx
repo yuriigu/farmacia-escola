@@ -34,7 +34,7 @@ const batchDraftSchema = z.object({
 });
 
 export function StockManagementPage() {
-  const { medicines, batches, withdrawals, disposals, loading } = usePharmacyStore();
+  const { medicines, batches, appointments, disposals, loading } = usePharmacyStore();
   const { user } = useAuthStore();
   const canWrite = usePermission('BATCHES_CREATE');
   const [createOpen, setCreateOpen] = useState(false);
@@ -118,17 +118,30 @@ export function StockManagementPage() {
     });
   }, [batches, batchSearch, batchStatusFilter]);
 
-  const batchWithdrawals = useMemo(() => {
-    if (!selectedBatch) return [];
-    return withdrawals.filter((w) => {
-      if (w.batch) {
-        if (w.batch.id === selectedBatch.id) {
+  const batchDispenses = useMemo(() => {
+    if (!selectedBatch) {
+      return [];
+    }
+    return appointments.filter((app) => {
+      if (app.status === 'COMPLETED') {
+        if (app.batchId === selectedBatch.id) {
           return true;
+        }
+        if (app.items) {
+          const hasBatch = app.items.some((item) => {
+            if (item.batchId === selectedBatch.id) {
+              return true;
+            }
+            return false;
+          });
+          if (hasBatch) {
+            return true;
+          }
         }
       }
       return false;
     });
-  }, [selectedBatch, withdrawals]);
+  }, [selectedBatch, appointments]);
 
   const batchDisposals = useMemo(() => {
     if (!selectedBatch) return [];
@@ -143,26 +156,49 @@ export function StockManagementPage() {
   }, [selectedBatch, disposals]);
 
   const batchHistory = useMemo(() => {
-    const items: { type: 'withdrawal' | 'disposal'; date: string; description: string; userName: string; quantity: number }[] = [];
-    batchWithdrawals.forEach((w) => {
+    const items: { type: 'dispense' | 'disposal'; date: string; description: string; userName: string; quantity: number }[] = [];
+    batchDispenses.forEach((app) => {
       let patName = 'Paciente';
-      if (w.patient) {
-        if (w.patient.name) {
-          patName = w.patient.name;
+      if (app.patient) {
+        if (app.patient.name) {
+          patName = app.patient.name;
         }
       }
       let userName = 'Sistema';
-      if (w.user) {
-        if (w.user.name) {
-          userName = w.user.name;
+      if (app.dispensedByUser) {
+        if (app.dispensedByUser.name) {
+          userName = app.dispensedByUser.name;
         }
       }
+      let totalQty = 0;
+      if (app.items) {
+        app.items.forEach((it) => {
+          if (it.batchId === selectedBatch?.id) {
+            totalQty = totalQty + it.quantity;
+          }
+        });
+      }
+      if (totalQty === 0) {
+        totalQty = 1;
+      }
+      let dispDate = app.updatedAt;
+      if (app.dispensedAt) {
+        dispDate = app.dispensedAt;
+      } else if (app.createdAt) {
+        dispDate = app.createdAt;
+      }
+      let finalDate = '';
+      if (dispDate) {
+        finalDate = dispDate;
+      } else {
+        finalDate = new Date().toISOString();
+      }
       items.push({
-        type: 'withdrawal',
-        date: w.createdAt,
-        description: `Retirada: ${patName} (${w.quantity} un.)`,
+        type: 'dispense',
+        date: finalDate,
+        description: `Dispensação: ${patName} (${totalQty} un.)`,
         userName: userName,
-        quantity: w.quantity,
+        quantity: totalQty,
       });
     });
     batchDisposals.forEach((d) => {
@@ -181,7 +217,7 @@ export function StockManagementPage() {
       });
     });
     return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-  }, [batchWithdrawals, batchDisposals]);
+  }, [batchDispenses, batchDisposals, selectedBatch]);
 
   const handleExportCSV = () => {
     const header = ['Número do Lote', 'Medicamento', 'Dosagem', 'Quantidade', 'Data de Validade', 'Status'];
@@ -1028,9 +1064,9 @@ export function StockManagementPage() {
                           {batchHistory.map((item, idx) => {
                             let badgeClass = 'text-amber-600 border-amber-200';
                             let badgeLabel = 'Descarte';
-                            if (item.type === 'withdrawal') {
+                            if (item.type === 'dispense') {
                               badgeClass = 'text-teal-600 border-teal-200';
-                              badgeLabel = 'Retirada';
+                              badgeLabel = 'Dispensação';
                             }
                             return (
                               <div

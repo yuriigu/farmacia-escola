@@ -28,21 +28,26 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 // MAPEAMENTO DE ROTA PARA ID DE MODULO
+// (URLs canonicas em portugues + aliases legados em ingles para transicao)
 const PATH_MODULE_MAP: Record<string, ModuleId> = {
   '/dashboard': 'dashboard',
+  '/medicamentos': 'medicines',
   '/medicines': 'medicines',
+  '/lotes': 'estoque',
   '/estoque': 'estoque',
   '/descartes': 'descartes',
   '/agendamentos': 'agendamentos',
   '/appointments': 'agendamentos',
   '/appointments/new': 'agendamentos',
   '/calendario': 'calendario',
+  '/escalas': 'scales',
   '/scales': 'scales',
   '/pacientes': 'administracao',
   '/administracao': 'administracao',
   '/usuarios': 'administracao',
   '/admin': 'administracao',
   '/configuracoes': 'settings',
+  '/perfil': 'settings',
   '/profile': 'settings',
   '/settings': 'settings',
   '/my-appointments': 'agendamentos',
@@ -340,9 +345,17 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
               isActive = true;
             } else if (href !== '/dashboard' && pathname.startsWith(`${href}/`)) {
               isActive = true;
-            } else if (mod.id === 'agendamentos' && pathname === '/appointments') {
+            } else if (mod.id === 'agendamentos' && (pathname === '/appointments' || pathname.startsWith('/appointments/'))) {
               isActive = true;
-            } else if (mod.id === 'administracao' && (pathname === '/admin' || pathname === '/usuarios' || pathname.startsWith('/usuarios/'))) {
+            } else if (mod.id === 'administracao' && (pathname === '/administracao' || pathname === '/admin' || pathname.startsWith('/admin/'))) {
+              isActive = true;
+            } else if (mod.id === 'medicines' && pathname.startsWith('/medicines')) {
+              isActive = true;
+            } else if (mod.id === 'estoque' && pathname === '/estoque') {
+              isActive = true;
+            } else if (mod.id === 'scales' && pathname === '/scales') {
+              isActive = true;
+            } else if (mod.id === 'settings' && (pathname === '/settings' || pathname === '/profile')) {
               isActive = true;
             } else {
               isActive = false;
@@ -429,15 +442,15 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/settings?tab=perfil" className="cursor-pointer gap-2 text-sm flex items-center">
+                  <Link href="/configuracoes?tab=perfil" className="cursor-pointer gap-2 text-sm flex items-center">
                     <UserRound className="w-4 h-4" />
-                    Meu Perfil & Senha
+                    Meu Perfil &amp; Senha
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/settings" className="cursor-pointer gap-2 text-sm flex items-center">
+                  <Link href="/configuracoes" className="cursor-pointer gap-2 text-sm flex items-center">
                     <Settings className="w-4 h-4" />
-                    Configurações & Tema
+                    Configurações &amp; Tema
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem

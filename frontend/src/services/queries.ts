@@ -19,8 +19,19 @@ export const QUERY_KEYS = {
   disposals: ['disposals'] as const,
   users: ['users'] as const,
   activityLogs: (params?: Record<string, unknown>) => ['activityLogs', params] as const,
+  stockStatus: ['stockStatus'] as const,
   me: ['auth', 'me'] as const,
 };
+
+// RESUMO CONSOLIDADO DO PANORAMA DE ESTOQUE (RETORNADO PELO BACKEND)
+export interface StockStatusSummary {
+  total: number;
+  ok: number;
+  low: number;
+  critical: number;
+  expired: number;
+}
+
 
 // ==================== MEDICINES ====================
 
@@ -95,6 +106,17 @@ export function useBatches(medicineId?: number) {
     },
   });
 }
+
+// HOOK PARA O PANORAMA DE ESTOQUE CONSOLIDADO PELO BACKEND
+export function useStockStatus() {
+  return useQuery({
+    queryKey: QUERY_KEYS.stockStatus,
+    queryFn: () => {
+      return api.get<StockStatusSummary>('/dashboard/stock-status');
+    },
+  });
+}
+
 
 // HOOK PARA CRIAR LOTE
 export function useCreateBatch() {

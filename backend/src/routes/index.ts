@@ -8,6 +8,7 @@ import scheduleSlotRoutes from './schedule-slot-routes';
 import appointmentRoutes from './appointment-routes';
 import userRoutes from './user-routes';
 import activityLogRoutes from './activity-log-routes';
+import dashboardRoutes from './dashboard-routes';
 
 const router = Router();
 
@@ -20,5 +21,6 @@ router.use('/schedule-slots', scheduleSlotRoutes);
 router.use('/appointments', appointmentRoutes);
 router.use('/users', userRoutes);
 router.use('/activity-logs', activityLogRoutes);
+router.use('/dashboard', dashboardRoutes);
 
 export default router;

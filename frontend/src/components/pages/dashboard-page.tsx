@@ -13,9 +13,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
 import { useAuthStore } from '@/lib/auth-store';
-import { useMedicines, useAppointments, useBatches } from '@/services/queries';
+import { useMedicines, useAppointments, useBatches, useStockStatus } from '@/services/queries';
 import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES, CHART_COLORS } from '@/lib/constants';
-import { computeStockStatus } from '@/lib/types';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,23 +44,16 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
     }, 0);
   }, [medicines]);
 
-  // Unified Taxonomy Metrics
+  // Unified Taxonomy Metrics — contagens consolidadas pelo backend (GET /api/dashboard/stock-status)
+  const { data: stockStatusData } = useStockStatus();
   const stockTaxonomyCounts = useMemo(() => {
-    let ok = 0;
-    let low = 0;
-    let critical = 0;
-    let expired = 0;
-
-    medicines.forEach((m) => {
-      const status = computeStockStatus(m);
-      if (status === 'ok') ok++;
-      else if (status === 'low') low++;
-      else if (status === 'critical') critical++;
-      else if (status === 'expired') expired++;
-    });
-
-    return { ok, low, critical, expired };
-  }, [medicines]);
+    return {
+      ok: stockStatusData ? stockStatusData.ok : 0,
+      low: stockStatusData ? stockStatusData.low : 0,
+      critical: stockStatusData ? stockStatusData.critical : 0,
+      expired: stockStatusData ? stockStatusData.expired : 0,
+    };
+  }, [stockStatusData]);
 
   const activeAppointments = appointments.filter((a) => a.status !== 'CANCELLED');
   const pendingAppointments = appointments.filter((a) => a.status === 'PENDING');
@@ -190,7 +182,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
               Seus Próximos Agendamentos
             </CardTitle>
             <Button asChild size="sm" variant="ghost" className="rounded-xl text-xs gap-1">
-              <Link href="/appointments">
+              <Link href="/agendamentos">
                 Ver todos
                 <ChevronRight className="w-3.5 h-3.5" />
               </Link>
@@ -206,7 +198,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
                       Você não tem nenhum agendamento pendente.
                     </p>
                     <Button asChild size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-                      <Link href="/appointments?new=1">
+                      <Link href="/agendamentos?new=1">
                         <Plus className="w-4 h-4 mr-1" />
                         Agendar Retirada
                       </Link>
@@ -298,7 +290,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Stock */}
         <Link
-          href="/medicines"
+          href="/medicamentos"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all group block"
         >
           <div className="flex items-center gap-4">
@@ -317,7 +309,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
 
         {/* Em Dia */}
         <Link
-          href="/medicines"
+          href="/medicamentos"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all group block"
         >
           <div className="flex items-center gap-4">
@@ -336,7 +328,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
 
         {/* Baixo / Crítico */}
         <Link
-          href="/medicines"
+          href="/medicamentos"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-amber-300 transition-all group block"
         >
           <div className="flex items-center gap-4">
@@ -357,7 +349,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
 
         {/* Vencidos */}
         <Link
-          href="/estoque"
+          href="/lotes"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-purple-300 transition-all group block"
         >
           <div className="flex items-center gap-4">
@@ -399,7 +391,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
                 </div>
               </div>
               <Button asChild variant="outline" size="sm" className="border-rose-300 text-rose-700 hover:bg-rose-100 rounded-xl text-xs">
-                <Link href="/estoque">Gerenciar Lotes</Link>
+                <Link href="/lotes">Gerenciar Lotes</Link>
               </Button>
             </div>
           );
@@ -502,7 +494,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
             Próximos Atendimentos Agendados
           </CardTitle>
           <Button asChild size="sm" variant="ghost" className="rounded-xl text-xs gap-1">
-            <Link href="/appointments">
+            <Link href="/agendamentos">
               Ver todos
               <ChevronRight className="w-3.5 h-3.5" />
             </Link>

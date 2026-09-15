@@ -1,124 +1,133 @@
 // DEFINICAO DOS PAPEIS DO SISTEMA
 export type AppRole = 'ADMIN' | 'FARMACEUTICO' | 'MEDICO' | 'ALUNO' | 'PACIENTE';
 
+// CHAVES CANONICAS DE MODULO (UMA UNICA CHAVE POR TELA/SIDEBAR - SEM SINONIMOS)
+export type ModuleKey =
+  | 'dashboard'
+  | 'medicamentos'
+  | 'lotes'
+  | 'descartes'
+  | 'agendamentos'
+  | 'calendario'
+  | 'escala'
+  | 'usuarios'
+  | 'configuracoes';
 
-
-// MAPEAMENTO DE PERMISSOES POR PAPEL
-export const rolePermissions: Record<AppRole, string[]> = {
+// MAPEAMENTO DE PERMISSOES POR PAPEL (APENAS CHAVES CANONICAS)
+export const rolePermissions: Record<AppRole, ModuleKey[]> = {
   ADMIN: [
     'dashboard',
-    'medicines',
-    'estoque',
+    'medicamentos',
+    'lotes',
     'descartes',
     'agendamentos',
-    'appointments',
     'calendario',
-    'scales',
-    'pacientes',
-    'administracao',
-    'admin',
-    'profile',
-    'configuracoes',
-    'settings',
+    'escala',
     'usuarios',
+    'configuracoes',
   ],
   FARMACEUTICO: [
     'dashboard',
-    'medicines',
-    'estoque',
+    'medicamentos',
+    'lotes',
     'descartes',
     'agendamentos',
-    'appointments',
     'calendario',
-    'scales',
-    'pacientes',
-    'administracao',
-    'admin',
-    'profile',
-    'configuracoes',
-    'settings',
+    'escala',
     'usuarios',
+    'configuracoes',
   ],
   ALUNO: [
     'dashboard',
-    'medicines',
-    'estoque',
+    'medicamentos',
+    'lotes',
     'descartes',
     'agendamentos',
-    'appointments',
     'calendario',
-    'scales',
-    'pacientes',
-    'administracao',
-    'admin',
-    'profile',
-    'configuracoes',
-    'settings',
+    'escala',
     'usuarios',
+    'configuracoes',
   ],
   MEDICO: [
     'dashboard',
-    'medicines',
+    'medicamentos',
     'agendamentos',
-    'appointments',
     'calendario',
-    'pacientes',
-    'administracao',
-    'admin',
-    'profile',
-    'configuracoes',
-    'settings',
     'usuarios',
+    'configuracoes',
   ],
   PACIENTE: [
     'dashboard',
-    'medicines',
+    'medicamentos',
     'agendamentos',
-    'appointments',
     'calendario',
-    'profile',
     'configuracoes',
-    'settings',
   ],
 };
 
+// DE-PARA UNICO: URL AMIGAVEL (PT), ROTA LEGADA (EN) OU ID DE MODULO (EN) -> CHAVE CANONICA
+// Qualquer segmento que NAO esteja aqui e tratado como rota desconhecida (acesso negado).
+const CANONICAL_ALIASES: Record<string, ModuleKey> = {
+  // Dashboard
+  dashboard: 'dashboard',
+  // Medicamentos
+  medicamentos: 'medicamentos',
+  medicines: 'medicamentos',
+  // Lotes (estoque/batches)
+  lotes: 'lotes',
+  estoque: 'lotes',
+  // Descartes
+  descartes: 'descartes',
+  // Agendamentos
+  agendamentos: 'agendamentos',
+  appointments: 'agendamentos',
+  'my-appointments': 'agendamentos',
+  // Calendario
+  calendario: 'calendario',
+  // Escala
+  escala: 'escala',
+  escalas: 'escala',
+  scales: 'escala',
+  // Usuarios
+  usuarios: 'usuarios',
+  administracao: 'usuarios',
+  admin: 'usuarios',
+  pacientes: 'usuarios',
+  // Configuracoes (perfil/settings)
+  configuracoes: 'configuracoes',
+  perfil: 'configuracoes',
+  profile: 'configuracoes',
+  settings: 'configuracoes',
+};
+
+// NORMALIZA A ROTA SOLICITADA (REMOVE BARRA INICIAL, QUERY E SUBSEGMENTOS)
+// E TRADUZ O APELIDO DE URL PARA A CHAVE CANONICA
+function toModuleKey(routeOrModule: string): ModuleKey | undefined {
+  const clean = routeOrModule
+    .replace(/^\/+/, '')
+    .split('?')[0]
+    .split('/')[0]
+    .trim()
+    .toLowerCase();
+  if (!clean) {
+    return undefined;
+  }
+  return CANONICAL_ALIASES[clean];
+}
+
 // FUNCAO PARA VERIFICAR SE O PAPEL TEM ACESSO A ROTA
+// Rotas desconhecidas, papéis invalidos ou chamadas sem papel retornam false.
 export function hasRouteAccess(role: string | undefined | null, routeOrModule: string): boolean {
-  if (role) {
-    const normalizedRole = role.toUpperCase() as AppRole;
-    const permissions = rolePermissions[normalizedRole];
-
-    if (permissions) {
-      const segments = routeOrModule.replace(/^\//, '').split('?')[0].split('/');
-
-      const routeAliases: Record<string, string> = {
-        admin: 'administracao',
-        usuarios: 'administracao',
-        calendario: 'calendario',
-        profile: 'configuracoes',
-        configuracoes: 'profile',
-        appointments: 'appointments',
-        agendamentos: 'agendamentos',
-      };
-      let primarySegment = 'dashboard';
-      if (segments[0]) {
-        primarySegment = segments[0];
-      } else {
-        primarySegment = 'dashboard';
-      }
-      let primaryKey = primarySegment;
-      if (routeAliases[primarySegment]) {
-        primaryKey = routeAliases[primarySegment];
-      } else {
-        primaryKey = primarySegment;
-      }
-
-      const hasAccess = permissions.includes(primaryKey);
-      return hasAccess;
-    } else {
-      return false;
-    }
-  } else {
+  if (!role) {
     return false;
   }
+  const permissions = rolePermissions[role.toUpperCase() as AppRole];
+  if (!permissions) {
+    return false;
+  }
+  const moduleKey = toModuleKey(routeOrModule);
+  if (!moduleKey) {
+    return false;
+  }
+  return permissions.includes(moduleKey);
 }

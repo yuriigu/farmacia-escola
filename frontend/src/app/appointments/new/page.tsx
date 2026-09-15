@@ -10,9 +10,9 @@ function NewAppointmentRedirectContent() {
   useEffect(() => {
     const medId = searchParams.get('medicineId');
     if (medId) {
-      router.replace(`/appointments?new=1&medicineId=${medId}`);
+      router.replace(`/agendamentos?new=1&medicineId=${medId}`);
     } else {
-      router.replace('/appointments?new=1');
+      router.replace('/agendamentos?new=1');
     }
   }, [router, searchParams]);
 

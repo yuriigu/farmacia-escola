@@ -67,7 +67,7 @@ export default function MedicineDetailsPage() {
             O medicamento solicitado não foi encontrado no sistema ou foi removido.
           </p>
           <Button asChild className="rounded-xl">
-            <Link href="/medicines">Voltar para o Catálogo</Link>
+            <Link href="/medicamentos">Voltar para o Catálogo</Link>
           </Button>
         </div>
       </AppShell>
@@ -84,7 +84,7 @@ export default function MedicineDetailsPage() {
             O medicamento solicitado não foi encontrado no sistema ou foi removido.
           </p>
           <Button asChild className="rounded-xl">
-            <Link href="/medicines">Voltar para o Catálogo</Link>
+            <Link href="/medicamentos">Voltar para o Catálogo</Link>
           </Button>
         </div>
       </AppShell>
@@ -192,7 +192,7 @@ export default function MedicineDetailsPage() {
     if (user.role !== 'PACIENTE') {
       manageBatchesButton = (
         <Button asChild size="sm" variant="outline" className="rounded-xl text-xs gap-1.5">
-          <Link href="/admin/stock">
+          <Link href="/lotes">
             Gerenciar Lotes
           </Link>
         </Button>
@@ -274,7 +274,7 @@ export default function MedicineDetailsPage() {
             variant="ghost"
             size="sm"
             onClick={() => {
-              router.push('/medicines');
+              router.push('/medicamentos');
             }}
             className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 rounded-xl gap-2 -ml-2"
           >
@@ -317,7 +317,7 @@ export default function MedicineDetailsPage() {
                 disabled={!isAvailable}
                 className={ctaButtonClass}
               >
-                <Link href={'/appointments/new?medicineId=' + medicine.id}>
+                <Link href={'/agendamentos?new=1&medicineId=' + medicine.id}>
                   <Calendar className="w-5 h-5" />
                   Agendar Retirada
                 </Link>

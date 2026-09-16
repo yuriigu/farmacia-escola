@@ -7,7 +7,7 @@ import { ProtectedRoute } from '@/components/protected-route';
 export default function ProfilePage() {
   return (
     <ProtectedRoute routeKey="profile">
-      <AppShell activeModuleId="configuracoes" pageTitle="Meu Perfil">
+      <AppShell activeModuleId="profile" pageTitle="Meu Perfil">
         <SettingsPage />
       </AppShell>
     </ProtectedRoute>

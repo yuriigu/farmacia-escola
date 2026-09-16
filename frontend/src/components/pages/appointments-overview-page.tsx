@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
-import { CalendarDays, Clock, Plus, Eye, Check, CircleCheckBig, X } from 'lucide-react';
+import { CalendarDays, Clock, Plus, Eye, Check, CircleCheckBig, X, Download } from 'lucide-react';
 import { toast } from '@/lib/toast-handler';
 import { useAuthStore } from '@/lib/auth-store';
 import { usePharmacyStore, fetchAllData, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { downloadCSV } from '@/lib/constants';
 import { StandardCalendar } from '@/components/shared/standard-calendar';
 
 export function AppointmentsOverviewPage() {
@@ -148,6 +149,81 @@ export function AppointmentsOverviewPage() {
     return list;
   })();
 
+  const visibleAppointments = appointments.filter((app) => {
+    if (!isPatient) {
+      return true;
+    }
+    if (!user) {
+      return false;
+    }
+    return app.patientId === user.patientId;
+  });
+
+  const handleExportCSV = () => {
+    const header = ['Paciente', 'CPF', 'Data Agendada', 'Horário', 'Status', 'Medicamento(s)', 'Observações'];
+    const rows = visibleAppointments.map((app) => {
+      let patientName = 'Não informado';
+      if (app.patient) {
+        if (app.patient.name) {
+          patientName = app.patient.name;
+        }
+      } else if (isPatient) {
+        if (user) {
+          if (user.name) {
+            patientName = user.name;
+          }
+        }
+      }
+
+      let patientCpf = '—';
+      if (app.patient) {
+        if (app.patient.cpf) {
+          patientCpf = app.patient.cpf;
+        }
+      }
+
+      const scheduled = new Date(app.scheduledDate);
+      let dateLabel = '—';
+      if (!Number.isNaN(scheduled.getTime())) {
+        dateLabel = scheduled.toLocaleDateString('pt-BR');
+      }
+
+      let timeLabel = '—';
+      if (app.scheduledTime) {
+        timeLabel = app.scheduledTime;
+      }
+
+      let statusLabel: string = app.status;
+      if (APPOINTMENT_STATUS_LABELS[app.status]) {
+        statusLabel = APPOINTMENT_STATUS_LABELS[app.status];
+      }
+
+      let medNames = 'Nenhum';
+      if (app.items) {
+        if (app.items.length > 0) {
+          medNames = app.items.map((item) => {
+            let itemName = 'Sem nome';
+            if (item.medicine) {
+              if (item.medicine.name) {
+                itemName = item.medicine.name;
+              }
+            }
+            return itemName;
+          }).join('; ');
+        }
+      }
+
+      let notes = '';
+      if (app.notes) {
+        notes = app.notes;
+      }
+
+      return [patientName, patientCpf, dateLabel, timeLabel, statusLabel, medNames, notes];
+    });
+    downloadCSV('agendamentos_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
+    toast.success('Agendamentos exportados com sucesso!');
+  };
+
   let dateStr = '';
   if (selectedDay) {
     dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
@@ -246,13 +322,24 @@ export function AppointmentsOverviewPage() {
         description="Calendário mensal de dispensações e acompanhamento das vagas disponíveis."
         icon={CalendarDays}
         actions={
-          <Button
-            onClick={() => handleGoToAppointments()}
-            className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
-          >
-            <Plus className="w-4 h-4" />
-            <span>Novo Agendamento</span>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={handleExportCSV}
+              disabled={visibleAppointments.length === 0}
+              className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
+            >
+              <Download className="w-4 h-4" />
+              <span>Exportar CSV</span>
+            </Button>
+            <Button
+              onClick={() => handleGoToAppointments()}
+              className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Novo Agendamento</span>
+            </Button>
+          </div>
         }
       />
 
@@ -435,16 +522,18 @@ export function AppointmentsOverviewPage() {
                                   if (app.status === 'PENDING') {
                                     return (
                                       <Button
-                                        variant="ghost"
+                                        variant="outline"
                                         size="sm"
-                                        title="Confirmar"
+                                        title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
                                         onClick={async () => {
                                           await api.confirmAppointment(app.id);
                                           toast.success('Agendamento confirmado.');
                                           fetchScheduleSlotsData();
                                         }}
+                                        className="h-7 rounded-lg border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 font-medium text-xs gap-1.5"
                                       >
-                                        <Check className="h-4 w-4 text-blue-600" />
+                                        <Check className="h-3.5 w-3.5" />
+                                        <span>Confirmar</span>
                                       </Button>
                                     );
                                   }
@@ -453,38 +542,47 @@ export function AppointmentsOverviewPage() {
                               })()}
                               {(() => {
                                 if (!isPatient) {
-                                  // Show complete button for all non-patient roles
-                                  // Allow completion regardless of scheduled date/time
-                                  return (
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      title="Concluir Agendamento"
-                                      onClick={async () => {
-                                        try {
-                                          const withdrawal = await api.completeAppointment(app.id);
-                                          setReceipt(withdrawal);
-                                          toast.success('Atendimento concluído e dispensado.');
-                                          fetchScheduleSlotsData();
-                                          fetchAllData();
-                                          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
-                                          queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
-                                          queryClient.invalidateQueries({ queryKey: ['batches'] });
-                                        } catch (err: unknown) {
-                                          const error = err as { message?: string };
-                                          let errorMsg = 'Erro ao concluir atendimento.';
-                                          if (error) {
-                                            if (error.message) {
-                                              errorMsg = error.message;
+                                  // Concluir e a acao FINAL: efetiva o atendimento e a dispensacao.
+                                  let canComplete = false;
+                                  if (app.status === 'PENDING') {
+                                    canComplete = true;
+                                  } else if (app.status === 'CONFIRMED') {
+                                    canComplete = true;
+                                  }
+                                  if (canComplete) {
+                                    return (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
+                                        onClick={async () => {
+                                          try {
+                                            const withdrawal = await api.completeAppointment(app.id);
+                                            setReceipt(withdrawal);
+                                            toast.success('Atendimento concluído e dispensado.');
+                                            fetchScheduleSlotsData();
+                                            fetchAllData();
+                                            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
+                                            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
+                                            queryClient.invalidateQueries({ queryKey: ['batches'] });
+                                          } catch (err: unknown) {
+                                            const error = err as { message?: string };
+                                            let errorMsg = 'Erro ao concluir atendimento.';
+                                            if (error) {
+                                              if (error.message) {
+                                                errorMsg = error.message;
+                                              }
                                             }
+                                            toast.error(errorMsg);
                                           }
-                                          toast.error(errorMsg);
-                                        }
-                                      }}
-                                    >
-                                      <CircleCheckBig className="h-4 w-4 text-green-600" />
-                                    </Button>
-                                  );
+                                        }}
+                                        className="h-7 rounded-lg border-teal-400 dark:border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/40 font-medium text-xs gap-1.5"
+                                      >
+                                        <CircleCheckBig className="h-3.5 w-3.5" />
+                                        <span>Concluir</span>
+                                      </Button>
+                                    );
+                                  }
                                 }
                                 return null;
                               })()}
@@ -553,34 +651,80 @@ export function AppointmentsOverviewPage() {
                     <Button variant="outline" onClick={() => setSelectedAppointment(null)}>Fechar</Button>
                     {(() => {
                       if (!isPatient) {
+                        let canConfirm = false;
+                        let canComplete = false;
+                        if (selectedAppointment.status === 'PENDING') {
+                          canConfirm = true;
+                          canComplete = true;
+                        } else if (selectedAppointment.status === 'CONFIRMED') {
+                          canComplete = true;
+                        }
+
                         return (
-                          <Button
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs"
-                            onClick={async () => {
-                              try {
-                                const withdrawal = await api.completeAppointment(selectedAppointment.id);
-                                setReceipt(withdrawal);
-                                setSelectedAppointment(null);
-                                toast.success('Atendimento concluído e dispensado.');
-                                fetchScheduleSlotsData();
-                                fetchAllData();
-                                queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
-                                queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
-                                queryClient.invalidateQueries({ queryKey: ['batches'] });
-                              } catch (err: unknown) {
-                                const error = err as { message?: string };
-                                let errorMsg = 'Erro ao concluir atendimento.';
-                                if (error) {
-                                  if (error.message) {
-                                    errorMsg = error.message;
+                          <div className="flex items-center gap-2">
+                            {canConfirm && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
+                                onClick={async () => {
+                                  try {
+                                    await api.confirmAppointment(selectedAppointment.id);
+                                    toast.success('Agendamento confirmado.');
+                                    setSelectedAppointment(null);
+                                    fetchScheduleSlotsData();
+                                    fetchAllData();
+                                    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
+                                  } catch (err: unknown) {
+                                    const error = err as { message?: string };
+                                    let errorMsg = 'Erro ao confirmar agendamento.';
+                                    if (error) {
+                                      if (error.message) {
+                                        errorMsg = error.message;
+                                      }
+                                    }
+                                    toast.error(errorMsg);
                                   }
-                                }
-                                toast.error(errorMsg);
-                              }
-                            }}
-                          >
-                            Concluir Agendamento
-                          </Button>
+                                }}
+                                className="h-8 rounded-lg border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs font-semibold gap-1.5"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                                Confirmar Agendamento
+                              </Button>
+                            )}
+                            {canComplete && (
+                              <Button
+                                size="sm"
+                                title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
+                                onClick={async () => {
+                                  try {
+                                    const withdrawal = await api.completeAppointment(selectedAppointment.id);
+                                    setReceipt(withdrawal);
+                                    setSelectedAppointment(null);
+                                    toast.success('Atendimento concluído e dispensado.');
+                                    fetchScheduleSlotsData();
+                                    fetchAllData();
+                                    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
+                                    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
+                                    queryClient.invalidateQueries({ queryKey: ['batches'] });
+                                  } catch (err: unknown) {
+                                    const error = err as { message?: string };
+                                    let errorMsg = 'Erro ao concluir atendimento.';
+                                    if (error) {
+                                      if (error.message) {
+                                        errorMsg = error.message;
+                                      }
+                                    }
+                                    toast.error(errorMsg);
+                                  }
+                                }}
+                                className="h-8 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold gap-1.5"
+                              >
+                                <CircleCheckBig className="h-3.5 w-3.5" />
+                                Concluir Agendamento
+                              </Button>
+                            )}
+                          </div>
                         );
                       }
                       return null;
@@ -606,7 +750,7 @@ export function AppointmentsOverviewPage() {
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader><DialogTitle>Comprovante de Retirada</DialogTitle><DialogDescription>Baixa FEFO concluída para o atendimento.</DialogDescription></DialogHeader>
           <div className="space-y-2 text-sm"><p>Paciente: {receipt?.patient?.name ?? 'Não informado'}</p><p>Lote consumido: {receipt?.batch?.batchNumber ?? receipt?.allocatedItems?.map((item: { batchNumber: string }) => item.batchNumber).join(', ') ?? 'Baixa FEFO registrada'}</p></div>
-          <div className="flex justify-end"><Button onClick={() => window.print()} className="bg-emerald-600 text-white">Imprimir/Salvar PDF</Button></div>
+          <div className="flex justify-end"><Button variant="outline" onClick={() => setReceipt(null)}>Fechar</Button></div>
         </DialogContent>
       </Dialog>
     </div>

@@ -20,72 +20,78 @@ const nextConfig: NextConfig = {
         source: '/api-proxy/:path*',
         destination: `${backendUrl}/api/:path*`,
       },
-      // MAPEAMENTO DE URLs AMIGAVEIS EM PORTUGUES PARA AS PASTAS INTERNAS EM INGLES
+      // MAPEAMENTO DE URLs AMIGAVEIS EM PORTUGUES PARA AS PASTAS FISICAS EM INGLES
       {
         source: '/medicamentos',
         destination: '/medicines',
       },
       {
-        source: '/medicamentos/:path*',
-        destination: '/medicines/:path*',
+        source: '/lotes',
+        destination: '/inventory',
       },
       {
-        source: '/lotes',
-        destination: '/estoque',
+        source: '/estoque',
+        destination: '/inventory',
+      },
+      {
+        source: '/descartes',
+        destination: '/disposals',
+      },
+      {
+        source: '/agendamentos',
+        destination: '/appointments',
+      },
+      {
+        source: '/calendario',
+        destination: '/calendar',
       },
       {
         source: '/escalas',
         destination: '/scales',
       },
       {
+        source: '/usuarios',
+        destination: '/users',
+      },
+      {
+        source: '/administracao',
+        destination: '/users',
+      },
+      {
+        source: '/pacientes',
+        destination: '/users',
+      },
+      {
+        source: '/configuracoes',
+        destination: '/settings',
+      },
+      {
         source: '/perfil',
         destination: '/profile',
+      },
+      // MODULO EXPURGADO: RETIRADAS CONVERGE PARA AGENDAMENTOS
+      {
+        source: '/retiradas',
+        destination: '/appointments',
       },
     ];
   },
   async redirects() {
     return [
-      // SANITIZACAO DE ROTAS DUPLICADAS/ORFAS: TUDO DE USUARIOS CONVERGE PARA /usuarios
+      // SANITIZACAO DE ROTAS DUPLICADAS/ORFAS
       {
         source: '/admin/stock',
-        destination: '/lotes',
+        destination: '/inventory',
         permanent: false,
       },
       {
         source: '/admin',
-        destination: '/usuarios',
+        destination: '/users',
         permanent: false,
       },
       {
-        source: '/administracao',
-        destination: '/usuarios',
-        permanent: false,
-      },
-      {
-        source: '/pacientes',
-        destination: '/usuarios',
-        permanent: false,
-      },
-      // DUPLICIDADE DE AGENDAMENTOS: /appointments CONVERGE PARA /agendamentos
-      {
-        source: '/appointments/new',
-        destination: '/agendamentos?new=1',
-        permanent: false,
-      },
-      {
-        source: '/appointments',
-        destination: '/agendamentos',
-        permanent: false,
-      },
-      // CONFIGURACOES/PERFIL: PADRONIZACAO EM PORTUGUES
-      {
-        source: '/settings',
-        destination: '/configuracoes',
-        permanent: false,
-      },
-      {
-        source: '/profile',
-        destination: '/perfil',
+        source: '/my-appointments',
+        destination: '/appointments',
         permanent: false,
       },
     ];

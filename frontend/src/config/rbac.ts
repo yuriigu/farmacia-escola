@@ -4,64 +4,64 @@ export type AppRole = 'ADMIN' | 'FARMACEUTICO' | 'MEDICO' | 'ALUNO' | 'PACIENTE'
 // CHAVES CANONICAS DE MODULO (UMA UNICA CHAVE POR TELA/SIDEBAR - SEM SINONIMOS)
 export type ModuleKey =
   | 'dashboard'
-  | 'medicamentos'
-  | 'lotes'
-  | 'descartes'
-  | 'agendamentos'
-  | 'calendario'
-  | 'escala'
-  | 'usuarios'
-  | 'configuracoes';
+  | 'medicines'
+  | 'inventory'
+  | 'disposals'
+  | 'appointments'
+  | 'calendar'
+  | 'scales'
+  | 'users'
+  | 'settings';
 
 // MAPEAMENTO DE PERMISSOES POR PAPEL (APENAS CHAVES CANONICAS)
 export const rolePermissions: Record<AppRole, ModuleKey[]> = {
   ADMIN: [
     'dashboard',
-    'medicamentos',
-    'lotes',
-    'descartes',
-    'agendamentos',
-    'calendario',
-    'escala',
-    'usuarios',
-    'configuracoes',
+    'medicines',
+    'inventory',
+    'disposals',
+    'appointments',
+    'calendar',
+    'scales',
+    'users',
+    'settings',
   ],
   FARMACEUTICO: [
     'dashboard',
-    'medicamentos',
-    'lotes',
-    'descartes',
-    'agendamentos',
-    'calendario',
-    'escala',
-    'usuarios',
-    'configuracoes',
+    'medicines',
+    'inventory',
+    'disposals',
+    'appointments',
+    'calendar',
+    'scales',
+    'users',
+    'settings',
   ],
   ALUNO: [
     'dashboard',
-    'medicamentos',
-    'lotes',
-    'descartes',
-    'agendamentos',
-    'calendario',
-    'escala',
-    'usuarios',
-    'configuracoes',
+    'medicines',
+    'inventory',
+    'disposals',
+    'appointments',
+    'calendar',
+    'scales',
+    'users',
+    'settings',
   ],
   MEDICO: [
     'dashboard',
-    'medicamentos',
-    'agendamentos',
-    'calendario',
-    'usuarios',
-    'configuracoes',
+    'medicines',
+    'appointments',
+    'calendar',
+    'users',
+    'settings',
   ],
   PACIENTE: [
     'dashboard',
-    'medicamentos',
-    'agendamentos',
-    'calendario',
-    'configuracoes',
+    'medicines',
+    'appointments',
+    'calendar',
+    'settings',
   ],
 };
 
@@ -71,33 +71,37 @@ const CANONICAL_ALIASES: Record<string, ModuleKey> = {
   // Dashboard
   dashboard: 'dashboard',
   // Medicamentos
-  medicamentos: 'medicamentos',
-  medicines: 'medicamentos',
-  // Lotes (estoque/batches)
-  lotes: 'lotes',
-  estoque: 'lotes',
+  medicamentos: 'medicines',
+  medicines: 'medicines',
+  // Lotes (estoque/batches/inventory)
+  lotes: 'inventory',
+  estoque: 'inventory',
+  batches: 'inventory',
+  inventory: 'inventory',
   // Descartes
-  descartes: 'descartes',
+  descartes: 'disposals',
+  disposals: 'disposals',
   // Agendamentos
-  agendamentos: 'agendamentos',
-  appointments: 'agendamentos',
-  'my-appointments': 'agendamentos',
+  agendamentos: 'appointments',
+  appointments: 'appointments',
+  'my-appointments': 'appointments',
   // Calendario
-  calendario: 'calendario',
+  calendario: 'calendar',
+  calendar: 'calendar',
   // Escala
-  escala: 'escala',
-  escalas: 'escala',
-  scales: 'escala',
+  escala: 'scales',
+  escalas: 'scales',
+  scales: 'scales',
   // Usuarios
-  usuarios: 'usuarios',
-  administracao: 'usuarios',
-  admin: 'usuarios',
-  pacientes: 'usuarios',
+  usuarios: 'users',
+  administracao: 'users',
+  admin: 'users',
+  pacientes: 'users',
   // Configuracoes (perfil/settings)
-  configuracoes: 'configuracoes',
-  perfil: 'configuracoes',
-  profile: 'configuracoes',
-  settings: 'configuracoes',
+  configuracoes: 'settings',
+  perfil: 'settings',
+  profile: 'settings',
+  settings: 'settings',
 };
 
 // NORMALIZA A ROTA SOLICITADA (REMOVE BARRA INICIAL, QUERY E SUBSEGMENTOS)

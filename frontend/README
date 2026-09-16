@@ -183,13 +183,19 @@ Arquitetura de Páginas e Rotas
 * /login — Tela de autenticação com credenciais (Público)
 * /register — Cadastro público de novos pacientes (Público)
 * /dashboard — Painel operacional com métricas de estoque e alertas (Usuários Autenticados)
-* /estoque — Gestão de medicamentos, lotes, retiradas e descartes (ADMIN, FARMACEUTICO, ALUNO)
-* /agendamentos — Controle de solicitações de retirada e dispensações (ADMIN, FARMACEUTICO, MEDICO)
-* /calendario — Grade de horários e gestão de capacidade (ADMIN, FARMACEUTICO, MEDICO)
-* /pacientes — Cadastro de pacientes e histórico de retiradas (ADMIN, FARMACEUTICO)
-* /administracao (ou /usuarios) — Gestão de usuários e contas de acesso (ADMIN, FARMACEUTICO, ALUNO, MEDICO)
-* /configuracoes — Configurações institucionais da plataforma (ADMIN)
+* /medicines — Catálogo de medicamentos com orientações farmacoterapêuticas (Todos)
+* /inventory — Gestão de lotes e controle de estoque (ADMIN, FARMACEUTICO, ALUNO)
+* /disposals — Registro e reversão justificada de descartes (ADMIN, FARMACEUTICO, ALUNO)
+* /appointments — Controle de solicitações de retirada e dispensações (Todos)
+* /calendar — Grade de horários e gestão de capacidade (Todos)
+* /scales — Gestão de escalas e faixas de atendimento (ADMIN, FARMACEUTICO, ALUNO)
+* /users — Gestão de usuários e contas de acesso (ADMIN, FARMACEUTICO, ALUNO, MEDICO)
+* /settings — Configurações institucionais da plataforma (Todos)
 * /profile — Dados cadastrais e alteração de senha do usuário conectado (Todos)
+
+URLs amigáveis em português (ex.: /estoque, /agendamentos, /usuarios, /configuracoes)
+continuam funcionando via rewrites no next.config.ts, apontando para as pastas
+físicas canônicas em inglês dentro de src/app/.
 
 Padrões de Interface e Design System
 ------------------------------------

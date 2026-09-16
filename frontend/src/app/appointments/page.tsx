@@ -5,7 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import { toast } from '@/lib/toast-handler';
 import {
   Calendar, Plus, Clock, Pill, Search, X, Check, XCircle,
-  Eye, RefreshCw, CalendarDays, User
+  Eye, RefreshCw, CalendarDays, User, Download, CircleCheck
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import {
@@ -30,6 +30,7 @@ import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle
 } from '@/components/ui/dialog';
+import { downloadCSV } from '@/lib/constants';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -549,13 +550,14 @@ function AppointmentsContent() {
                   return (
                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="outline"
                       onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'CONFIRMED' })}
                       disabled={updateStatusMutation.isPending}
-                      className="h-8 w-8 p-0 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
-                      title="Confirmar Agendamento"
+                      className="rounded-lg border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 font-medium text-xs gap-1.5 h-7"
+                      title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
                     >
-                      <Check className="w-4 h-4" />
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Confirmar</span>
                     </Button>
                   );
                 }
@@ -565,24 +567,34 @@ function AppointmentsContent() {
 
             {(() => {
               if (isStaff) {
-                // Show complete button for staff - allow completion regardless of date/time
-                return (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' }, {
-                      onSuccess: (withdrawal) => {
-                        setReceipt(withdrawal);
-                        refetch();
-                      },
-                    })}
-                    disabled={updateStatusMutation.isPending}
-                    className="h-8 w-8 p-0 rounded-lg text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/30"
-                    title="Concluir Agendamento"
-                  >
-                    <Check className="w-4 h-4" />
-                  </Button>
-                );
+                // Concluir e a acao FINAL: efetiva o atendimento e realiza a dispensacao.
+                // So fica disponivel enquanto o agendamento ainda esta em andamento.
+                let canComplete = false;
+                if (app.status === 'PENDING') {
+                  canComplete = true;
+                } else if (app.status === 'CONFIRMED') {
+                  canComplete = true;
+                }
+                if (canComplete) {
+                  return (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' }, {
+                        onSuccess: (withdrawal) => {
+                          setReceipt(withdrawal);
+                          refetch();
+                        },
+                      })}
+                      disabled={updateStatusMutation.isPending}
+                      className="rounded-lg border-teal-400 dark:border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/40 font-medium text-xs gap-1.5 h-7"
+                      title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
+                    >
+                      <CircleCheck className="w-3.5 h-3.5" />
+                      <span>Concluir</span>
+                    </Button>
+                  );
+                }
               }
               return null;
             })()}
@@ -605,6 +617,23 @@ function AppointmentsContent() {
       },
     },
   ];
+
+  const handleExportCSV = () => {
+    const header = ['Paciente', 'CPF', 'Data Agendada', 'Horário', 'Status', 'Medicamento(s)', 'Observações'];
+    const rows = filteredAppointments.map((app) => {
+      let patientName = app.patient?.name ?? (isPatient && user?.name ? user.name : 'Não informado');
+      let patientCpf = app.patient?.cpf ?? (isPatient ? '—' : '');
+      const scheduled = new Date(app.scheduledDate);
+      const dateLabel = Number.isNaN(scheduled.getTime()) ? '—' : scheduled.toLocaleDateString('pt-BR');
+      const timeLabel = app.scheduledTime ?? '—';
+      const statusLabel = APPOINTMENT_STATUS_LABELS[app.status] ?? app.status;
+      const medNames = app.items?.map((item) => item.medicine?.name ?? 'Sem nome').join('; ') ?? 'Nenhum';
+      const notes = app.notes ?? '';
+      return [patientName, patientCpf, dateLabel, timeLabel, statusLabel, medNames, notes];
+    });
+    downloadCSV('agendamentos_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
+    toast.success('Agendamentos exportados com sucesso!');
+  };
 
   let pageDesc = 'Gerenciamento completo das solicitações e atendimentos da Farmácia Escola.';
   if (isPatient) {
@@ -630,7 +659,7 @@ function AppointmentsContent() {
   const selectedMedVal = items[0]?.medicineId ? String(items[0].medicineId) : '';
 
   return (
-    <AppShell activeModuleId={'appointments' as any} pageTitle="Agendamentos de Retirada">
+    <AppShell activeModuleId="appointments" pageTitle="Agendamentos de Retirada">
       <div className="space-y-5 max-w-7xl mx-auto page-enter">
         {/* Standard PageHeader */}
         <PageHeader
@@ -639,6 +668,22 @@ function AppointmentsContent() {
           icon={Calendar}
           actions={
             <div className="flex items-center gap-2">
+              {(() => {
+                if (!isPatient) {
+                  return (
+                    <Button
+                      variant="outline"
+                      onClick={handleExportCSV}
+                      disabled={filteredAppointments.length === 0}
+                      className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
+                    >
+                      <Download className="w-4 h-4" />
+                      <span>Exportar CSV</span>
+                    </Button>
+                  );
+                }
+                return null;
+              })()}
               <Button
                 variant="outline"
                 onClick={() => refetch()}
@@ -869,7 +914,7 @@ function AppointmentsContent() {
                     if (createAppointmentMutation.isPending) {
                       return 'Salvando...';
                     } else {
-                      return 'Confirmar Agendamento';
+                      return 'Criar Agendamento';
                     }
                   })()}
                 </Button>
@@ -1054,24 +1099,59 @@ function AppointmentsContent() {
                     </Button>
                     {(() => {
                       if (isStaff) {
-                        // Show complete button for staff - allow completion regardless of date/time
+                        // PENDING -> CONFIRMED (validacao) e PENDING/CONFIRMED -> COMPLETED (dispensacao)
+                        let canConfirm = false;
+                        let canComplete = false;
+                        if (app.status === 'PENDING') {
+                          canConfirm = true;
+                          canComplete = true;
+                        } else if (app.status === 'CONFIRMED') {
+                          canComplete = true;
+                        }
+
                         return (
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' }, {
-                                onSuccess: (withdrawal) => {
-                                  setReceipt(withdrawal);
-                                  setSelectedAppointmentForDetails(null);
-                                  refetch();
-                                },
-                              });
-                            }}
-                            disabled={updateStatusMutation.isPending}
-                            className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold"
-                          >
-                            Concluir Agendamento
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            {canConfirm && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                onClick={() => {
+                                  updateStatusMutation.mutate({ id: app.id, status: 'CONFIRMED' }, {
+                                    onSuccess: () => {
+                                      refetch();
+                                      setSelectedAppointmentForDetails(null);
+                                    },
+                                  });
+                                }}
+                                disabled={updateStatusMutation.isPending}
+                                className="rounded-xl border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs font-semibold gap-1.5"
+                                title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
+                              >
+                                <Check className="w-3.5 h-3.5" />
+                                Confirmar Agendamento
+                              </Button>
+                            )}
+                            {canComplete && (
+                              <Button
+                                type="button"
+                                onClick={() => {
+                                  updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' }, {
+                                    onSuccess: (withdrawal) => {
+                                      setReceipt(withdrawal);
+                                      setSelectedAppointmentForDetails(null);
+                                      refetch();
+                                    },
+                                  });
+                                }}
+                                disabled={updateStatusMutation.isPending}
+                                className="bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold gap-1.5"
+                                title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
+                              >
+                                <CircleCheck className="w-3.5 h-3.5" />
+                                Concluir Agendamento
+                              </Button>
+                            )}
+                          </div>
                         );
                       }
                       return null;
@@ -1125,7 +1205,7 @@ function AppointmentsContent() {
               <p><span className="text-slate-500">Lote consumido:</span> {receipt?.batch?.batchNumber ?? receipt?.allocatedItems?.map((item: { batchNumber: string }) => item.batchNumber).join(', ') ?? 'Baixa FEFO registrada'}</p>
             </div>
             <DialogFooter>
-              <Button type="button" onClick={() => window.print()} className="bg-emerald-600 text-white">Imprimir/Salvar PDF</Button>
+              <Button type="button" variant="outline" onClick={() => setReceipt(null)}>Fechar</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -182,7 +182,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
               Seus Próximos Agendamentos
             </CardTitle>
             <Button asChild size="sm" variant="ghost" className="rounded-xl text-xs gap-1">
-              <Link href="/agendamentos">
+              <Link href="/appointments">
                 Ver todos
                 <ChevronRight className="w-3.5 h-3.5" />
               </Link>
@@ -198,7 +198,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
                       Você não tem nenhum agendamento pendente.
                     </p>
                     <Button asChild size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
-                      <Link href="/agendamentos?new=1">
+                      <Link href="/appointments?new=1">
                         <Plus className="w-4 h-4 mr-1" />
                         Agendar Retirada
                       </Link>
@@ -290,7 +290,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Stock */}
         <Link
-          href="/medicamentos"
+          href="/medicines"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all group block"
         >
           <div className="flex items-center gap-4">
@@ -309,7 +309,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
 
         {/* Em Dia */}
         <Link
-          href="/medicamentos"
+          href="/medicines"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all group block"
         >
           <div className="flex items-center gap-4">
@@ -328,7 +328,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
 
         {/* Baixo / Crítico */}
         <Link
-          href="/medicamentos"
+          href="/medicines"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-amber-300 transition-all group block"
         >
           <div className="flex items-center gap-4">
@@ -349,7 +349,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
 
         {/* Vencidos */}
         <Link
-          href="/lotes"
+          href="/inventory"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-purple-300 transition-all group block"
         >
           <div className="flex items-center gap-4">
@@ -391,7 +391,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
                 </div>
               </div>
               <Button asChild variant="outline" size="sm" className="border-rose-300 text-rose-700 hover:bg-rose-100 rounded-xl text-xs">
-                <Link href="/lotes">Gerenciar Lotes</Link>
+                <Link href="/inventory">Gerenciar Lotes</Link>
               </Button>
             </div>
           );
@@ -494,7 +494,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
             Próximos Atendimentos Agendados
           </CardTitle>
           <Button asChild size="sm" variant="ghost" className="rounded-xl text-xs gap-1">
-            <Link href="/agendamentos">
+            <Link href="/appointments">
               Ver todos
               <ChevronRight className="w-3.5 h-3.5" />
             </Link>

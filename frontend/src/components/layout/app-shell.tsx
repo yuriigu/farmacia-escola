@@ -28,29 +28,32 @@ import {
 } from '@/components/ui/dropdown-menu';
 
 // MAPEAMENTO DE ROTA PARA ID DE MODULO
-// (URLs canonicas em portugues + aliases legados em ingles para transicao)
+// (URLs canonicas em ingles + aliases amigaveis em portugues servidos via rewrites)
 const PATH_MODULE_MAP: Record<string, ModuleId> = {
   '/dashboard': 'dashboard',
-  '/medicamentos': 'medicines',
   '/medicines': 'medicines',
-  '/lotes': 'estoque',
-  '/estoque': 'estoque',
-  '/descartes': 'descartes',
-  '/agendamentos': 'agendamentos',
-  '/appointments': 'agendamentos',
-  '/appointments/new': 'agendamentos',
-  '/calendario': 'calendario',
-  '/escalas': 'scales',
+  '/medicamentos': 'medicines',
+  '/inventory': 'inventory',
+  '/lotes': 'inventory',
+  '/estoque': 'inventory',
+  '/disposals': 'disposals',
+  '/descartes': 'disposals',
+  '/appointments': 'appointments',
+  '/agendamentos': 'appointments',
+  '/my-appointments': 'appointments',
+  '/calendar': 'calendar',
+  '/calendario': 'calendar',
   '/scales': 'scales',
-  '/pacientes': 'administracao',
-  '/administracao': 'administracao',
-  '/usuarios': 'administracao',
-  '/admin': 'administracao',
-  '/configuracoes': 'settings',
-  '/perfil': 'settings',
-  '/profile': 'settings',
+  '/escalas': 'scales',
+  '/users': 'users',
+  '/usuarios': 'users',
+  '/administracao': 'users',
+  '/admin': 'users',
+  '/pacientes': 'users',
   '/settings': 'settings',
-  '/my-appointments': 'agendamentos',
+  '/configuracoes': 'settings',
+  '/profile': 'profile',
+  '/perfil': 'profile',
 };
 
 // INTERFACE DAS PROPRIEDADES DO COMPONENTE
@@ -345,13 +348,13 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
               isActive = true;
             } else if (href !== '/dashboard' && pathname.startsWith(`${href}/`)) {
               isActive = true;
-            } else if (mod.id === 'agendamentos' && (pathname === '/appointments' || pathname.startsWith('/appointments/'))) {
+            } else if (mod.id === 'appointments' && (pathname === '/appointments' || pathname.startsWith('/appointments/'))) {
               isActive = true;
-            } else if (mod.id === 'administracao' && (pathname === '/administracao' || pathname === '/admin' || pathname.startsWith('/admin/'))) {
+            } else if (mod.id === 'users' && (pathname === '/users' || pathname === '/admin')) {
               isActive = true;
-            } else if (mod.id === 'medicines' && pathname.startsWith('/medicines')) {
+            } else if (mod.id === 'inventory' && pathname.startsWith('/inventory')) {
               isActive = true;
-            } else if (mod.id === 'estoque' && pathname === '/estoque') {
+            } else if (mod.id === 'calendar' && pathname.startsWith('/calendar')) {
               isActive = true;
             } else if (mod.id === 'scales' && pathname === '/scales') {
               isActive = true;
@@ -442,13 +445,13 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
-                  <Link href="/configuracoes?tab=perfil" className="cursor-pointer gap-2 text-sm flex items-center">
+                  <Link href="/profile" className="cursor-pointer gap-2 text-sm flex items-center">
                     <UserRound className="w-4 h-4" />
                     Meu Perfil &amp; Senha
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild>
-                  <Link href="/configuracoes" className="cursor-pointer gap-2 text-sm flex items-center">
+                  <Link href="/settings" className="cursor-pointer gap-2 text-sm flex items-center">
                     <Settings className="w-4 h-4" />
                     Configurações &amp; Tema
                   </Link>

@@ -1033,7 +1033,7 @@ export function AppointmentsPage() {
                   <>
                     <Button
                       size="sm"
-                      variant="ghost"
+                      variant="outline"
                       onClick={async () => {
                         try {
                           await api.completeAppointment(app.id);
@@ -1043,10 +1043,11 @@ export function AppointmentsPage() {
                           toast.error('Erro ao concluir atendimento.');
                         }
                       }}
-                      className="h-8 w-8 p-0 rounded-lg text-teal-600 hover:bg-teal-50 dark:hover:bg-teal-900/30"
-                      title="Concluir Agendamento"
+                      className="h-7 rounded-lg border-teal-400 dark:border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/40 font-medium text-xs gap-1.5"
+                      title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
                     >
-                      <CircleCheckBig className="w-4 h-4" />
+                      <CircleCheckBig className="w-3.5 h-3.5" />
+                      <span>Concluir</span>
                     </Button>
 
                     {(() => {
@@ -1054,7 +1055,7 @@ export function AppointmentsPage() {
                         return (
                           <Button
                             size="sm"
-                            variant="ghost"
+                            variant="outline"
                             onClick={async () => {
                               try {
                                 await api.confirmAppointment(app.id);
@@ -1064,10 +1065,11 @@ export function AppointmentsPage() {
                                 toast.error('Erro ao confirmar.');
                               }
                             }}
-                            className="h-8 w-8 p-0 rounded-lg text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-900/30"
-                            title="Confirmar Agendamento"
+                            className="h-7 rounded-lg border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 font-medium text-xs gap-1.5"
+                            title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
                           >
-                            <Check className="w-4 h-4" />
+                            <Check className="w-3.5 h-3.5" />
+                            <span>Confirmar</span>
                           </Button>
                         );
                       }
@@ -1440,8 +1442,10 @@ export function AppointmentsPage() {
                     {(() => {
                       if (!isPatient) {
                         if (!isMedico) {
+                          let canConfirm = false;
                           let canComplete = false;
                           if (selectedAppointment.status === 'PENDING') {
+                            canConfirm = true;
                             canComplete = true;
                           } else {
                             if (selectedAppointment.status === 'CONFIRMED') {
@@ -1450,27 +1454,51 @@ export function AppointmentsPage() {
                               canComplete = false;
                             }
                           }
-                          if (canComplete) {
-                            return (
-                              <Button
-                                type="button"
-                                onClick={async () => {
-                                  try {
-                                    await api.completeAppointment(selectedAppointment.id);
-                                    toast.success('Agendamento concluído com sucesso!');
-                                    setSelectedAppointment(null);
-                                    fetchAllData();
-                                  } catch {
-                                    toast.error('Erro ao concluir agendamento.');
-                                  }
-                                }}
-                                className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-semibold gap-1.5"
-                              >
-                                <CircleCheckBig className="w-4 h-4" />
-                                Concluir Agendamento
-                              </Button>
-                            );
-                          }
+                          return (
+                            <div className="flex items-center gap-2">
+                              {canConfirm && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  onClick={async () => {
+                                    try {
+                                      await api.confirmAppointment(selectedAppointment.id);
+                                      toast.success('Agendamento confirmado.');
+                                      setSelectedAppointment(null);
+                                      fetchAllData();
+                                    } catch {
+                                      toast.error('Erro ao confirmar agendamento.');
+                                    }
+                                  }}
+                                  className="rounded-xl border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs font-semibold gap-1.5"
+                                  title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
+                                >
+                                  <Check className="w-4 h-4" />
+                                  Confirmar Agendamento
+                                </Button>
+                              )}
+                              {canComplete && (
+                                <Button
+                                  type="button"
+                                  onClick={async () => {
+                                    try {
+                                      await api.completeAppointment(selectedAppointment.id);
+                                      toast.success('Agendamento concluído com sucesso!');
+                                      setSelectedAppointment(null);
+                                      fetchAllData();
+                                    } catch {
+                                      toast.error('Erro ao concluir agendamento.');
+                                    }
+                                  }}
+                                  className="bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold gap-1.5"
+                                  title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
+                                >
+                                  <CircleCheckBig className="w-4 h-4" />
+                                  Concluir Agendamento
+                                </Button>
+                              )}
+                            </div>
+                          );
                         }
                       }
                       return null;

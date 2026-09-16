@@ -164,18 +164,14 @@ export const ROLE_COLORS: Record<string, string> = {
 export type ModuleId =
   | 'dashboard'
   | 'medicines'
-  | 'estoque'
-  | 'descartes'
-  | 'agendamentos'
-  | 'calendario'
+  | 'inventory'
+  | 'disposals'
+  | 'appointments'
+  | 'calendar'
   | 'scales'
-  | 'pacientes'
-  | 'administracao'
-  | 'usuarios'
-  | 'configuracoes'
-  | 'profile'
+  | 'users'
   | 'settings'
-  | 'my-appointments';
+  | 'profile';
 
 export type TabId = string;
 
@@ -217,16 +213,16 @@ export const MODULES: ModuleConfig[] = [
   {
     id: 'medicines',
     label: 'Medicamentos',
-    path: '/medicamentos',
+    path: '/medicines',
     icon: Package,
     tabs: [],
     defaultTab: '',
     actionLabels: {},
   },
   {
-    id: 'estoque',
+    id: 'inventory',
     label: 'Lotes',
-    path: '/lotes',
+    path: '/inventory',
     icon: Boxes,
     forbiddenRoles: ['PACIENTE', 'MEDICO'],
     tabs: [],
@@ -234,9 +230,9 @@ export const MODULES: ModuleConfig[] = [
     actionLabels: {},
   },
   {
-    id: 'descartes',
+    id: 'disposals',
     label: 'Descartes',
-    path: '/descartes',
+    path: '/disposals',
     icon: Trash2,
     forbiddenRoles: ['PACIENTE', 'MEDICO'],
     tabs: [],
@@ -244,18 +240,18 @@ export const MODULES: ModuleConfig[] = [
     actionLabels: {},
   },
   {
-    id: 'agendamentos',
+    id: 'appointments',
     label: 'Agendamentos',
-    path: '/agendamentos',
+    path: '/appointments',
     icon: Calendar,
     tabs: [],
     defaultTab: '',
     actionLabels: {},
   },
   {
-    id: 'calendario',
+    id: 'calendar',
     label: 'Calendário',
-    path: '/calendario',
+    path: '/calendar',
     icon: CalendarDays,
     forbiddenRoles: [],
     tabs: [],
@@ -265,7 +261,7 @@ export const MODULES: ModuleConfig[] = [
   {
     id: 'scales',
     label: 'Escala',
-    path: '/escalas',
+    path: '/scales',
     icon: Clock,
     forbiddenRoles: ['MEDICO', 'PACIENTE'],
     tabs: [],
@@ -273,9 +269,9 @@ export const MODULES: ModuleConfig[] = [
     actionLabels: {},
   },
   {
-    id: 'administracao',
+    id: 'users',
     label: 'Usuários',
-    path: '/usuarios',
+    path: '/users',
     icon: Users,
     forbiddenRoles: ['PACIENTE'],
     tabs: [],
@@ -285,7 +281,7 @@ export const MODULES: ModuleConfig[] = [
   {
     id: 'settings',
     label: 'Configurações',
-    path: '/configuracoes',
+    path: '/settings',
     icon: Settings,
     tabs: [],
     defaultTab: '',

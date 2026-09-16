@@ -5,20 +5,20 @@ import { AppShell } from '@/components/layout/app-shell';
 import { DisposalsPage } from '@/components/pages/disposals-page';
 import { ProtectedRoute } from '@/components/protected-route';
 
-function DescartesContent() {
+function DisposalsContent() {
   return (
-    <ProtectedRoute routeKey="descartes">
-      <AppShell activeModuleId="descartes" pageTitle="Descartes">
+    <ProtectedRoute routeKey="disposals">
+      <AppShell activeModuleId="disposals" pageTitle="Descartes">
         <DisposalsPage />
       </AppShell>
     </ProtectedRoute>
   );
 }
 
-export default function DescartesRoute() {
+export default function DisposalsRoute() {
   return (
     <Suspense fallback={<div className="p-6 text-slate-500">Carregando descartes...</div>}>
-      <DescartesContent />
+      <DisposalsContent />
     </Suspense>
   );
 }

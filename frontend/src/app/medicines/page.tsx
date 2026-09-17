@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useMemo } from 'react';
-import { useForm, useWatch } from 'react-hook-form';
+import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { toast } from '@/lib/toast-handler';
@@ -19,7 +19,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/page-header';
-import { DataTable, Column } from '@/components/shared/data-table';
+import { DataTable } from '@/components/shared/data-table';
+import type { Column } from '@/types';
 import { CategoryBadge } from '@/components/shared/category-badge';
 import { StockStatusBadge } from '@/components/shared/stock-status-badge';
 import {
@@ -27,7 +28,8 @@ import {
   DialogHeader, DialogTitle
 } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { computeStockStatus, type Medicine, type Batch } from '@/lib/types';
+import { computeStockStatus } from '@/lib/stock';
+import type { Medicine, Batch } from '@/types';
 
 export const DOSAGE_UNITS = ['MG', 'ML', 'G', 'MCG', 'UI'] as const;
 export type DosageUnit = typeof DOSAGE_UNITS[number];
@@ -142,8 +144,6 @@ export default function MedicinesPage() {
   const {
     register,
     handleSubmit,
-    setValue,
-    control,
     reset: resetMedicineForm,
     formState: { errors },
   } = useForm<NewMedicineFormInput, unknown, NewMedicineFormData>({
@@ -157,8 +157,6 @@ export default function MedicinesPage() {
       category: 'analgesico',
     },
   });
-
-  const selectedUnit = useWatch({ control, name: 'dosageUnit' });
 
   const onSubmitMedicine = (data: NewMedicineFormData) => {
     let formattedDosage: string | undefined = undefined;
@@ -725,10 +723,11 @@ export default function MedicinesPage() {
               size="sm"
               variant="ghost"
               onClick={() => setSelectedMedicineForDetails(med)}
-              className="h-8 px-2.5 rounded-lg text-xs gap-1 text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 dark:text-slate-300 dark:hover:text-emerald-400 dark:hover:bg-emerald-950/30"
+              className="h-8 w-8 p-0 rounded-lg text-slate-700 hover:text-emerald-700 hover:bg-emerald-50 dark:text-slate-300 dark:hover:text-emerald-400 dark:hover:bg-emerald-950/30"
+              title="Ver detalhes"
+              aria-label="Ver detalhes"
             >
-              <Eye className="w-3.5 h-3.5" />
-              <span>Ver</span>
+              <Eye className="w-4 h-4" />
             </Button>
 
             <Button
@@ -777,7 +776,7 @@ export default function MedicinesPage() {
                   return (
                     <Button
                       onClick={() => setIsCreateMedicineOpen(true)}
-                      className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold gap-1.5 h-9 shadow-xs"
+                      size="sm"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Novo Medicamento</span>
@@ -955,13 +954,6 @@ export default function MedicinesPage() {
                     Nenhuma orientação específica registrada para este medicamento.
                   </p>
                 );
-              }
-
-              let batchesCount = 0;
-              if (med.batchesCount !== null && med.batchesCount !== undefined) {
-                batchesCount = med.batchesCount;
-              } else {
-                batchesCount = 0;
               }
 
               let scheduleButton: React.ReactNode = null;
@@ -1415,7 +1407,7 @@ export default function MedicinesPage() {
                         }
                         return false;
                       })()}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs"
+                      size="sm"
                     >
                       {(() => {
                         if (createAppointmentMutation.isPending) {
@@ -1576,7 +1568,7 @@ export default function MedicinesPage() {
                 <Button
                   type="submit"
                   disabled={createMedicineMutation.isPending}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs"
+                  size="sm"
                 >
                   {(() => {
                     if (createMedicineMutation.isPending) {

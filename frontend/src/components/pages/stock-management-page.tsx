@@ -8,15 +8,15 @@ import {
   ShieldAlert, ShieldCheck, SlidersHorizontal, AlertTriangle
 } from 'lucide-react';
 import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/pharmacy-store';
-import { type BatchEntryDraft, type Batch, type StockStatus } from '@/lib/types';
+import { type BatchEntryDraft, type Batch, type StockStatus } from '@/types';
 import { StockStatusBadge } from '@/components/shared/stock-status-badge';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
 import { PageHeader } from '@/components/shared/page-header';
-import { DataTable, Column } from '@/components/shared/data-table';
+import { DataTable } from '@/components/shared/data-table';
+import type { Column } from '@/types';
 import { api } from '@/lib/api';
 import { downloadCSV } from '@/lib/constants';
 import { usePermission } from '@/hooks/use-permission';
-import { useAuthStore } from '@/lib/auth-store';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -35,7 +35,6 @@ const batchDraftSchema = z.object({
 
 export function StockManagementPage() {
   const { medicines, batches, appointments, disposals, loading } = usePharmacyStore();
-  const { user } = useAuthStore();
   const canWrite = usePermission('BATCHES_CREATE');
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<BatchEntryDraft>({
@@ -670,7 +669,6 @@ export function StockManagementPage() {
                 return (
                   <Button
                     onClick={() => setCreateOpen(true)}
-                    className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Novo Lote</span>
@@ -750,7 +748,7 @@ export function StockManagementPage() {
             return (
               <Button
                 onClick={() => setCreateOpen(true)}
-                className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+                size="sm"
               >
                 <Plus className="w-3.5 h-3.5" />
                 Novo Lote
@@ -891,7 +889,7 @@ export function StockManagementPage() {
               <Button type="button" variant="outline" onClick={() => setCreateOpen(false)} className="rounded-xl">
                 Cancelar
               </Button>
-              <Button type="submit" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+              <Button type="submit">
                 Registrar Lote
               </Button>
             </DialogFooter>
@@ -1148,7 +1146,7 @@ export function StockManagementPage() {
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)} className="rounded-xl">
                 Cancelar
               </Button>
-              <Button type="submit" disabled={editLoading} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+              <Button type="submit" disabled={editLoading}>
                 {(() => {
                   if (editLoading) {
                     return 'Salvando...';

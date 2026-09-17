@@ -1,5 +1,5 @@
 // IMPORTS LOCAIS
-import type { StockStatus } from '@/lib/types';
+import type { StockStatus } from '@/types';
 
 // INTERFACE DAS PROPRIEDADES DO CRACHA DE STATUS DO ESTOQUE
 interface StockStatusBadgeProps {

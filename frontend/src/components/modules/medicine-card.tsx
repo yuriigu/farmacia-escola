@@ -3,7 +3,7 @@
 import React from 'react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { StockStatusBadge } from '@/components/shared/stock-status-badge';
-import type { Medicine, StockStatus } from '@/lib/types';
+import type { Medicine, StockStatus } from '@/types';
 
 interface MedicineCardProps {
   medicine: Medicine;

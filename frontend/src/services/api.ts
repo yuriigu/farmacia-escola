@@ -9,19 +9,8 @@ import type {
   Disposal,
   Appointment,
   ScheduleSlot,
-} from '@/lib/types';
-
-// INTERFACE PARA LOGS DE ATIVIDADE
-export interface ActivityLogEntry {
-  id: number;
-  userId: number;
-  action: string;
-  entity: string;
-  entityId?: number | null;
-  details?: string | null;
-  createdAt: string;
-  user?: { id: number; name: string; role: string };
-}
+  ActivityLogEntry,
+} from '@/types';
 
 // OBJETO PRINCIPAL DA API
 export const api = {

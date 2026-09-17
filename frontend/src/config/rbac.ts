@@ -1,17 +1,5 @@
-// DEFINICAO DOS PAPEIS DO SISTEMA
-export type AppRole = 'ADMIN' | 'FARMACEUTICO' | 'MEDICO' | 'ALUNO' | 'PACIENTE';
-
-// CHAVES CANONICAS DE MODULO (UMA UNICA CHAVE POR TELA/SIDEBAR - SEM SINONIMOS)
-export type ModuleKey =
-  | 'dashboard'
-  | 'medicines'
-  | 'inventory'
-  | 'disposals'
-  | 'appointments'
-  | 'calendar'
-  | 'scales'
-  | 'users'
-  | 'settings';
+// IMPORTS DOS TIPOS CENTRALIZADOS
+import type { AppRole, ModuleKey } from '@/types';
 
 // MAPEAMENTO DE PERMISSOES POR PAPEL (APENAS CHAVES CANONICAS)
 export const rolePermissions: Record<AppRole, ModuleKey[]> = {

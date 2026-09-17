@@ -103,7 +103,7 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
           required
         />
       </div>
-      <Button type="submit" className="w-full bg-emerald-600 hover:bg-emerald-700 text-white" disabled={isLoading}>
+      <Button type="submit" className="w-full" disabled={isLoading}>
         {buttonLabel}
       </Button>
     </form>

@@ -1,19 +1,10 @@
 'use client';
 
 // IMPORTS DE BIBLIOTECAS
-import { LucideIcon } from 'lucide-react';
 import type { ReactNode } from 'react';
 
 // IMPORTS LOCAIS
-import type { ModuleTab } from '@/lib/constants';
-
-// INTERFACE DO ITEM DE ABA
-export interface TabItem {
-  id: string;
-  label: string;
-  icon?: LucideIcon;
-  badge?: number | string;
-}
+import type { ModuleTab, TabItem } from '@/types';
 
 // INTERFACE DAS PROPRIEDADES DA BARRA DE ABAS
 interface TabBarProps {

@@ -9,7 +9,7 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { usePharmacyStore, fetchAllData, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
-import type { Appointment, AppointmentDraft, AppointmentItem } from '@/lib/types';
+import type { Appointment, AppointmentDraft, AppointmentItem } from '@/types';
 import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS, downloadCSV, getAvatarColor } from '@/lib/constants';
 import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -20,7 +20,8 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/page-header';
-import { DataTable, Column } from '@/components/shared/data-table';
+import { DataTable } from '@/components/shared/data-table';
+import type { Column } from '@/types';
 
 // ==================== CPF MASK ====================
 function formatCPF(value: string): string {
@@ -326,7 +327,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
                       <Label className="mb-1 block text-[11px] font-semibold text-slate-500">Quantidade</Label>
                       <Input type="number" min={1} value={item.quantity} onChange={(event) => setItems((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, quantity: Math.max(1, Number(event.target.value)) } : entry))} className="rounded-lg" />
                     </div>
-                    {items.length > 1 && <Button type="button" variant="ghost" onClick={() => setItems((current) => current.filter((_, entryIndex) => entryIndex !== index))} className="h-10 w-10 p-0 text-slate-400 hover:text-rose-600" aria-label="Remover medicamento">×</Button>}
+                    {items.length > 1 && <Button type="button" variant="ghost" onClick={() => setItems((current) => current.filter((_, entryIndex) => entryIndex !== index))} size="icon" className="text-slate-400 hover:text-rose-600" aria-label="Remover medicamento">×</Button>}
                   </div>
                   {selectedMed && <div className={`text-[11px] font-medium ${isOver ? 'text-rose-600' : 'text-emerald-700'}`}>Saldo disponível: {availableStock} un.{isOver ? ` · solicitado: ${item.quantity} un.` : ''}</div>}
                 </div>
@@ -387,7 +388,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
             <Button type="button" variant="outline" onClick={() => { cleanForm(); onOpenChange(false); }} className="rounded-xl">
               Cancelar
             </Button>
-            <Button type="submit" disabled={loading} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">
+            <Button type="submit" disabled={loading}>
               {(() => {
                 if (loading) {
                   return 'Agendando...';
@@ -1671,7 +1672,7 @@ export function AppointmentsPage() {
                   </div>
                   <div className="flex justify-end gap-3 pt-2">
                     <Button type="button" variant="outline" onClick={() => setModalOpen(false)} className="rounded-xl">Cancelar</Button>
-                    <Button type="submit" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold">Agendar</Button>
+                    <Button type="submit">Agendar</Button>
                   </div>
                 </form>
               </DialogContent>
@@ -1689,7 +1690,7 @@ export function AppointmentsPage() {
           <Textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Justificativa do cancelamento" rows={4} />
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="outline" onClick={() => setCancelTarget(null)}>Voltar</Button>
-            <Button type="button" className="bg-rose-600 text-white hover:bg-rose-700" onClick={handleCancelAppointment}>Confirmar cancelamento</Button>
+            <Button type="button" variant="destructive" onClick={handleCancelAppointment}>Confirmar cancelamento</Button>
           </div>
         </DialogContent>
       </Dialog>

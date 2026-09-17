@@ -1,5 +1,5 @@
 // IMPORTS LOCAIS
-import type { Role } from '@/lib/types';
+import type { Role } from '@/types';
 import { ROLE_LABELS, ROLE_COLORS } from '@/lib/constants';
 
 // INTERFACE DAS PROPRIEDADES DO CRACHA DE PAPEL

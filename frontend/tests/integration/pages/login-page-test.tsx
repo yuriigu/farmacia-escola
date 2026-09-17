@@ -12,7 +12,7 @@ describe('Login Flow Integration', () => {
 
   it('deve realizar fluxo completo de submissão do formulário de login', async () => {
     const user = userEvent.setup();
-    const handleLoginSubmit = vi.fn().mockImplementation(async ({ email, password }) => {
+    const handleLoginSubmit = vi.fn().mockImplementation(async ({ email }) => {
       useAuthStore.getState().setAuth('mock-token-abc', {
         id: 1,
         name: 'Administrador UFBA',

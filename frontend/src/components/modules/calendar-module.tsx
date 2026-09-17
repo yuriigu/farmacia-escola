@@ -6,7 +6,7 @@ import type { ReactNode } from 'react';
 
 // IMPORTS LOCAIS
 import { TabBar } from '@/components/shared/tab-bar';
-import type { ModuleConfig } from '@/lib/constants';
+import type { ModuleConfig } from '@/types';
 import { AppointmentsOverviewPage } from '@/components/pages/appointments-overview-page';
 import { AppointmentsPage } from '@/components/pages/appointments-page';
 import { ScheduleSlotsPage } from '@/components/pages/schedule-slots-page';

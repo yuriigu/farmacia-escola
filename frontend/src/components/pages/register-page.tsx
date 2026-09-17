@@ -149,17 +149,17 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
 
           <div className="space-y-1.5">
             <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nome completo</Label>
-            <Input value={form.name} onChange={handleChange('name')} placeholder="Seu nome completo" required className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
+            <Input value={form.name} onChange={handleChange('name')} placeholder="Seu nome completo" required className="rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">E-mail</Label>
-              <Input type="email" value={form.email} onChange={handleChange('email')} placeholder="seu@email.com" required className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
+              <Input type="email" value={form.email} onChange={handleChange('email')} placeholder="seu@email.com" required className="rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">CPF</Label>
-              <Input value={form.cpf} onChange={handleChange('cpf')} placeholder="000.000.000-00" required className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
+              <Input value={form.cpf} onChange={handleChange('cpf')} placeholder="000.000.000-00" required className="rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
             </div>
           </div>
 
@@ -179,14 +179,16 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
                     placeholder="Mínimo 6 caracteres"
                     minLength={6}
                     required
-                    className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 h-11 pr-12 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"
+                    className="rounded-xl border-slate-200 dark:border-slate-600 h-11 pr-12 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"
                   />
                 );
               })()}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors p-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"
               >
                 {(() => {
                   if (showPassword) {
@@ -194,27 +196,27 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
                   }
                   return <Eye className="w-4 h-4" />;
                 })()}
-              </button>
+              </Button>
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Telefone</Label>
-              <Input value={form.phone} onChange={handleChange('phone')} placeholder="(00) 00000-0000" className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
+              <Input value={form.phone} onChange={handleChange('phone')} placeholder="(00) 00000-0000" className="rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
             </div>
             <div className="space-y-1.5">
               <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nascimento</Label>
-              <Input type="date" value={form.birthDate} onChange={handleChange('birthDate')} className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
+              <Input type="date" value={form.birthDate} onChange={handleChange('birthDate')} className="rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
             </div>
           </div>
 
           <div className="space-y-1.5">
             <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Endereço</Label>
-            <Input value={form.address} onChange={handleChange('address')} placeholder="Rua, número, bairro, cidade" className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
+            <Input value={form.address} onChange={handleChange('address')} placeholder="Rua, número, bairro, cidade" className="rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
           </div>
 
-          <Button type="submit" disabled={loading} className="w-full h-12 rounded-xl bg-linear-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm active:scale-[0.98] transition-all shadow-lg shadow-emerald-600/20 hover:shadow-xl hover:shadow-emerald-600/30">
+          <Button type="submit" disabled={loading} variant="gradient" size="lg" className="w-full">
             {(() => {
               if (loading) {
                 return (

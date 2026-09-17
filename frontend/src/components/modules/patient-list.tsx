@@ -10,7 +10,7 @@ import { Search } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
-import type { Patient } from '@/lib/types';
+import type { Patient } from '@/types';
 
 // INTERFACE DAS PROPRIEDADES DA LISTA DE PACIENTES
 interface PatientListProps {
@@ -53,7 +53,7 @@ export function PatientList({ patients, onSelectPatient, onNewPatient }: Patient
   let newPatientButton: React.ReactNode = null;
   if (onNewPatient) {
     newPatientButton = (
-      <Button onClick={onNewPatient} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+      <Button onClick={onNewPatient}>
         Novo Paciente
       </Button>
     );

@@ -9,7 +9,8 @@ import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
 // IMPORTS LOCAIS
 import { useAuthStore } from '@/lib/auth-store';
-import { hasRouteAccess, AppRole } from '@/config/rbac';
+import { hasRouteAccess } from '@/config/rbac';
+import type { AppRole } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -120,7 +121,7 @@ export function ProtectedRoute({
             <div className="flex gap-2">
               <Button
                 variant="default"
-                className="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                className="w-full"
                 onClick={() => router.push('/dashboard')}
               >
                 <ArrowLeft className="w-4 h-4" />

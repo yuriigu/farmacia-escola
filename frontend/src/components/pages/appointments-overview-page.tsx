@@ -7,7 +7,7 @@ import { CalendarDays, Clock, Plus, Eye, Check, CircleCheckBig, X, Download } fr
 import { toast } from '@/lib/toast-handler';
 import { useAuthStore } from '@/lib/auth-store';
 import { usePharmacyStore, fetchAllData, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
-import type { Appointment } from '@/lib/types';
+import type { Appointment } from '@/types';
 import { QUERY_KEYS } from '@/services/queries';
 import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS } from '@/lib/constants';
 import { PageHeader } from '@/components/shared/page-header';
@@ -334,7 +334,6 @@ export function AppointmentsOverviewPage() {
             </Button>
             <Button
               onClick={() => handleGoToAppointments()}
-              className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
             >
               <Plus className="w-4 h-4" />
               <span>Novo Agendamento</span>
@@ -424,7 +423,7 @@ export function AppointmentsOverviewPage() {
                                   </Badge>
                                   {(() => {
                                     if (freeSlots > 0) {
-                                      return <Button onClick={() => handleGoToAppointments(slot)} className="h-7 rounded-lg bg-emerald-600 px-2 text-[10px] text-white">Agendar</Button>;
+                                      return <Button onClick={() => handleGoToAppointments(slot)} size="xs">Agendar</Button>;
                                     }
                                     return null;
                                   })()}
@@ -616,7 +615,7 @@ export function AppointmentsOverviewPage() {
             })()}
 
             <div className="pt-2 flex justify-end">
-              <Button onClick={() => handleGoToAppointments()} className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs">
+              <Button onClick={() => handleGoToAppointments()} size="sm">
                 Ir para Agendamentos
               </Button>
             </div>
@@ -742,7 +741,7 @@ export function AppointmentsOverviewPage() {
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader><DialogTitle>Cancelar Agendamento</DialogTitle><DialogDescription>O motivo é obrigatório para liberar a vaga.</DialogDescription></DialogHeader>
           <Textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Motivo do Cancelamento" rows={4} required />
-          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCancelTarget(null)}>Voltar</Button><Button className="bg-red-600 text-white" onClick={async () => { if (!cancelTarget || !cancelReason.trim()) { toast.error('Informe o motivo do cancelamento.'); return; } await api.cancelAppointment(cancelTarget.id, cancelReason); setCancelTarget(null); toast.success('Agendamento cancelado.'); }}>Cancelar agendamento</Button></div>
+          <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setCancelTarget(null)}>Voltar</Button><Button variant="destructive" onClick={async () => { if (!cancelTarget || !cancelReason.trim()) { toast.error('Informe o motivo do cancelamento.'); return; } await api.cancelAppointment(cancelTarget.id, cancelReason); setCancelTarget(null); toast.success('Agendamento cancelado.'); }}>Cancelar agendamento</Button></div>
         </DialogContent>
       </Dialog>
 

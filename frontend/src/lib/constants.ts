@@ -3,6 +3,7 @@ import {
   CalendarDays, Boxes, Trash2, Users, Clock
 } from 'lucide-react';
 import { hasRouteAccess } from '@/config/rbac';
+import type { ModuleId, ModuleConfig } from '@/types';
 
 // ==================== PERMISSION KEYS ====================
 export const PERMISSION_KEYS = {
@@ -70,21 +71,6 @@ export function checkPermission(
 }
 
 // ==================== CLIENT-SIDE WRITE CHECK ====================
-/**
- * Entity identifiers that map to permission keys.
- * Must stay in sync with ENTITY_PERMISSION_MAP in role-guard.ts
- */
-const _ENTITY_PERMISSION_MAP: Record<string, PermissionKey> = {
-  medicines: 'inventory',
-  batches: 'batches',
-  disposals: 'disposals',
-  patients: 'patients',
-  appointments: 'appointments',
-  users: 'users',
-  'schedule-slots': 'scheduleSlots',
-  scheduleSlots: 'scheduleSlots',
-};
-
 /**
  * Client-side canWrite — mirrors server-side canWrite in role-guard.ts.
  * Determines whether the current user can perform write (create/update/delete)
@@ -161,44 +147,7 @@ export const ROLE_COLORS: Record<string, string> = {
 };
 
 // ==================== MODULE & TAB SYSTEM ====================
-export type ModuleId =
-  | 'dashboard'
-  | 'medicines'
-  | 'inventory'
-  | 'disposals'
-  | 'appointments'
-  | 'calendar'
-  | 'scales'
-  | 'users'
-  | 'settings'
-  | 'profile';
-
-export type TabId = string;
-
-export interface ModuleTab {
-  id: TabId;
-  label: string;
-  icon: typeof LayoutDashboard;
-  /** Permission key needed to see this tab. If undefined, always visible within module */
-  permission?: PermissionKey;
-  /** Roles that are forbidden from seeing this tab */
-  forbiddenRoles?: string[];
-}
-
-export interface ModuleConfig {
-  id: ModuleId;
-  label: string;
-  path: string;
-  icon: typeof LayoutDashboard;
-  /** Permission key needed to see this module in sidebar */
-  permission?: PermissionKey;
-  /** Roles that never see this module */
-  forbiddenRoles?: string[];
-  tabs: ModuleTab[];
-  defaultTab: TabId;
-  /** Dynamic action button label per tab */
-  actionLabels: Record<TabId, string>;
-}
+// (ModuleId, TabId, ModuleTab e ModuleConfig centralizados em src/types/rbac.ts)
 
 export const MODULES: ModuleConfig[] = [
   {
@@ -380,7 +329,7 @@ export function getAvatarColor(name: string): string {
 }
 
 export function downloadCSV(filename: string, rows: string[][]) {
-  const csvContent = rows.map((r) => r.map((c) => '"' + String(c).replace(/enums.ts"/g, '"enums.ts"') + '"').join(',')).join('\n');
+  const csvContent = rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

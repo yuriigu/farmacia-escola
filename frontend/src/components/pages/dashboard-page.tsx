@@ -2,7 +2,6 @@
 
 import { useMemo } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
 import {
   Package, Calendar, Clock,
   CalendarDays, AlertTriangle, AlertCircle, Plus,
@@ -20,8 +19,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartTooltipContent } from '@/components/shared/chart-tooltip-content';
 
-export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?: string) => void }) {
-  const router = useRouter();
+export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: string, tab?: string) => void }) {
   const user = useAuthStore((s) => s.user);
   let isPatient = false;
   if (user) {
@@ -30,9 +28,9 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
     }
   }
 
-  const { data: medicines = [], isLoading: loadingMeds } = useMedicines();
-  const { data: appointments = [], isLoading: loadingApps } = useAppointments();
-  const { data: batches = [], isLoading: loadingBatches } = useBatches();
+  const { data: medicines = [] } = useMedicines();
+  const { data: appointments = [] } = useAppointments();
+  const { data: batches = [] } = useBatches();
 
   const totalStockUnits = useMemo(() => {
     return medicines.reduce((sum, m) => {
@@ -81,36 +79,6 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
       })
       .filter((d) => d.value > 0);
   }, [appointments]);
-
-  // Stock status pie data
-  const stockStatusPieData = useMemo(() => {
-    return [
-      { name: 'Em dia', value: stockTaxonomyCounts.ok, color: '#10b981' },
-      { name: 'Baixo', value: stockTaxonomyCounts.low, color: '#f59e0b' },
-      { name: 'Crítico', value: stockTaxonomyCounts.critical, color: '#ef4444' },
-      { name: 'Vencido', value: stockTaxonomyCounts.expired, color: '#9333ea' },
-    ].filter((d) => d.value > 0);
-  }, [stockTaxonomyCounts]);
-
-  // Chart data for top medicines
-  const stockByMedData = useMemo(() => {
-    return medicines
-      .slice(0, 6)
-      .map((m) => {
-        let nameStr = m.name;
-        if (m.name.length > 12) {
-          nameStr = m.name.slice(0, 12) + '…';
-        }
-        let qty = 0;
-        if (m.totalQuantity !== undefined && m.totalQuantity !== null) {
-          qty = m.totalQuantity;
-        }
-        return {
-          name: nameStr,
-          quantidade: qty,
-        };
-      });
-  }, [medicines]);
 
   // Upcoming appointments
   const upcomingAppointments = appointments
@@ -197,7 +165,7 @@ export function DashboardPage({ onNavigate }: { onNavigate?: (mod: string, tab?:
                     <p className="text-sm font-semibold text-slate-600 dark:text-slate-400">
                       Você não tem nenhum agendamento pendente.
                     </p>
-                    <Button asChild size="sm" className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+                    <Button asChild size="sm">
                       <Link href="/appointments?new=1">
                         <Plus className="w-4 h-4 mr-1" />
                         Agendar Retirada

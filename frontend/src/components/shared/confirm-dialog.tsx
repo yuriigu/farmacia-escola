@@ -41,12 +41,10 @@ export function ConfirmDialog({
     <AlertCircle className="w-5 h-5" />
   ) : null;
 
-  // DETERMINANDO CLASSES DO BOTAO DE CONFIRMACAO
-  let buttonClasses = 'rounded-xl bg-emerald-600 hover:bg-emerald-700';
+  // DETERMINANDO A VARIANTE DO BOTAO DE CONFIRMACAO (SISTEMA PADRONIZADO DE BOTOES)
+  let buttonVariant: 'default' | 'destructive' = 'default';
   if (variant === 'danger') {
-    buttonClasses = 'rounded-xl bg-rose-600 hover:bg-rose-700 text-white';
-  } else {
-    buttonClasses = 'rounded-xl bg-emerald-600 hover:bg-emerald-700';
+    buttonVariant = 'destructive';
   }
 
   // DETERMINANDO O TEXTO DO BOTAO
@@ -81,7 +79,7 @@ export function ConfirmDialog({
           <Button
             onClick={onConfirm}
             disabled={loading}
-            className={buttonClasses}
+            variant={buttonVariant}
           >
             {buttonText}
           </Button>

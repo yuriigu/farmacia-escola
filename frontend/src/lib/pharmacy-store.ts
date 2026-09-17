@@ -3,7 +3,7 @@
 import { useEffect } from 'react';
 import { create } from 'zustand';
 import { api } from './api';
-import type { Medicine, Disposal, Appointment, Batch, Patient, ScheduleSlot } from './types';
+import type { Medicine, Disposal, Appointment, Batch, Patient, ScheduleSlot } from '@/types';
 import { useAuthStore } from './auth-store';
 
 interface PharmacyState {

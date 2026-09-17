@@ -3,7 +3,6 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/index';
 import { errorMiddleware } from './middlewares/error-middleware';
-import { globalRateLimiter } from './middlewares/rate-limit-middleware';
 
 dotenv.config();
 
@@ -49,7 +48,6 @@ app.use(cors({
 
 app.use(express.json());
 
-app.use('/api', globalRateLimiter);
 app.use('/api', apiRoutes);
 
 ;

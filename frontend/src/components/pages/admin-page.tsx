@@ -20,7 +20,7 @@ import {
   Users,
 } from 'lucide-react';
 
-import type { User } from '@/lib/types';
+import type { User } from '@/types';
 import { getAvatarColor, downloadCSV } from '@/lib/constants';
 import { useAuthStore } from '@/lib/auth-store';
 import {
@@ -31,7 +31,8 @@ import {
 } from '@/hooks/use-users';
 import { RoleBadge } from '@/components/shared/role-badge';
 import { PageHeader } from '@/components/shared/page-header';
-import { DataTable, Column } from '@/components/shared/data-table';
+import { DataTable } from '@/components/shared/data-table';
+import type { Column } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -743,7 +744,6 @@ export function AdminPage() {
               </Button>
               <Button
                 onClick={handleOpenCreate}
-                className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm transition-all active:scale-[0.98]"
               >
                 <Plus className="w-4 h-4" />
                 <span>Novo Usuário</span>
@@ -850,7 +850,7 @@ export function AdminPage() {
           isCurrentAdmin ? (
             <Button
               onClick={handleOpenCreate}
-              className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+              size="sm"
             >
               <Plus className="w-3.5 h-3.5" />
               Novo Usuário
@@ -1177,7 +1177,7 @@ export function AdminPage() {
                   <Button
                     type="submit"
                     disabled={isSaving}
-                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shadow-xs"
+                   
                   >
                     {btnLabel}
                   </Button>

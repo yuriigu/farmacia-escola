@@ -330,7 +330,8 @@ export function SettingsPage() {
                       <Button
                         type="submit"
                         disabled={savingProfile}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs gap-2"
+                        className="w-full"
+                        size="sm"
                       >
                         {(() => {
                           if (savingProfile) {
@@ -373,8 +374,10 @@ export function SettingsPage() {
                             required
                             className="pr-9 rounded-xl border-slate-200 dark:border-slate-700 text-xs"
                           />
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon-sm"
                             onClick={() => setShowCurrentPw(!showCurrentPw)}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                           >
@@ -384,7 +387,7 @@ export function SettingsPage() {
                               }
                               return <Eye className="w-3.5 h-3.5" />;
                             })()}
-                          </button>
+                          </Button>
                         </div>
                       </div>
 
@@ -407,8 +410,10 @@ export function SettingsPage() {
                             minLength={6}
                             className="pr-9 rounded-xl border-slate-200 dark:border-slate-700 text-xs"
                           />
-                          <button
+                          <Button
                             type="button"
+                            variant="ghost"
+                            size="icon-sm"
                             onClick={() => setShowNewPw(!showNewPw)}
                             className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                           >
@@ -418,7 +423,7 @@ export function SettingsPage() {
                               }
                               return <Eye className="w-3.5 h-3.5" />;
                             })()}
-                          </button>
+                          </Button>
                         </div>
                       </div>
 
@@ -461,7 +466,8 @@ export function SettingsPage() {
                           if (!confirmPassword) return true;
                           return false;
                         })()}
-                        className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl text-xs gap-2"
+                        className="w-full"
+                        size="sm"
                       >
                         {(() => {
                           if (savingPassword) {

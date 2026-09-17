@@ -152,11 +152,13 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
                   />
                 );
               })()}
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon-sm"
                 onClick={() => setShowPassword(!showPassword)}
                 tabIndex={-1}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors p-1 rounded-lg hover:bg-emerald-50 dark:hover:bg-emerald-900/20"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400"
               >
                 {(() => {
                   if (showPassword) {
@@ -164,7 +166,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
                   }
                   return <Eye className="w-4 h-4" />;
                 })()}
-              </button>
+              </Button>
             </div>
             {(() => {
               if (errors.password) {

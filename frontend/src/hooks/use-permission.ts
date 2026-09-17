@@ -2,16 +2,7 @@
 
 import { useAuthStore } from '@/lib/auth-store';
 import { canWriteClient, checkPermission, type PermissionKey } from '@/lib/constants';
-
-export type PermissionAction =
-  | 'MEDICINES_READ' | 'MEDICINES_CREATE' | 'MEDICINES_UPDATE' | 'MEDICINES_DELETE'
-  | 'BATCHES_READ' | 'BATCHES_CREATE' | 'BATCHES_UPDATE' | 'BATCHES_DELETE' | 'BATCHES_ADJUST'
-  | 'DISPOSALS_READ' | 'DISPOSALS_CREATE' | 'DISPOSALS_UPDATE' | 'DISPOSALS_REVERT'
-  | 'PATIENTS_READ' | 'PATIENTS_CREATE' | 'PATIENTS_UPDATE' | 'PATIENTS_DELETE'
-  | 'APPOINTMENTS_READ' | 'APPOINTMENTS_CREATE' | 'APPOINTMENTS_UPDATE' | 'APPOINTMENTS_CANCEL' | 'APPOINTMENTS_DELETE'
-  | 'SCHEDULES_READ' | 'SCHEDULES_CREATE' | 'SCHEDULES_UPDATE' | 'SCHEDULES_DELETE'
-  | 'USERS_READ' | 'USERS_CREATE' | 'USERS_UPDATE' | 'USERS_DELETE'
-  | 'ACTIVITY_LOGS_READ' | 'PROFILE_READ' | 'PROFILE_UPDATE' | 'SETTINGS_READ' | 'SETTINGS_UPDATE';
+import type { PermissionAction } from '@/types';
 
 const ACTION_TO_PERMISSION: Partial<Record<PermissionAction, PermissionKey>> = {
   MEDICINES_READ: 'inventory', MEDICINES_CREATE: 'inventory', MEDICINES_UPDATE: 'inventory', MEDICINES_DELETE: 'inventory',

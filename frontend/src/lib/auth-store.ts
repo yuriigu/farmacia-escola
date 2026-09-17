@@ -5,7 +5,7 @@ import { create } from 'zustand';
 import Cookies from 'js-cookie';
 
 // IMPORTS LOCAIS
-import type { AuthUser } from './types';
+import type { AuthUser } from '@/types';
 
 // INTERFACE DO ESTADO DE AUTENTICACAO
 interface AuthState {

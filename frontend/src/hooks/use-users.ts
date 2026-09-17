@@ -4,7 +4,7 @@ import { toast } from '@/lib/toast-handler';
 
 // IMPORTS LOCAIS
 import { api } from '@/services/api';
-import type { User } from '@/lib/types';
+import type { User } from '@/types';
 
 // CHAVES DAS CONSULTAS DE USUARIOS
 export const USER_QUERY_KEYS = {

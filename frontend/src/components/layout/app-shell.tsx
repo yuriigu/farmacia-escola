@@ -18,7 +18,7 @@ import { fetchAllData, fetchBatchesData, useDataLoader } from '@/lib/pharmacy-st
 import {
   getVisibleModules, getModuleById,
 } from '@/lib/constants';
-import type { ModuleId } from '@/lib/constants';
+import type { ModuleId } from '@/types';
 import { RoleBadge } from '@/components/shared/role-badge';
 import { hasRouteAccess } from '@/config/rbac';
 import { ScrollArea } from '@/components/ui/scroll-area';

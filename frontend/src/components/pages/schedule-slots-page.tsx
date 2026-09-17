@@ -9,7 +9,7 @@ import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
 import { api } from '@/lib/api';
 import { apiClient } from '@/lib/axios';
 import { usePermission } from '@/hooks/use-permission';
-import type { ScheduleSlot, User } from '@/lib/types';
+import type { ScheduleSlot, User } from '@/types';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -184,7 +184,6 @@ export function ScheduleSlotsPage() {
                 return (
                   <Button
                     onClick={() => handleOpenCreate()}
-                    className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
                   >
                     <Plus className="w-4 h-4" />
                     <span>Novo Horário</span>
@@ -408,7 +407,7 @@ export function ScheduleSlotsPage() {
                     <Button
                       onClick={handleSave}
                       disabled={saving}
-                      className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold"
+                     
                     >
                       {(() => {
                         if (saving) {

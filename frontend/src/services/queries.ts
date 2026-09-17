@@ -4,6 +4,7 @@ import { toast } from '@/lib/toast-handler';
 
 // IMPORTS LOCAIS
 import { api } from './api';
+import type { StockStatusSummary, AppointmentStatus } from '@/types';
 
 
 
@@ -22,15 +23,6 @@ export const QUERY_KEYS = {
   stockStatus: ['stockStatus'] as const,
   me: ['auth', 'me'] as const,
 };
-
-// RESUMO CONSOLIDADO DO PANORAMA DE ESTOQUE (RETORNADO PELO BACKEND)
-export interface StockStatusSummary {
-  total: number;
-  ok: number;
-  low: number;
-  critical: number;
-  expired: number;
-}
 
 
 // ==================== MEDICINES ====================
@@ -234,7 +226,7 @@ export function useUpdateAppointmentStatus() {
       notes,
     }: {
       id: number;
-      status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED';
+      status: AppointmentStatus;
       notes?: string;
     }) => {
       return api.appointments.updateStatus(id, status, notes);
@@ -254,10 +246,6 @@ export function useUpdateAppointmentStatus() {
     },
   });
 }
-
-// HOOK PARA DISPENSAR AGENDAMENTO (LOTE + ESTOQUE)
-
-// HOOK PARA ESTORNAR DISPENSACAO DO AGENDAMENTO
 
 // HOOK PARA CANCELAR AGENDAMENTO
 export function useCancelAppointment() {

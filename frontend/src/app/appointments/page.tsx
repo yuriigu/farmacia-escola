@@ -25,7 +25,8 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/page-header';
-import { DataTable, Column } from '@/components/shared/data-table';
+import { DataTable } from '@/components/shared/data-table';
+import type { Column } from '@/types';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle
@@ -42,7 +43,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Appointment, AppointmentItem, AppointmentItemDraft } from '@/lib/types';
+import type { Appointment, AppointmentItem, AppointmentItemDraft } from '@/types';
 
 function AppointmentsContent() {
   const searchParams = useSearchParams();
@@ -550,14 +551,14 @@ function AppointmentsContent() {
                   return (
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="ghost"
                       onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'CONFIRMED' })}
                       disabled={updateStatusMutation.isPending}
-                      className="rounded-lg border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 font-medium text-xs gap-1.5 h-7"
+                      className="h-8 w-8 p-0 rounded-lg text-emerald-500 hover:text-emerald-400 dark:text-emerald-500 dark:hover:text-emerald-400"
                       title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
+                      aria-label="Confirmar Agendamento"
                     >
-                      <Check className="w-3.5 h-3.5" />
-                      <span>Confirmar</span>
+                      <Check className="w-4 h-4" />
                     </Button>
                   );
                 }
@@ -579,7 +580,7 @@ function AppointmentsContent() {
                   return (
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="ghost"
                       onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' }, {
                         onSuccess: (withdrawal) => {
                           setReceipt(withdrawal);
@@ -587,11 +588,11 @@ function AppointmentsContent() {
                         },
                       })}
                       disabled={updateStatusMutation.isPending}
-                      className="rounded-lg border-teal-400 dark:border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/40 font-medium text-xs gap-1.5 h-7"
+                      className="h-8 w-8 p-0 rounded-lg text-emerald-500 hover:text-emerald-400 dark:text-emerald-500 dark:hover:text-emerald-400"
                       title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
+                      aria-label="Concluir Agendamento"
                     >
-                      <CircleCheck className="w-3.5 h-3.5" />
-                      <span>Concluir</span>
+                      <CircleCheck className="w-4 h-4" />
                     </Button>
                   );
                 }
@@ -649,15 +650,6 @@ function AppointmentsContent() {
     createModalDesc = 'Registre um novo agendamento de atendimento farmacêutico.';
   }
 
-  let selectedPatientVal = '';
-  if (selectedPatientId) {
-    selectedPatientVal = String(selectedPatientId);
-  } else {
-    selectedPatientVal = '';
-  }
-
-  const selectedMedVal = items[0]?.medicineId ? String(items[0].medicineId) : '';
-
   return (
     <AppShell activeModuleId="appointments" pageTitle="Agendamentos de Retirada">
       <div className="space-y-5 max-w-7xl mx-auto page-enter">
@@ -695,7 +687,6 @@ function AppointmentsContent() {
 
               <Button
                 onClick={handleOpenCreateModal}
-                className="h-10 rounded-xl gap-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
               >
                 <Plus className="w-4 h-4" />
                 <span>Novo Agendamento</span>
@@ -769,7 +760,7 @@ function AppointmentsContent() {
           emptyAction={
             <Button
               onClick={handleOpenCreateModal}
-              className="h-9 rounded-xl gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold"
+              size="sm"
             >
               <Plus className="w-3.5 h-3.5" />
               Criar Agendamento
@@ -908,7 +899,7 @@ function AppointmentsContent() {
                 <Button
                   type="submit"
                   disabled={createAppointmentMutation.isPending}
-                  className="bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-bold text-xs"
+                  size="sm"
                 >
                   {(() => {
                     if (createAppointmentMutation.isPending) {

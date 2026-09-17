@@ -4,17 +4,7 @@
 import { ReactNode } from 'react';
 
 // IMPORTS DE BIBLIOTECAS
-import { LucideIcon } from 'lucide-react';
-
-// INTERFACE DAS PROPRIEDADES DO CABECALHO DA PAGINA
-export interface PageHeaderProps {
-  title: string;
-  description?: string;
-  icon?: LucideIcon;
-  badge?: ReactNode;
-  actions?: ReactNode;
-  className?: string;
-}
+import type { PageHeaderProps } from '@/types';
 
 // COMPONENTE DE CABECALHO DA PAGINA
 export function PageHeader({

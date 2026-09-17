@@ -1,4 +1,4 @@
-import type { Appointment, ScheduleSlot } from '@/lib/types';
+import type { Appointment, ScheduleSlot } from '@/types';
 import { mockPatient } from './patient-fixture';
 import { mockMedicine } from './medicine-fixture';
 

@@ -4,12 +4,13 @@ import { useState, useEffect, useMemo } from 'react';
 import { toast } from '@/lib/toast-handler';
 import { Trash2, Plus, Undo2, Download, Package, Calendar, User, Search, X } from 'lucide-react';
 import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/pharmacy-store';
-import type { DisposalDraft, Disposal } from '@/lib/types';
+import type { DisposalDraft, Disposal } from '@/types';
 import { api } from '@/lib/api';
 import { downloadCSV } from '@/lib/constants';
 import { usePermission } from '@/hooks/use-permission';
 import { PageHeader } from '@/components/shared/page-header';
-import { DataTable, Column } from '@/components/shared/data-table';
+import { DataTable } from '@/components/shared/data-table';
+import type { Column } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -607,7 +608,6 @@ export function DisposalsPage() {
                   <Button
                     type="submit"
                     disabled={isSubmitDisabled}
-                    className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-semibold"
                   >
                     Confirmar Descarte
                   </Button>

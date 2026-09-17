@@ -110,7 +110,7 @@ describe('AppointmentService', () => {
 
   it('deve rejeitar agendamento sem escala', async () => {
     await expect(appointmentService.create(
-      { userId: 1, role: 'ADMIN' },
+      { userId: 1, role: 'ADMIN' as string },
       { patientId: 1, scheduledDate: '2025-10-15', items: [{ medicineId: 1, quantity: 1 }] },
     )).rejects.toMatchObject({ statusCode: 400 });
   });

@@ -1,7 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/auth-middleware';
 import { MedicineService } from '../services/medicine-service';
-import { prisma } from '../utils/prisma';
 import { medicineCreateSchema, medicineUpdateSchema } from '../middlewares/validation-middleware';
 
 export class MedicineController {
@@ -40,15 +39,8 @@ export class MedicineController {
         }
       }
 
-      const medicineRecord = await prisma.medicine.findFirst({
-        where: { id: id, deletedAt: null },
-      });
-
-      if (!medicineRecord) {
-        res.status(404).json({ error: 'Medicamento não encontrado' });
-        return;
-      }
-
+      // OTIMIZADO: remove a checagem de existência duplicada (findFirst +
+      // getById faziam a mesma leitura). O service já retorna 404.
       const medicine = await this.medicineService.getById(id);
       res.json(medicine);
       return;
@@ -165,15 +157,8 @@ export class MedicineController {
         return;
       }
 
-      const medicineRecord = await prisma.medicine.findFirst({
-        where: { id: id, deletedAt: null },
-      });
-
-      if (!medicineRecord) {
-        res.status(404).json({ error: 'Medicamento não encontrado' });
-        return;
-      }
-
+      // OTIMIZADO: validação Zod antes de qualquer I/O; existência delegada ao
+      // service (findById com 404). Remove 1 query duplicada por UPDATE.
       const validationResult = medicineUpdateSchema.safeParse(req.body);
       if (!validationResult.success) {
         let errorMsg = 'Dados inválidos na requisição';
@@ -243,15 +228,8 @@ export class MedicineController {
         return;
       }
 
-      const medicineRecord = await prisma.medicine.findFirst({
-        where: { id: id, deletedAt: null },
-      });
-
-      if (!medicineRecord) {
-        res.status(404).json({ error: 'Medicamento não encontrado' });
-        return;
-      }
-
+      // OTIMIZADO: existência delegada ao service (findById com 404). Remove
+      // 1 query duplicada por DELETE.
       await this.medicineService.delete(userId, role, id);
       res.json({ message: 'Medicamento excluído com sucesso' });
       return;

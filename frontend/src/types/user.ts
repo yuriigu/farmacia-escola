@@ -1,8 +1,8 @@
 // DEFINICAO DOS PAPEIS DO SISTEMA (DOMINIO DE USUARIO)
-// AppRole e a fonte canonica; Role estende com papeis legados.
+// AppRole e a fonte canonica dos perfis suportados.
 import type { AppRole } from './rbac';
 
-export type Role = AppRole | 'ATENDENTE';
+export type Role = AppRole;
 
 // USUARIO CADASTRADO NO SISTEMA
 export interface User {

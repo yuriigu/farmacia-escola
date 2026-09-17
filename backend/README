@@ -28,7 +28,7 @@ Principais Responsabilidades:
 * Autenticação & Autorização: emissão e validação de tokens JWT, hashing de senhas com bcryptjs e controle de permissões por perfil (RBAC).
 * Gestão de Estoque: controle de saldo consolidado e individual por lote físico, dosagem e forma farmacêutica.
 * Rastreabilidade de Lotes: cálculo de validade e alertas para itens próximos do vencimento ou vencidos.
-* Dispensação Supervisionada: baixa atômica de estoque vinculando atendente, paciente e lote, com suporte a estorno.
+* Dispensação Supervisionada: baixa atômica de estoque vinculando o usuário responsável, paciente e lote, com suporte a estorno.
 * Descarte Motivado: registro de perdas por avaria, vencimento ou contaminação com possibilidade de reversão auditada.
 * Grade de Horários: gerenciamento de capacidade de atendimento por faixa de horário e preceptor responsável.
 * Auditoria de Operações: persistência de logs de atividade para rastreamento de ações críticas.

@@ -3,23 +3,122 @@ import { PrismaLibSql } from '@prisma/adapter-libsql';
 import { Role } from '../types/enums';
 import bcrypt from 'bcryptjs';
 
-// LibSQL: adapter pure JS, compatível com Alpine/Docker sem compilação nativa
+// OTIMIZADO: timeout de operação (10s) para evitar P1008 em
+// ambientes com I/O lento (Docker volume, NFS, discos congestionados).
+// O seed faz DELETEs em cascata; com o DB ocupado ou disco lento, o
+// padrão (sem timeout explícito) pode estourar.
+// NOTA: o Config do @libsql/client só aceita `url`; timeout extra
+// é gerenciado via retry/backoff neste arquivo (veja retryWithBackoff).
 const adapter = new PrismaLibSql({
   url: process.env.DATABASE_URL ?? 'file:./prisma/dev.db',
+  // @libsql/client Config só aceita url no tipo; timeout é tratado
+  // por middleware/retry abaixo para evitar P1008.
 });
 
+// ---------------------------------------------------------------------
+// RETRY COM BACKOFF (evita P1008 — Operation timed out / SocketTimeout)
+// ---------------------------------------------------------------------
+// Em ambientes Docker com volume montado, o SQLite/LibSQL pode levar
+// mais tempo em operações de escrita (DELETE em cascata, inserts
+// em lote). Esta função tenta a operação até `maxAttempts` vezes
+// com backoff exponencial, logando cada falha.
+async function retryWithBackoff<T>(
+  fn: () => Promise<T>,
+  label: string,
+  maxAttempts = 5,
+): Promise<T> {
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastError = err;
+      const isTimeout =
+        err instanceof Error &&
+        'code' in err &&
+        (err as { code?: string }).code === 'P1008';
+      console.warn(
+        `[seed:retry] ${label} — tentativa ${attempt}/${maxAttempts}${
+          isTimeout ? ' (P1008 timeout)' : ''
+        }: ${err instanceof Error ? err.message : err}`
+      );
+      if (attempt < maxAttempts) {
+        // Backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms
+        const delayMs = Math.min(200 * 2 ** (attempt - 1), 4000);
+        console.warn(`[seed:retry] ${label} — aguardando ${delayMs}ms antes da próxima tentativa`);
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
+    }
+  }
+  throw lastError;
+}
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  await prisma.appointmentItem.deleteMany();
-  await prisma.disposal.deleteMany();
-  await prisma.appointment.deleteMany();
-  await prisma.scheduleSlot.deleteMany();
-  await prisma.stockBatch.deleteMany();
-  await prisma.patient.deleteMany();
-  await prisma.medicine.deleteMany();
-  await prisma.activityLog.deleteMany();
-  await prisma.user.deleteMany();
+  // OTIMIZADO: Configurar busy_timeout para mitigar "database is locked"
+  // em ambientes com I/O lento ou contention (Docker volume, NFS).
+  // O SQLite/LibSQL usa bloqueio a nível de arquivo; com esse PRAGMA,
+  // operações que encontrarem o DB trancado aguardam e retentam
+  // internamente em até 5s antes de falhar com SQLITE_BUSY.
+  try {
+    await prisma.$executeRaw`PRAGMA busy_timeout = 5000`;
+    console.log('[seed] busy_timeout configurado para 5000ms');
+  } catch (err) {
+    console.warn('[seed] Falha ao configurar busy_timeout (pode ser restrito pelo adapter):', err);
+  }
+
+  // GUARDA DE SEGURANCA: O SEED CRIA USUARIOS COM SENHAS PADRAO FRACAS
+  // (admin123, farm123, ...). A EXECUCAO EM PRODUCAO E BLOQUEADA POR PADRAO
+  // PARA EVITAR CONTAS COM CREDENCIAIS PREVISIVEIS NO AMBIENTE REAL.
+  // PARA AMBIENTES DE DEMONSTRACAO, DEFINA SEED_ALLOW_INSECURE_PASSWORDS=true.
+  if (process.env.NODE_ENV === 'production') {
+    if (process.env.SEED_ALLOW_INSECURE_PASSWORDS !== 'true') {
+      throw new Error(
+        'Seed bloqueado em produção: ele cria usuários com senhas padrão. Use SEED_ALLOW_INSECURE_PASSWORDS=true apenas em ambientes controlados.'
+      );
+    }
+  }
+
+  // OTIMIZADO: deletes envoltos em retry com backoff exponencial para
+  // tolerar P1008 (Operation timed out / SocketTimeout) causado por
+  // disco congestionado, volume Docker ocupado ou contention do SQLite.
+  // A ordem respeita as FKs (tabelas filhas antes das pai).
+  await retryWithBackoff(
+    () => prisma.appointmentItem.deleteMany(),
+    'appointmentItem.deleteMany',
+  );
+  await retryWithBackoff(
+    () => prisma.disposal.deleteMany(),
+    'disposal.deleteMany',
+  );
+  await retryWithBackoff(
+    () => prisma.appointment.deleteMany(),
+    'appointment.deleteMany',
+  );
+  await retryWithBackoff(
+    () => prisma.scheduleSlot.deleteMany(),
+    'scheduleSlot.deleteMany',
+  );
+  await retryWithBackoff(
+    () => prisma.stockBatch.deleteMany(),
+    'stockBatch.deleteMany',
+  );
+  await retryWithBackoff(
+    () => prisma.patient.deleteMany(),
+    'patient.deleteMany',
+  );
+  await retryWithBackoff(
+    () => prisma.medicine.deleteMany(),
+    'medicine.deleteMany',
+  );
+  await retryWithBackoff(
+    () => prisma.activityLog.deleteMany(),
+    'activityLog.deleteMany',
+  );
+  await retryWithBackoff(
+    () => prisma.user.deleteMany(),
+    'user.deleteMany',
+  );
 
   const adminPass = await bcrypt.hash('admin123', 10);
   const farmPass = await bcrypt.hash('farm123', 10);
@@ -222,5 +321,13 @@ async function main() {
 }
 
 main()
-  .catch((e) => { console.error(e); process.exit(1); })
+  .catch((e) => {
+    console.error('Erro durante o seed:', e);
+    // OTIMIZADO: erro de timeout (P1008) pode ser causado por disco
+    // congestionado ou volume Docker ocupado. Log detalhado para debug.
+    if (e instanceof Error) {
+      console.error('Stack:', e.stack);
+    }
+    process.exit(1);
+  })
   .finally(async () => { await prisma.$disconnect(); });

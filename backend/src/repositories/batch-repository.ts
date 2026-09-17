@@ -1,7 +1,17 @@
 import { prisma } from '../utils/prisma';
 
 export class BatchRepository {
-  async findAll(medicineId?: number) {
+  // Projeção enxuta de medicine usada nas listagens (evita `medicine: true`
+  // completo em todas as linhas de estoque).
+  private readonly medicineSelect = {
+    id: true,
+    name: true,
+    dosage: true,
+    activeIngredient: true,
+    category: true,
+  } as const;
+
+  async findAll(medicineId?: number, pagination?: { take?: number; skip?: number }) {
     let where: any = {
       medicine: {
         deletedAt: null,
@@ -17,8 +27,10 @@ export class BatchRepository {
     }
     return prisma.stockBatch.findMany({
       where: where,
-      include: { medicine: true },
+      include: { medicine: { select: this.medicineSelect } },
       orderBy: { expirationDate: 'asc' },
+      take: pagination?.take ?? 200,
+      ...(pagination?.skip ? { skip: pagination.skip } : {}),
     });
   }
 
@@ -30,7 +42,7 @@ export class BatchRepository {
           deletedAt: null,
         },
       },
-      include: { medicine: true },
+      include: { medicine: { select: this.medicineSelect } },
     });
   }
 
@@ -55,7 +67,7 @@ export class BatchRepository {
   }) {
     return prisma.stockBatch.create({
       data,
-      include: { medicine: true },
+      include: { medicine: { select: this.medicineSelect } },
     });
   }
 
@@ -70,7 +82,7 @@ export class BatchRepository {
     return prisma.stockBatch.update({
       where: { id },
       data: { currentQuantity: newQuantity },
-      include: { medicine: true },
+      include: { medicine: { select: this.medicineSelect } },
     });
   }
 
@@ -92,7 +104,7 @@ export class BatchRepository {
         isBlocked: isBlocked,
         blockReason: reasonValue,
       } as any,
-      include: { medicine: true },
+      include: { medicine: { select: this.medicineSelect } },
     });
   }
 
@@ -108,7 +120,7 @@ export class BatchRepository {
     return prisma.stockBatch.update({
       where: { id },
       data,
-      include: { medicine: true },
+      include: { medicine: { select: this.medicineSelect } },
     });
   }
 

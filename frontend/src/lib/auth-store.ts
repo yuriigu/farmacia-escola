@@ -19,10 +19,27 @@ interface AuthState {
 }
 
 // FUNCAO AUXILIAR PARA DEFINIR COOKIES
+// O FLAG `Secure` E ATIVADO AUTOMATICAMENTE QUANDO A PAGINA E SERVIDA VIA HTTPS,
+// IMPEDINDO QUE O TOKEN DE AUTENTICACAO TRAFEGUE EM CONEXOES SEM TLS.
+// EM DESENVOLVIMENTO LOCAL (HTTP) O COMPORTAMENTO PERMANECE INALTERADO.
+function buildCookieOptions() {
+  let isSecure = false;
+  if (typeof window !== 'undefined') {
+    isSecure = window.location.protocol === 'https:';
+  }
+  return {
+    expires: 7,
+    path: '/',
+    sameSite: 'lax' as const,
+    secure: isSecure,
+  };
+}
+
 function setAuthCookies(token: string, user: AuthUser) {
-  Cookies.set('auth_token', token, { expires: 7, path: '/', sameSite: 'lax' });
-  Cookies.set('user_role', user.role, { expires: 7, path: '/', sameSite: 'lax' });
-  Cookies.set('user_info', JSON.stringify(user), { expires: 7, path: '/', sameSite: 'lax' });
+  const options = buildCookieOptions();
+  Cookies.set('auth_token', token, options);
+  Cookies.set('user_role', user.role, options);
+  Cookies.set('user_info', JSON.stringify(user), options);
 }
 
 // FUNCAO AUXILIAR PARA LIMPAR COOKIES

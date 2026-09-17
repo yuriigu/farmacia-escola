@@ -2,12 +2,24 @@ import { prisma } from '../utils/prisma';
 
 export class MedicineRepository {
   async findAll() {
+    // OTIMIZADO: projection de batches restrita aos campos usados no cálculo
+    // de status/estoque (antes `batches: true` trazia colunas pesadas como
+    // supplier/blockReason para todas as linhas em toda listagem).
     return prisma.medicine.findMany({
       where: {
         deletedAt: null,
       },
       include: {
-        batches: true,
+        batches: {
+          select: {
+            id: true,
+            medicineId: true,
+            batchNumber: true,
+            currentQuantity: true,
+            expirationDate: true,
+            isBlocked: true,
+          },
+        },
       },
       orderBy: { name: 'asc' },
     });
@@ -19,7 +31,22 @@ export class MedicineRepository {
         id: id,
         deletedAt: null,
       },
-      include: { batches: true },
+      include: {
+        batches: {
+          select: {
+            id: true,
+            medicineId: true,
+            batchNumber: true,
+            currentQuantity: true,
+            expirationDate: true,
+            manufacturingDate: true,
+            supplier: true,
+            isBlocked: true,
+            blockReason: true,
+            receivedAt: true,
+          },
+        },
+      },
     });
   }
 

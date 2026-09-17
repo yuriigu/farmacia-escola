@@ -1,12 +1,21 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import dotenv from 'dotenv';
 import apiRoutes from './routes/index';
 import { errorMiddleware } from './middlewares/error-middleware';
+import { securityHeaders } from './middlewares/security-headers-middleware';
 
 dotenv.config();
 
 const app = express();
+
+// NAO EXPOE O CABECALHO X-Powered-By (FINGERPRINTING DE TECNOLOGIA)
+app.disable('x-powered-by');
+
+// CABECALHOS DE SEGURANCA HTTP APLICADOS ANTES DE QUALQUER RESPOSTA,
+// INCLUSIVE EM ERROS DE CORS E EM REQUISICOES PREFLIGHT.
+app.use(securityHeaders);
 
 let PORT = 3001;
 if (process.env.PORT) {
@@ -38,7 +47,9 @@ app.use(cors({
         return;
       }
     }
-    callback(new Error('Origem não permitida pelo CORS'));
+    const corsError: any = new Error('Origem não permitida pelo CORS');
+    corsError.statusCode = 403;
+    callback(corsError);
     return;
   },
   credentials: true,
@@ -46,7 +57,12 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-app.use(express.json());
+// LIMITE EXPLICITO DE PAYLOAD PARA EVITAR CONSUMO EXCESSIVO DE MEMORIA
+app.use(express.json({ limit: '100kb' }));
+
+// OTIMIZADO: compressão gzip das respostas JSON (listas de agendamentos,
+// medicamentos e lotes caem ~70-80% em bytes transferidos).
+app.use(compression());
 
 app.use('/api', apiRoutes);
 

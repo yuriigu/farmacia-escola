@@ -3,20 +3,43 @@
 import dynamic from 'next/dynamic';
 import type { EventClickArg, EventInput, DatesSetArg } from '@fullcalendar/core';
 import type { DateClickArg } from '@fullcalendar/interaction';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
-import listPlugin from '@fullcalendar/list';
-import ptBrLocale from '@fullcalendar/core/locales/pt-br';
 
-const FullCalendar = dynamic(() => import('@fullcalendar/react'), {
-  ssr: false,
-  loading: () => (
-    <div className="min-h-[500px] flex items-center justify-center text-slate-400 text-sm">
-      Carregando calendário...
-    </div>
-  ),
-}) as any;
+// OTIMIZADO: plugins do FullCalendar movidos para DENTRO do dynamic import.
+// Antes, dayGrid/timeGrid/interaction/list + locale pt-BR entravam no bundle
+// inicial de TODAS as páginas (import estático); agora só baixam quando um
+// calendário monta (rotas /calendar e /scales).
+const FullCalendar = dynamic(
+  () =>
+    Promise.all([
+      import('@fullcalendar/react'),
+      import('@fullcalendar/daygrid'),
+      import('@fullcalendar/timegrid'),
+      import('@fullcalendar/interaction'),
+      import('@fullcalendar/list'),
+      import('@fullcalendar/core/locales/pt-br'),
+    ]).then(([reactMod, dayGridMod, timeGridMod, interactionMod, listMod, localeMod]) => {
+      const FullCalendarInner = (reactMod as any).default ?? (reactMod as any);
+      const plugins = [
+        (dayGridMod as any).default ?? (dayGridMod as any),
+        (timeGridMod as any).default ?? (timeGridMod as any),
+        (interactionMod as any).default ?? (interactionMod as any),
+        (listMod as any).default ?? (listMod as any),
+      ];
+      const locale = (localeMod as any).default ?? (localeMod as any);
+      function LazyCalendar(props: Record<string, unknown>) {
+        return <FullCalendarInner {...props} plugins={plugins} locale={locale} />;
+      }
+      return LazyCalendar;
+    }),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-125 flex items-center justify-center text-slate-400 text-sm">
+        Carregando calendário...
+      </div>
+    ),
+  }
+) as any;
 
 interface StandardCalendarProps {
   events: EventInput[];
@@ -29,8 +52,6 @@ interface StandardCalendarProps {
 export function StandardCalendar({ events, onDateClick, onEventClick, onDatesSet, initialDate }: StandardCalendarProps) {
   return (
     <FullCalendar
-      plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, listPlugin]}
-      locale={ptBrLocale}
       initialView="dayGridMonth"
       initialDate={initialDate}
       headerToolbar={{

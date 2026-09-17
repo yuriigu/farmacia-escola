@@ -9,19 +9,22 @@ export class ScheduleSlotRepository {
       where.date = { gte: filters.startDate };
     }
 
+    // OTIMIZADO: _count agregado no banco (usa índice [slotId, status]) em vez
+    // de trazer todos os appointments para contar em JS (slot.appointments.length).
     const slots = await prisma.scheduleSlot.findMany({
       where,
       include: {
         assignedTo: { select: { id: true, name: true, role: true } },
-        appointments: { where: { status: { in: ['PENDING', 'CONFIRMED'] } } },
+        _count: {
+          select: {
+            appointments: { where: { status: { in: ['PENDING', 'CONFIRMED'] } } },
+          },
+        },
       },
       orderBy: [{ date: 'asc' }, { timeSlot: 'asc' }],
     });
 
-    return slots.map((slot) => ({
-      ...slot,
-      _count: { appointments: slot.appointments.length },
-    }));
+    return slots;
   }
 
   async findById(id: number) {

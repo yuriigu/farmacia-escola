@@ -28,12 +28,14 @@ export const QUERY_KEYS = {
 // ==================== MEDICINES ====================
 
 // HOOK PARA LISTAR MEDICAMENTOS
+// staleTime local de 5min: catálogo muda pouco; evita refetch a cada montagem.
 export function useMedicines() {
   return useQuery({
     queryKey: QUERY_KEYS.medicines,
     queryFn: () => {
       return api.medicines.getAll();
     },
+    staleTime: 1000 * 60 * 5,
   });
 }
 
@@ -100,12 +102,14 @@ export function useBatches(medicineId?: number) {
 }
 
 // HOOK PARA O PANORAMA DE ESTOQUE CONSOLIDADO PELO BACKEND
+// staleTime 5min: agregado barato no backend mas chamado em todo dashboard.
 export function useStockStatus() {
   return useQuery({
     queryKey: QUERY_KEYS.stockStatus,
     queryFn: () => {
       return api.get<StockStatusSummary>('/dashboard/stock-status');
     },
+    staleTime: 1000 * 60 * 5,
   });
 }
 
@@ -157,12 +161,14 @@ export function useDeleteBatch() {
 // ==================== APPOINTMENTS ====================
 
 // HOOK PARA LISTAR AGENDAMENTOS
+// staleTime curto (60s): muda com frequência, mas sem refetch em cada remount.
 export function useAppointments() {
   return useQuery({
     queryKey: QUERY_KEYS.appointments,
     queryFn: () => {
       return api.appointments.getAll();
     },
+    staleTime: 1000 * 60,
   });
 }
 
@@ -271,12 +277,16 @@ export function useCancelAppointment() {
 // ==================== PATIENTS ====================
 
 // HOOK PARA LISTAR PACIENTES
+// OTIMIZADO: placeholderData keepPreviousData + staleTime evitam refetch
+// visual a cada keystroke do autocomplete de CPF (dispara a cada 3 dígitos).
 export function usePatients(search?: string) {
   return useQuery({
     queryKey: QUERY_KEYS.patients(search),
     queryFn: () => {
       return api.patients.getAll(search);
     },
+    staleTime: 1000 * 60 * 2,
+    placeholderData: (previousData) => previousData,
   });
 }
 

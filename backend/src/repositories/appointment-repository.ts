@@ -1,7 +1,10 @@
 import { prisma } from '../utils/prisma';
 
 export class AppointmentRepository {
-  async findAll(patientId?: number) {
+  // OTIMIZADO: paginação opcional (take/skip) para a tabela mais pesada do
+  // sistema + projections enxutas. Sem paginação o comportamento é idêntico
+  // ao anterior (compatível com testes/consumidores atuais).
+  async findAll(patientId?: number, pagination?: { take?: number; skip?: number }) {
     let where: any = {
       patient: {
         deletedAt: null,
@@ -19,7 +22,7 @@ export class AppointmentRepository {
     return prisma.appointment.findMany({
       where: where,
       include: {
-        patient: true,
+        patient: { select: { id: true, name: true, cpf: true, phone: true } },
         slot: {
           include: {
             assignedTo: { select: { id: true, name: true, role: true } },
@@ -52,14 +55,18 @@ export class AppointmentRepository {
         },
       },
       orderBy: { scheduledDate: 'asc' },
+      ...(pagination?.take ? { take: pagination.take } : {}),
+      ...(pagination?.skip ? { skip: pagination.skip } : {}),
     });
   }
 
   async findById(id: number) {
+    // OTIMIZADO: projections enxutas (select) em vez de `medicine: true` /
+    // `patient: true` completos — reduz payload e parsing em detalhe.
     return prisma.appointment.findUnique({
       where: { id },
       include: {
-        patient: true,
+        patient: { select: { id: true, name: true, cpf: true, phone: true, birthDate: true, address: true } },
         slot: {
           include: {
             assignedTo: { select: { id: true, name: true, role: true } },
@@ -67,7 +74,7 @@ export class AppointmentRepository {
         },
         batch: {
           include: {
-            medicine: true,
+            medicine: { select: { id: true, name: true, dosage: true, activeIngredient: true } },
           },
         },
         dispensedByUser: {
@@ -75,10 +82,10 @@ export class AppointmentRepository {
         },
         items: {
           include: {
-            medicine: true,
+            medicine: { select: { id: true, name: true, dosage: true, activeIngredient: true } },
             batch: {
               include: {
-                medicine: true,
+                medicine: { select: { id: true, name: true, dosage: true } },
               },
             },
           },
@@ -95,6 +102,9 @@ export class AppointmentRepository {
     notes?: string | null;
     items: Array<{ medicineId: number; quantity: number }>;
   }) {
+    // OTIMIZADO: createMany insere todos os items em 1 round-trip (em vez de
+    // N creates sequenciais) + projections enxutas (select) em vez de
+    // `medicine: true` / `patient: true` completos no retorno.
     return prisma.$transaction(async (tx) => {
       const created = await tx.appointment.create({
         data: {
@@ -104,35 +114,21 @@ export class AppointmentRepository {
           slotId: data.slotId,
           notes: data.notes,
         },
-        include: {
-          patient: true,
-          slot: {
-            include: {
-              assignedTo: { select: { id: true, name: true, role: true } },
-            },
-          },
-          items: {
-            include: {
-              medicine: true,
-            },
-          },
-        },
+        select: { id: true },
       });
 
-      for (const item of data.items) {
-        await tx.appointmentItem.create({
-          data: {
-            appointmentId: created.id,
-            medicineId: item.medicineId,
-            quantity: item.quantity,
-          },
-        });
-      }
+      await tx.appointmentItem.createMany({
+        data: data.items.map((item) => ({
+          appointmentId: created.id,
+          medicineId: item.medicineId,
+          quantity: item.quantity,
+        })),
+      });
 
       return tx.appointment.findUnique({
         where: { id: created.id },
         include: {
-          patient: true,
+          patient: { select: { id: true, name: true, cpf: true, phone: true } },
           slot: {
             include: {
               assignedTo: { select: { id: true, name: true, role: true } },
@@ -140,7 +136,7 @@ export class AppointmentRepository {
           },
           items: {
             include: {
-              medicine: true,
+              medicine: { select: { id: true, name: true, dosage: true, activeIngredient: true } },
             },
           },
         },

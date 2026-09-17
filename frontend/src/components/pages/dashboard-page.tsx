@@ -1,23 +1,38 @@
 'use client';
 
 import { useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import Link from 'next/link';
 import {
   Package, Calendar, Clock,
   CalendarDays, AlertTriangle, AlertCircle, Plus,
   ShieldAlert, ChevronRight, CheckCircle
 } from 'lucide-react';
-import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid
-} from 'recharts';
+// OTIMIZADO: recharts (~350KB) carregado sob demanda via dynamic import com
+// ssr:false — fora do bundle inicial do dashboard. Os gráficos renderizam
+// após o LCP das métricas principais.
+const DashboardCharts = dynamic(
+  () => import('@/components/modules/dashboard-charts').then((m) => m.DashboardCharts),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {[0, 1].map((i) => (
+          <div key={i} className="rounded-3xl border border-slate-200 dark:border-slate-700 p-6 animate-pulse">
+            <div className="h-4 w-40 bg-slate-200 dark:bg-slate-700 rounded mb-4" />
+            <div className="h-60 bg-slate-100 dark:bg-slate-800 rounded-2xl" />
+          </div>
+        ))}
+      </div>
+    ),
+  }
+);
 import { useAuthStore } from '@/lib/auth-store';
-import { useMedicines, useAppointments, useBatches, useStockStatus } from '@/services/queries';
-import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES, CHART_COLORS } from '@/lib/constants';
+import { useMedicines, useAppointments, useStockStatus } from '@/services/queries';
+import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { ChartTooltipContent } from '@/components/shared/chart-tooltip-content';
 
 export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: string, tab?: string) => void }) {
   const user = useAuthStore((s) => s.user);
@@ -30,7 +45,13 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
 
   const { data: medicines = [] } = useMedicines();
   const { data: appointments = [] } = useAppointments();
-  const { data: batches = [] } = useBatches();
+  // OTIMIZADO: contagem de bloqueados derivada de medicines[].batches (já em
+  // memória) — elimina a query GET /batches dedicada que o dashboard fazia
+  // apenas para o banner de bloqueio sanitário.
+  const blockedBatchesCount = useMemo(
+    () => medicines.reduce((sum, m) => sum + (m.batches ?? []).filter((b) => b.isBlocked).length, 0),
+    [medicines]
+  );
 
   const totalStockUnits = useMemo(() => {
     return medicines.reduce((sum, m) => {
@@ -337,10 +358,9 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
 
       {/* Sanitary Block Alert Banner */}
       {(() => {
-        const blockedBatches = batches.filter((b) => b.isBlocked);
-        if (blockedBatches.length > 0) {
+        if (blockedBatchesCount > 0) {
           let pluralText = 'lotes com bloqueio ativo';
-          if (blockedBatches.length === 1) {
+          if (blockedBatchesCount === 1) {
             pluralText = 'lote com bloqueio ativo';
           }
           return (
@@ -351,7 +371,7 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
                 </div>
                 <div>
                   <p className="text-sm font-bold text-rose-800 dark:text-rose-200">
-                    Atenção Sanitária: {blockedBatches.length} {pluralText}
+                    Atenção Sanitária: {blockedBatchesCount} {pluralText}
                   </p>
                   <p className="text-xs text-rose-600 dark:text-rose-300">
                     Estes lotes estão retidos e impedidos de dispensação pelo algoritmo FEFO.
@@ -367,92 +387,12 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
         return null;
       })()}
 
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Appointments Status Pie */}
-        <Card className="rounded-3xl border-slate-200 dark:border-slate-700 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Calendar className="w-4 h-4 text-teal-600" />
-              Distribuição de Agendamentos
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              if (appointmentPieData.length > 0) {
-                return (
-                  <ResponsiveContainer width="100%" height={240}>
-                    <PieChart>
-                      <Pie
-                        data={appointmentPieData}
-                        cx="50%"
-                        cy="50%"
-                        innerRadius={50}
-                        outerRadius={80}
-                        paddingAngle={4}
-                        dataKey="value"
-                        nameKey="name"
-                      >
-                        {appointmentPieData.map((_, i) => (
-                          <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                        ))}
-                      </Pie>
-                      <RechartsTooltip content={<ChartTooltipContent />} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                );
-              } else {
-                return (
-                  <div className="py-12 text-center text-slate-400 text-sm">
-                    Nenhum agendamento registrado ainda.
-                  </div>
-                );
-              }
-            })()}
-          </CardContent>
-        </Card>
-
-        {/* Stock Status Distribution Bar Chart */}
-        <Card className="rounded-3xl border-slate-200 dark:border-slate-700 shadow-sm">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-bold flex items-center gap-2">
-              <Package className="w-4 h-4 text-emerald-600" />
-              Panorama por Status de Estoque
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {(() => {
-              if (medicines.length > 0) {
-                return (
-                  <ResponsiveContainer width="100%" height={240}>
-                    <BarChart
-                      data={[
-                        { name: 'Em dia', quantidade: stockTaxonomyCounts.ok, fill: '#10b981' },
-                        { name: 'Baixo', quantidade: stockTaxonomyCounts.low, fill: '#f59e0b' },
-                        { name: 'Crítico', quantidade: stockTaxonomyCounts.critical, fill: '#ef4444' },
-                        { name: 'Vencido', quantidade: stockTaxonomyCounts.expired, fill: '#9333ea' },
-                      ]}
-                      margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
-                    >
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" />
-                      <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                      <YAxis tick={{ fontSize: 11, fill: '#64748b' }} />
-                      <RechartsTooltip content={<ChartTooltipContent />} />
-                      <Bar dataKey="quantidade" radius={[6, 6, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                );
-              } else {
-                return (
-                  <div className="py-12 text-center text-slate-400 text-sm">
-                    Nenhum medicamento com estoque cadastrado.
-                  </div>
-                );
-              }
-            })()}
-          </CardContent>
-        </Card>
-      </div>
+      {/* Charts Section — lazy: recharts fora do bundle inicial */}
+      <DashboardCharts
+        appointmentPieData={appointmentPieData}
+        stockTaxonomyCounts={stockTaxonomyCounts}
+        hasMedicines={medicines.length > 0}
+      />
 
       {/* Next Appointments List */}
       <Card className="rounded-3xl border-slate-200 dark:border-slate-700 shadow-sm">

@@ -4,6 +4,7 @@ import request from 'supertest';
 import { generateToken } from '../../../src/utils/jwt';
 import { prisma } from '../../../src/utils/prisma';
 import { mockAppointment, mockAppointmentsList } from '../../fixtures/appointments-fixture';
+import { Role } from '../../../src/types/enums';
 
 vi.mock('../../../src/controllers/appointment-controller', () => {
   return {
@@ -22,6 +23,12 @@ vi.mock('../../../src/controllers/appointment-controller', () => {
           res.status(200).json(mockAppointment);
         }),
         updateStatus: vi.fn(async (req: any, res: any) => {
+          res.status(200).json(mockAppointment);
+        }),
+        dispense: vi.fn(async (req: any, res: any) => {
+          res.status(200).json(mockAppointment);
+        }),
+        revertDispense: vi.fn(async (req: any, res: any) => {
           res.status(200).json(mockAppointment);
         }),
         delete: vi.fn(async (req: any, res: any) => {
@@ -58,7 +65,7 @@ describe('Appointment Routes Integration', () => {
       patient: null,
     });
 
-    adminToken = generateToken({ userId: 1, role: 'ADMIN' });
+    adminToken = generateToken({ userId: 1, role: Role.ADMIN });
 
     app = express();
     app.use(express.json());
@@ -87,5 +94,27 @@ describe('Appointment Routes Integration', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.id).toBe(1);
+  });
+
+  it('GET /api/appointments - deve exigir token de autenticacao (HTTP 401)', async () => {
+    const res = await request(app).get('/api/appointments');
+
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/appointments - deve rejeitar token invalido (HTTP 401)', async () => {
+    const res = await request(app)
+      .get('/api/appointments')
+      .set('Authorization', 'Bearer token-adulterado');
+
+    expect(res.status).toBe(401);
+  });
+
+  it('GET /api/appointments - deve rejeitar token sem o prefixo Bearer (HTTP 401)', async () => {
+    const res = await request(app)
+      .get('/api/appointments')
+      .set('Authorization', adminToken);
+
+    expect(res.status).toBe(401);
   });
 });

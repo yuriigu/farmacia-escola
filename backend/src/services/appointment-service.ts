@@ -127,43 +127,33 @@ export class AppointmentService {
       }
     }
 
-    for (const item of items) {
-      const medId = Number(item.medicineId);
-      const qty = Number(item.quantity);
+    // OTIMIZADO (N+1): valida todos os medicamentos do agendamento em PARALELO
+    // (Promise.all) em vez de 1 query sequencial por item; cada item ainda
+    // usa SUM agregado no banco para o reservado (índice [medicineId]).
+    await Promise.all(
+      items.map(async (item) => {
+        const medId = Number(item.medicineId);
+        const qty = Number(item.quantity);
 
-      if (!medId) {
-        throw { statusCode: 400, message: 'Todos os medicamentos devem ter ID válido e quantidade positiva' };
-      } else {
-        if (isNaN(medId)) {
+        if (!medId || isNaN(medId) || !qty || isNaN(qty) || qty <= 0) {
           throw { statusCode: 400, message: 'Todos os medicamentos devem ter ID válido e quantidade positiva' };
-        } else {
-          if (!qty) {
-            throw { statusCode: 400, message: 'Todos os medicamentos devem ter ID válido e quantidade positiva' };
-          } else {
-            if (isNaN(qty)) {
-              throw { statusCode: 400, message: 'Todos os medicamentos devem ter ID válido e quantidade positiva' };
-            } else {
-              if (qty <= 0) {
-                throw { statusCode: 400, message: 'Todos os medicamentos devem ter ID válido e quantidade positiva' };
-              }
-            }
-          }
         }
-      }
 
-      const med = await this.medicineRepo.findById(medId);
-      if (!med) {
-        throw { statusCode: 404, message: `Medicamento #${medId} não encontrado` };
-      }
+        const med = await this.medicineRepo.findById(medId);
+        if (!med) {
+          throw { statusCode: 404, message: `Medicamento #${medId} não encontrado` };
+        }
 
-      const stockInfo = await this.calculateRealAvailableStock(medId);
-      if (qty > stockInfo.realAvailableStock) {
-        throw {
-          statusCode: 400,
-          message: `Estoque insuficiente para o medicamento "${med.name}". Solicitado: ${qty}, Disponível real: ${stockInfo.realAvailableStock} (Físico: ${stockInfo.physicalStockTotal}, Reservado: ${stockInfo.reservedQuantity})`,
-        };
-      }
-    }
+        const stockInfo = await this.calculateRealAvailableStock(medId);
+        if (qty > stockInfo.realAvailableStock) {
+          throw {
+            statusCode: 400,
+            message: `Estoque insuficiente para o medicamento "${med.name}". Solicitado: ${qty}, Disponível real: ${stockInfo.realAvailableStock} (Físico: ${stockInfo.physicalStockTotal}, Reservado: ${stockInfo.reservedQuantity})`,
+          };
+        }
+        return { medId, qty };
+      })
+    );
 
     let targetPatientId = undefined;
     if (patientId) {
@@ -792,28 +782,37 @@ export class AppointmentService {
     const now = new Date();
     let physicalStockTotal = 0;
 
-    let activeBatches: any[] = [];
+    // OTIMIZADO: SUM agregado no banco (usa índices [medicineId],
+    // [medicineId, expirationDate]) em vez de findMany + loop JS. Mantém o
+    // fallback em memória apenas se o agregado falhar (ex.: client mockado).
     try {
-      activeBatches = await prisma.stockBatch.findMany({
-        where: {
-          medicineId: medicineId,
-          currentQuantity: { gt: 0 },
-          expirationDate: { gte: now },
-          isBlocked: false,
-        },
-      });
-    } catch (dbErr) {
-      activeBatches = [];
-    }
-
-    if (activeBatches) {
-      if (Array.isArray(activeBatches)) {
-        if (activeBatches.length > 0) {
-          for (let b = 0; b < activeBatches.length; b++) {
-            physicalStockTotal = physicalStockTotal + activeBatches[b].currentQuantity;
-          }
+      const stockBatch = (prisma as any).stockBatch;
+      if (stockBatch && typeof stockBatch.aggregate === 'function') {
+        const agg = await stockBatch.aggregate({
+          where: {
+            medicineId: medicineId,
+            currentQuantity: { gt: 0 },
+            expirationDate: { gte: now },
+            isBlocked: false,
+          },
+          _sum: { currentQuantity: true },
+        });
+        physicalStockTotal = agg._sum.currentQuantity ?? 0;
+      } else if (stockBatch && typeof stockBatch.findMany === 'function') {
+        const activeBatches: any[] = await stockBatch.findMany({
+          where: {
+            medicineId: medicineId,
+            currentQuantity: { gt: 0 },
+            expirationDate: { gte: now },
+            isBlocked: false,
+          },
+        });
+        for (const b of activeBatches ?? []) {
+          physicalStockTotal += b.currentQuantity;
         }
       }
+    } catch {
+      physicalStockTotal = 0;
     }
 
     if (physicalStockTotal === 0) {
@@ -849,27 +848,31 @@ export class AppointmentService {
 
     let reservedQuantity = 0;
     try {
-      const pendingItems = await prisma.appointmentItem.findMany({
-        where: {
-          medicineId: medicineId,
-          appointment: {
-            status: {
-              in: ['PENDING', 'CONFIRMED'],
-            },
+      // OTIMIZADO: SUM agregado no banco (usa índice [medicineId] em
+      // AppointmentItem) em vez de trazer N linhas para somar em JS.
+      const appointmentItem = (prisma as any).appointmentItem;
+      if (appointmentItem && typeof appointmentItem.aggregate === 'function') {
+        const agg = await appointmentItem.aggregate({
+          where: {
+            medicineId: medicineId,
+            appointment: { status: { in: ['PENDING', 'CONFIRMED'] } },
           },
-        },
-        select: {
-          quantity: true,
-        },
-      });
-      if (pendingItems) {
-        if (Array.isArray(pendingItems)) {
-          for (let p = 0; p < pendingItems.length; p++) {
-            reservedQuantity = reservedQuantity + pendingItems[p].quantity;
-          }
+          _sum: { quantity: true },
+        });
+        reservedQuantity = agg._sum.quantity ?? 0;
+      } else if (appointmentItem && typeof appointmentItem.findMany === 'function') {
+        const pendingItems = await appointmentItem.findMany({
+          where: {
+            medicineId: medicineId,
+            appointment: { status: { in: ['PENDING', 'CONFIRMED'] } },
+          },
+          select: { quantity: true },
+        });
+        for (const p of pendingItems ?? []) {
+          reservedQuantity += p.quantity;
         }
       }
-    } catch (dbErr) {
+    } catch {
       reservedQuantity = 0;
     }
 

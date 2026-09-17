@@ -47,17 +47,13 @@ export class PatientController {
         if (role === 'FARMACEUTICO') {
           isStaff = true;
         } else {
-          if (role === 'ATENDENTE') {
+          if (role === 'ALUNO') {
             isStaff = true;
           } else {
-            if (role === 'ALUNO') {
+            if (role === 'MEDICO') {
               isStaff = true;
             } else {
-              if (role === 'MEDICO') {
-                isStaff = true;
-              } else {
-                isStaff = false;
-              }
+              isStaff = false;
             }
           }
         }

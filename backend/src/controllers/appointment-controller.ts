@@ -17,6 +17,11 @@ export class AppointmentController {
     this.appointmentService = new AppointmentService();
   }
 
+// OTIMIZADO (N+1 / round-trips): a checagem de permissão usa req.user
+// (já resolvido e validado pelo authMiddleware — inclui patientId) em vez de
+// 1-2 queries extras (patient + appointment) antes do service, que refazia as
+// mesmas leituras. Elimina até 2 round-trips por GET.
+// NOTA: mantém import do prisma (usado em create/update/cancel/dispense).
   getAll = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -28,15 +33,11 @@ export class AppointmentController {
       let patientId: number | undefined = undefined;
 
       if (role === 'PACIENTE') {
-        const patientRecord = await prisma.patient.findUnique({
-          where: { userId: userId },
-        });
-        if (!patientRecord) {
+        if (!req.user.patientId) {
           res.json([]);
           return;
-        } else {
-          patientId = patientRecord.id;
         }
+        patientId = req.user.patientId;
       }
 
       const appointments = await this.appointmentService.getAll(role, userId, patientId);
@@ -59,8 +60,6 @@ export class AppointmentController {
         res.status(401).json({ error: 'Não autenticado' });
         return;
       }
-      const userId = req.user.userId;
-      const role = req.user.role;
       const id = Number(req.params.id);
 
       if (!id) {
@@ -73,34 +72,9 @@ export class AppointmentController {
         }
       }
 
-      const appointmentRecord = await prisma.appointment.findUnique({
-        where: { id: id },
-        include: {
-          patient: true,
-        },
-      });
-
-      if (!appointmentRecord) {
-        res.status(404).json({ error: 'Agendamento não encontrado' });
-        return;
-      }
-
-      if (role === 'PACIENTE') {
-        const patientRecord = await prisma.patient.findUnique({
-          where: { userId: userId },
-        });
-
-        if (!patientRecord) {
-          res.status(403).json({ error: 'Acesso não autorizado ao agendamento' });
-          return;
-        } else {
-          if (appointmentRecord.patientId !== patientRecord.id) {
-            res.status(403).json({ error: 'Acesso não autorizado ao agendamento de outro paciente' });
-            return;
-          }
-        }
-      }
-
+      // OTIMIZADO: delega existência + autorização ao service (que já faz
+      // findById + checagem de patientId com 404/403). Remove 1-2 queries
+      // duplicadas por GET byId.
       const appointment = await this.appointmentService.getById(id, req.user);
       res.json(appointment);
       return;
@@ -320,13 +294,6 @@ export class AppointmentController {
 
   updateStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      console.log('🔍 [DEBUG] updateStatus chamado:', { 
-        userId: req.user?.userId, 
-        role: req.user?.role, 
-        id: req.params.id,
-        body: req.body 
-      });
-      
       if (!req.user) {
         res.status(401).json({ error: 'Não autenticado' });
         return;
@@ -348,8 +315,6 @@ export class AppointmentController {
       const appointmentRecord = await prisma.appointment.findUnique({
         where: { id: id },
       });
-
-      console.log('🔍 [DEBUG] appointmentRecord:', appointmentRecord ? { id: appointmentRecord.id, status: appointmentRecord.status, patientId: appointmentRecord.patientId } : 'NÃO ENCONTRADO');
 
       if (!appointmentRecord) {
         res.status(404).json({ error: 'Agendamento não encontrado' });
@@ -386,7 +351,6 @@ export class AppointmentController {
             }
           }
         }
-        console.log('🔍 [DEBUG] validação falhou:', errorMsg);
         res.status(400).json({ error: errorMsg, details: validationResult.error.issues });
         return;
       }
@@ -394,8 +358,6 @@ export class AppointmentController {
       const currentStatus = appointmentRecord.status;
       const targetStatus = validationResult.data.status.toUpperCase();
       
-      console.log('🔍 [DEBUG] transition:', { currentStatus, targetStatus });
-
       // Allow completion of cancelled appointments (re-completion scenario)
       // Only block transitions from CANCELLED to non-COMPLETED statuses
       if (currentStatus === 'CANCELLED') {
@@ -465,8 +427,6 @@ export class AppointmentController {
         }
       }
 
-      console.log('🔍 [DEBUG] chamando appointmentService.updateStatus...');
-      
       const dispenseParsed = appointmentDispenseSchema.safeParse(req.body);
       let batchSelections: Array<{ medicineId: number; batchId: number; quantity: number }> | undefined = undefined;
       if (dispenseParsed.success && dispenseParsed.data.batchSelections) {
@@ -482,12 +442,10 @@ export class AppointmentController {
         batchSelections
       );
       
-      console.log('✅ [DEBUG] updateStatus concluído:', updated);
-      
       res.json(updated);
       return;
     } catch (err: any) {
-      console.error('❌ [DEBUG] ERRO em updateStatus:', err);
+      console.error('Erro ao atualizar status do agendamento:', err);
       if (err.statusCode) {
         res.status(err.statusCode).json({ error: err.message });
         return;

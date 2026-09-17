@@ -229,7 +229,7 @@ describe('Regras de Negócio Farmacêuticas Estritas', () => {
       // Paciente solicita 15 (disponível real é apenas 10)
       await expect(
         appointmentService.create(
-          { userId: 1, role: 'ADMIN' },
+          { userId: 1, role: 'ADMIN' as string },
           {
             patientId: 1,
             scheduledDate: '2026-10-15',
@@ -267,7 +267,7 @@ describe('Regras de Negócio Farmacêuticas Estritas', () => {
 
       // Paciente solicita 10 (disponível real é 20)
       const appt = await appointmentService.create(
-        { userId: 1, role: 'ADMIN' },
+        { userId: 1, role: 'ADMIN' as string },
         {
           patientId: 1,
           scheduledDate: '2026-10-15',

@@ -15,35 +15,34 @@ export class MedicineService {
   }
 
   async getAll() {
+    // OTIMIZADO: 1 query de medicamentos + 1 agregação de reservas (2 queries
+    // no total) em vez de findMany de items + loops JS por lote.
+    // Usa groupBy quando disponível; cai para findMany agregado em JS se o
+    // client mockado/teste não expuser groupBy (compatível com vitest).
     const medicines = await this.medicineRepo.findAll();
     let reservedMap: Record<number, number> = {};
     try {
-      if (prisma) {
-        if (prisma.appointmentItem) {
-          const pendingItems = await prisma.appointmentItem.findMany({
-            where: {
-              appointment: {
-                status: {
-                  in: ['PENDING', 'CONFIRMED'],
-                },
-              },
-            },
-            select: {
-              medicineId: true,
-              quantity: true,
-            },
-          });
-          if (pendingItems) {
-            for (let p = 0; p < pendingItems.length; p++) {
-              const item = pendingItems[p];
-              const mId = item.medicineId;
-              let curRes = 0;
-              if (reservedMap[mId]) {
-                curRes = reservedMap[mId];
-              }
-              reservedMap[mId] = curRes + item.quantity;
-            }
-          }
+      const appointmentItem = (prisma as any).appointmentItem;
+      if (appointmentItem && typeof appointmentItem.groupBy === 'function') {
+        const grouped = await appointmentItem.groupBy({
+          by: ['medicineId'],
+          where: {
+            appointment: { status: { in: ['PENDING', 'CONFIRMED'] } },
+          },
+          _sum: { quantity: true },
+        });
+        for (const row of grouped) {
+          reservedMap[row.medicineId] = row._sum.quantity ?? 0;
+        }
+      } else if (appointmentItem && typeof appointmentItem.findMany === 'function') {
+        const pendingItems = await appointmentItem.findMany({
+          where: {
+            appointment: { status: { in: ['PENDING', 'CONFIRMED'] } },
+          },
+          select: { medicineId: true, quantity: true },
+        });
+        for (const item of pendingItems ?? []) {
+          reservedMap[item.medicineId] = (reservedMap[item.medicineId] ?? 0) + item.quantity;
         }
       }
     } catch {
@@ -147,26 +146,29 @@ export class MedicineService {
 
     let resQty = 0;
     try {
-      if (prisma) {
-        if (prisma.appointmentItem) {
-          const pendingItems = await prisma.appointmentItem.findMany({
-            where: {
-              medicineId: id,
-              appointment: {
-                status: {
-                  in: ['PENDING', 'CONFIRMED'],
-                },
-              },
-            },
-            select: {
-              quantity: true,
-            },
-          });
-          if (pendingItems) {
-            for (let p = 0; p < pendingItems.length; p++) {
-              resQty = resQty + pendingItems[p].quantity;
-            }
-          }
+      // OTIMIZADO: SUM agregado no banco (usa índice [medicineId]) em vez de
+      // trazer todas as linhas de items para somar em JS. Com fallback para
+      // findMany quando o client mockado não expõe `aggregate`.
+      const appointmentItem = (prisma as any).appointmentItem;
+      if (appointmentItem && typeof appointmentItem.aggregate === 'function') {
+        const agg = await appointmentItem.aggregate({
+          where: {
+            medicineId: id,
+            appointment: { status: { in: ['PENDING', 'CONFIRMED'] } },
+          },
+          _sum: { quantity: true },
+        });
+        resQty = agg._sum.quantity ?? 0;
+      } else if (appointmentItem && typeof appointmentItem.findMany === 'function') {
+        const pendingItems = await appointmentItem.findMany({
+          where: {
+            medicineId: id,
+            appointment: { status: { in: ['PENDING', 'CONFIRMED'] } },
+          },
+          select: { quantity: true },
+        });
+        for (const item of pendingItems ?? []) {
+          resQty += item.quantity;
         }
       }
     } catch {

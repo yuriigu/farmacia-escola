@@ -24,6 +24,11 @@ model User {
   scheduleSlots  ScheduleSlot[]
   movements      StockMovement[]
   dispensedAppointments Appointment[] @relation("DispensedAppointments")
+
+  @@index([role])
+  @@index([active])
+  @@index([role, active])
+  @@index([name])
 }
 
 model ActivityLog {
@@ -40,6 +45,8 @@ model ActivityLog {
   @@index([userId])
   @@index([entity])
   @@index([createdAt])
+  @@index([entity, createdAt])
+  @@index([userId, createdAt])
 }
 
 model Patient {
@@ -55,6 +62,11 @@ model Patient {
 
   user         User?        @relation(fields: [userId], references: [id])
   appointments Appointment[]
+
+  @@index([deletedAt])
+  @@index([name])
+  @@index([deletedAt, name])
+  @@index([cpf, deletedAt])
 }
 
 model Medicine {
@@ -72,6 +84,12 @@ model Medicine {
 
   batches          StockBatch[]
   appointmentItems AppointmentItem[]
+
+  @@index([deletedAt])
+  @@index([name])
+  @@index([deletedAt, name])
+  @@index([category])
+  @@index([category, deletedAt])
 }
 
 model StockBatch {
@@ -93,6 +111,11 @@ model StockBatch {
   appointments      Appointment[]
 
   @@unique([medicineId, batchNumber])
+  @@index([medicineId])
+  @@index([expirationDate])
+  @@index([isBlocked])
+  @@index([medicineId, expirationDate])
+  @@index([expirationDate, currentQuantity])
 }
 
 model Disposal {
@@ -109,6 +132,12 @@ model Disposal {
 
   batch StockBatch @relation(fields: [batchId], references: [id])
   user  User       @relation(fields: [userId], references: [id])
+
+  @@index([batchId])
+  @@index([userId])
+  @@index([status])
+  @@index([date])
+  @@index([batchId, status])
 }
 
 model StockMovement {
@@ -126,6 +155,8 @@ model StockMovement {
   @@index([batchId])
   @@index([type])
   @@index([createdAt])
+  @@index([batchId, createdAt])
+  @@index([batchId, type])
 }
 
 model ScheduleSlot {
@@ -142,6 +173,9 @@ model ScheduleSlot {
 
   @@unique([date, timeSlot])
   @@index([date])
+  @@index([active])
+  @@index([active, date])
+  @@index([assignedToId])
 }
 
 model Appointment {
@@ -166,6 +200,11 @@ model Appointment {
 
   @@index([scheduledDate, status])
   @@index([patientId])
+  @@index([status])
+  @@index([slotId, status])
+  @@index([patientId, status])
+  @@index([scheduledDate])
+  @@index([createdAt])
 }
 
 model AppointmentItem {
@@ -180,4 +219,6 @@ model AppointmentItem {
   batch       StockBatch? @relation(fields: [batchId], references: [id])
 
   @@index([appointmentId])
+  @@index([medicineId])
+  @@index([batchId])
 }

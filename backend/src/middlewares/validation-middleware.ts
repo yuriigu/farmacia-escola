@@ -1,28 +1,81 @@
 import { Request, Response, NextFunction } from 'express';
 import { z, ZodType } from 'zod';
 
+// PERFIS DE USUARIO ACEITOS PELO SISTEMA (FONTE UNICA DE VALIDACAO).
+// EVITA QUE VALORES ARBITRARIOS DE `role` ALCANCEM O BANCO DE DADOS.
+export const roleSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .pipe(z.enum(['ADMIN', 'FARMACEUTICO', 'MEDICO', 'PACIENTE', 'ALUNO'], 'Perfil de usuário inválido'));
+
+// STATUS VALIDOS DO CICLO DE VIDA DO AGENDAMENTO.
+export const appointmentStatusSchema = z
+  .string({ error: 'Status é obrigatório' })
+  .trim()
+  .min(1, 'Status é obrigatório')
+  .toUpperCase()
+  .pipe(z.enum(['PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'], 'Status de agendamento inválido'));
+
+// CHAVES DE PERMISSAO ACEITAS (ACOES FINE-GRAINED + RECURSOS LEGADOS).
+// IMPEDE QUE CHAVES ARBITRARIAS SEJAM PERSISTIDAS E INTERPRETADAS PELO RBAC.
+export const permissionKeySchema = z.enum([
+  'MEDICINES_READ', 'MEDICINES_CREATE', 'MEDICINES_UPDATE', 'MEDICINES_DELETE',
+  'BATCHES_READ', 'BATCHES_CREATE', 'BATCHES_UPDATE', 'BATCHES_DELETE', 'BATCHES_ADJUST',
+  'DISPOSALS_READ', 'DISPOSALS_CREATE', 'DISPOSALS_UPDATE', 'DISPOSALS_REVERT',
+  'PATIENTS_READ', 'PATIENTS_CREATE', 'PATIENTS_UPDATE', 'PATIENTS_DELETE',
+  'APPOINTMENTS_READ', 'APPOINTMENTS_CREATE', 'APPOINTMENTS_UPDATE', 'APPOINTMENTS_CANCEL', 'APPOINTMENTS_DELETE',
+  'SCHEDULES_READ', 'SCHEDULES_CREATE', 'SCHEDULES_UPDATE', 'SCHEDULES_DELETE',
+  'USERS_READ', 'USERS_CREATE', 'USERS_UPDATE', 'USERS_DELETE',
+  'ACTIVITY_LOGS_READ', 'PROFILE_READ', 'PROFILE_UPDATE', 'SETTINGS_READ', 'SETTINGS_UPDATE',
+  'medicines', 'batches', 'disposals', 'patients', 'appointments', 'scheduleSlots', 'users', 'activityLogs',
+], 'Chave de permissão inválida');
+
+// MAPA PARCIAL DE PERMISSOES: APENAS AS CHAVES INFORMADAS SAO VALIDADAS,
+// MAS NENHUMA CHAVE DESCONHECIDA E ACEITA (EVITA POLUIR O RBAC).
+export const permissionsSchema = z.partialRecord(permissionKeySchema, z.boolean());
+
+// LIMITES DE TAMANHO PARA CAMPOS DE TEXTO LIVRE (ANTI-ABUSO DE ARMAZENAMENTO)
+const NAME_MAX = 150;
+const PHONE_MAX = 20;
+const ADDRESS_MAX = 255;
+
+// DATA SEM HORA EM ISO (YYYY-MM-DD) OU QUALQUER VALOR PARSEAVEL POR Date.
+// GARANTE QUE `Invalid Date` NAO CHEGUE AO PRISMA.
+const dateStringSchema = z.string().refine(
+  (value) => !isNaN(new Date(value).getTime()),
+  'Data inválida'
+);
+
+// CPF COM EXATAMENTE 11 DIGITOS (ACEITA COM OU SEM FORMATACAO)
+const cpfSchema = z.string().refine(
+  (value) => value.replace(/\D/g, '').length === 11,
+  'CPF deve conter exatamente 11 dígitos'
+);
+
 export const loginSchema = z.object({
   email: z.string().email('Formato de email inválido'),
   password: z.string().min(1, 'Senha é obrigatória'),
 }).strict();
 
 export const registerPatientSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
+  name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(NAME_MAX, 'Nome muito longo'),
   email: z.string().email('Formato de email inválido'),
   password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres'),
-  cpf: z.string().min(11, 'CPF deve conter no mínimo 11 dígitos'),
-  phone: z.string().optional(),
-  birthDate: z.string().optional(),
-  address: z.string().optional(),
+  cpf: cpfSchema,
+  phone: z.string().max(PHONE_MAX, 'Telefone muito longo').optional(),
+  birthDate: dateStringSchema.optional(),
+  address: z.string().max(ADDRESS_MAX, 'Endereço muito longo').optional(),
 }).strict();
 
 export const updateProfileSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').optional(),
-  phone: z.string().optional(),
-  address: z.string().optional(),
+  name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(NAME_MAX, 'Nome muito longo').optional(),
+  phone: z.string().max(PHONE_MAX, 'Telefone muito longo').optional(),
+  address: z.string().max(ADDRESS_MAX, 'Endereço muito longo').optional(),
   currentPassword: z.string().min(1, 'Senha atual é obrigatória para alteração de senha').optional(),
   newPassword: z.string().min(6, 'Nova senha deve ter no mínimo 6 caracteres').optional(),
 }).strict();
+
 
 export const dosageUnitEnum = z.enum(['MG', 'ML', 'G', 'MCG', 'UI']);
 
@@ -133,19 +186,19 @@ export const batchAdjustmentSchema = z.object({
 }).strict();
 
 export const patientCreateSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
-  cpf: z.string().min(11, 'CPF deve conter no mínimo 11 dígitos'),
-  phone: z.string().optional(),
-  birthDate: z.string().optional(),
-  address: z.string().optional(),
+  name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(NAME_MAX, 'Nome muito longo'),
+  cpf: cpfSchema,
+  phone: z.string().max(PHONE_MAX, 'Telefone muito longo').optional(),
+  birthDate: dateStringSchema.optional(),
+  address: z.string().max(ADDRESS_MAX, 'Endereço muito longo').optional(),
 }).strict();
 
 export const patientUpdateSchema = z.object({
-  name: z.string().optional(),
-  cpf: z.string().optional(),
-  phone: z.string().optional(),
-  birthDate: z.string().optional(),
-  address: z.string().optional(),
+  name: z.string().min(1, 'Nome não pode ser vazio').max(NAME_MAX, 'Nome muito longo').optional(),
+  cpf: cpfSchema.optional(),
+  phone: z.string().max(PHONE_MAX, 'Telefone muito longo').optional(),
+  birthDate: dateStringSchema.optional(),
+  address: z.string().max(ADDRESS_MAX, 'Endereço muito longo').optional(),
 }).strict();
 
 export const appointmentCreateSchema = z.object({
@@ -167,11 +220,11 @@ export const appointmentUpdateSchema = z.object({
   scheduledTime: z.string().optional(),
   slotId: z.number().int().positive().optional(),
   notes: z.string().optional(),
-  status: z.string().optional(),
+  status: appointmentStatusSchema.optional(),
 }).strict();
 
 export const appointmentUpdateStatusSchema = z.object({
-  status: z.string().min(1, 'Status é obrigatório'),
+  status: appointmentStatusSchema,
   notes: z.string().optional(),
 }).strict();
 
@@ -189,26 +242,26 @@ export const appointmentRevertDispenseSchema = z.object({
 }).strict();
 
 export const userCreateSchema = z.object({
-  name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres'),
+  name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(NAME_MAX, 'Nome muito longo'),
   email: z.string().email('Formato de email inválido'),
   password: z.string().min(1, 'Senha é obrigatória'),
-  role: z.string().optional(),
+  role: roleSchema.optional(),
   registerDoc: z.string().optional(),
-  phone: z.string().optional(),
-  permissions: z.record(z.string(), z.boolean()).optional(),
+  phone: z.string().max(PHONE_MAX, 'Telefone muito longo').optional(),
+  permissions: permissionsSchema.optional(),
 }).strict();
 
 export const userUpdateSchema = z.object({
-  name: z.string().optional(),
+  name: z.string().min(1, 'Nome não pode ser vazio').max(NAME_MAX, 'Nome muito longo').optional(),
   email: z.string().email('Formato de email inválido').optional(),
   password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres').optional(),
-  role: z.string().optional(),
+  role: roleSchema.optional(),
   registerDoc: z.string().optional(),
-  phone: z.string().optional(),
-  address: z.string().optional(),
-  birthDate: z.string().optional(),
+  phone: z.string().max(PHONE_MAX, 'Telefone muito longo').optional(),
+  address: z.string().max(ADDRESS_MAX, 'Endereço muito longo').optional(),
+  birthDate: dateStringSchema.optional(),
   active: z.boolean().optional(),
-  permissions: z.record(z.string(), z.boolean()).optional(),
+  permissions: permissionsSchema.optional(),
 }).strict();
 
 export const userToggleActiveSchema = z.object({

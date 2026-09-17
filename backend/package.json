@@ -23,7 +23,9 @@
   "dependencies": {
     "@prisma/adapter-libsql": "^7.10.0",
     "@prisma/client": "^7.10.0",
+    "@types/compression": "^1.8.1",
     "bcryptjs": "^3.0.3",
+    "compression": "^1.8.2",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",

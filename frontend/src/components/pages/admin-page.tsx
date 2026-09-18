@@ -22,6 +22,7 @@ import {
 
 import type { User } from '@/types';
 import { getAvatarColor, downloadCSV } from '@/lib/constants';
+import { getAssignableRoles, canEditUser, canDeleteUser } from '@/config/rbac';
 import { useAuthStore } from '@/lib/auth-store';
 import {
   useUsers,
@@ -91,29 +92,31 @@ const initialFormData: UserFormData = {
 
 export function AdminPage() {
   const currentUser = useAuthStore((state) => state.user);
-  let isCurrentAdmin = false;
+
+  // PERFIL DO OPERADOR LOGADO (FONTE UNICA PARA AS REGRAS DE RBAC)
+  let currentRole: string | null = null;
   if (currentUser) {
-    if (currentUser.role === 'ADMIN') {
-      isCurrentAdmin = true;
-    }
+    currentRole = currentUser.role;
   }
 
-  let isRestrictedStaff = false;
-  if (currentUser) {
-    if (currentUser.role === 'FARMACEUTICO') {
-      isRestrictedStaff = true;
-    } else {
-      if (currentUser.role === 'MEDICO') {
-        isRestrictedStaff = true;
-      } else {
-        if (currentUser.role === 'ALUNO') {
-          isRestrictedStaff = true;
-        } else {
-          isRestrictedStaff = false;
-        }
-      }
-    }
+  let isCurrentAdmin = false;
+  if (currentRole === 'ADMIN') {
+    isCurrentAdmin = true;
   }
+
+  // FARMACEUTICO / MEDICO / ALUNO: GESTAO RESTRITA A PACIENTES.
+  let isRestrictedStaff = false;
+  if (currentRole === 'FARMACEUTICO' || currentRole === 'MEDICO' || currentRole === 'ALUNO') {
+    isRestrictedStaff = true;
+  }
+
+  // PERFIS QUE O OPERADOR PODE ATRIBUIR (ADMIN: TODOS | EQUIPE: APENAS PACIENTE)
+  const assignableRoles = getAssignableRoles(currentRole);
+  const roleOptions = ROLES.filter((role) => assignableRoles.includes(role));
+
+  // PERMISSOES GRANULARES DE GESTAO DE USUARIOS
+  const canCreateUsers = assignableRoles.length > 0;
+  const canDeleteUsers = canDeleteUser(currentRole);
 
   const { data: users = [], isLoading } = useUsers();
   const createUserMutation = useCreateUser();
@@ -149,12 +152,25 @@ export function AdminPage() {
 
   const handleOpenCreate = () => {
     setEditingUser(null);
-    setForm(initialFormData);
+
+    // OPERADORES NAO-ADMIN SO PODEM CRIAR PACIENTES: PERFIL FIXO NO FORMULARIO
+    let defaultRole = 'FARMACEUTICO';
+    if (!isCurrentAdmin) {
+      defaultRole = 'PACIENTE';
+    }
+
+    setForm({ ...initialFormData, role: defaultRole });
     setChangePassword(true);
     setModalOpen(true);
   };
 
   const handleOpenEdit = (u: User) => {
+    // DEFESA EM PROFUNDIDADE: NAO ABRIR EDICAO DE PERFIL NAO PERMITIDO
+    if (!canEditUser(currentRole, u.role)) {
+      toast.error('Você só pode editar usuários com o perfil Paciente.');
+      return;
+    }
+
     setEditingUser(u);
     let userBirthDate = '';
     if (u.birthDate) {
@@ -203,7 +219,10 @@ export function AdminPage() {
     }
 
     let userRole = 'FARMACEUTICO';
-    if (u.role) {
+    if (!isCurrentAdmin) {
+      // EQUIPE ASSISTENCIAL: PERFIL SEMPRE FIXO EM PACIENTE
+      userRole = 'PACIENTE';
+    } else if (u.role) {
       userRole = u.role;
     }
 
@@ -639,16 +658,7 @@ export function AdminPage() {
       width: '130px',
       align: 'right',
       cell: (u) => {
-        let canEditThis = false;
-        if (isCurrentAdmin) {
-          canEditThis = true;
-        } else {
-          if (isRestrictedStaff) {
-            if (u.role === 'PACIENTE') {
-              canEditThis = true;
-            }
-          }
-        }
+        const canEditThis = canEditUser(currentRole, u.role);
 
         if (!canEditThis) {
           return (
@@ -676,7 +686,8 @@ export function AdminPage() {
             </Button>
 
             {(() => {
-              if (isRestrictedStaff) {
+              // EXCLUSAO E ATIVACAO/INATIVACAO: EXCLUSIVAMENTE ADMIN
+              if (!canDeleteUsers) {
                 return null;
               }
               return (
@@ -731,17 +742,25 @@ export function AdminPage() {
         description="Gestão centralizada de contas de acesso, perfis de operadores e registros da Farmácia Escola."
         icon={Users}
         actions={
-          isCurrentAdmin ? (
+          canCreateUsers ? (
             <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                onClick={handleExportCSV}
-                disabled={filteredUsers.length === 0}
-                className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
-              >
-                <Download className="w-4 h-4" />
-                <span>Exportar CSV</span>
-              </Button>
+              {(() => {
+                // EXPORTACAO EM MASSA: EXCLUSIVAMENTE ADMIN
+                if (!isCurrentAdmin) {
+                  return null;
+                }
+                return (
+                  <Button
+                    variant="outline"
+                    onClick={handleExportCSV}
+                    disabled={filteredUsers.length === 0}
+                    className="h-10 rounded-xl gap-2 text-sm font-medium border-slate-200 dark:border-slate-700"
+                  >
+                    <Download className="w-4 h-4" />
+                    <span>Exportar CSV</span>
+                  </Button>
+                );
+              })()}
               <Button
                 onClick={handleOpenCreate}
               >
@@ -847,7 +866,7 @@ export function AdminPage() {
           return 'Cadastre um novo usuário para iniciar.';
         })()}
         emptyAction={
-          isCurrentAdmin ? (
+          canCreateUsers ? (
             <Button
               onClick={handleOpenCreate}
               size="sm"
@@ -942,7 +961,7 @@ export function AdminPage() {
                     <SelectValue placeholder="Selecione o perfil" />
                   </SelectTrigger>
                   <SelectContent>
-                    {ROLES.map((r) => (
+                    {roleOptions.map((r) => (
                       <SelectItem key={r} value={r}>
                         <div className="flex items-center gap-2">
                           <span>{ROLE_LABEL[r]}</span>
@@ -956,7 +975,7 @@ export function AdminPage() {
                     return <p className="text-[10px] text-amber-500 mt-1">O próprio perfil de administrador não pode ser rebaixado.</p>;
                   }
                   if (isRestrictedStaff) {
-                    return <p className="text-[10px] text-slate-400 mt-1">O perfil não pode ser alterado por este perfil de usuário.</p>;
+                    return <p className="text-[10px] text-slate-400 mt-1">Perfil fixo em Paciente: este tipo de operador só pode cadastrar e editar pacientes.</p>;
                   }
                   return null;
                 })()}

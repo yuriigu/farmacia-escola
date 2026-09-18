@@ -80,7 +80,8 @@ const CANONICAL_ALIASES: Record<string, ModuleKey> = {
   escala: 'scales',
   escalas: 'scales',
   scales: 'scales',
-  // Usuarios
+  // Usuarios (inclui a rota fisica /users e seus apelidos)
+  users: 'users',
   usuarios: 'users',
   administracao: 'users',
   admin: 'users',
@@ -122,4 +123,51 @@ export function hasRouteAccess(role: string | undefined | null, routeOrModule: s
     return false;
   }
   return permissions.includes(moduleKey);
+}
+
+// ==================== GESTAO DE USUARIOS (PERMISSOES GRANULARES) ====================
+// LISTA CANONICA DE PAPEIS EXISTENTES NO SISTEMA.
+export const APP_ROLES: AppRole[] = ['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO', 'PACIENTE'];
+
+// PAPEIS QUE UM OPERADOR PODE ATRIBUIR AO CADASTRAR/EDITAR UM USUARIO.
+// - ADMIN: qualquer perfil (ADMIN, FARMACEUTICO, MEDICO, ALUNO, PACIENTE).
+// - FARMACEUTICO / MEDICO / ALUNO: EXCLUSIVAMENTE PACIENTE.
+// - PACIENTE / PERFIL DESCONHECIDO: nenhum (sem acesso a gestao de usuarios).
+export function getAssignableRoles(actorRole: string | undefined | null): AppRole[] {
+  if (!actorRole) {
+    return [];
+  }
+
+  const normalizedRole = actorRole.toUpperCase();
+
+  if (normalizedRole === 'ADMIN') {
+    return [...APP_ROLES];
+  }
+
+  if (normalizedRole === 'FARMACEUTICO' || normalizedRole === 'MEDICO' || normalizedRole === 'ALUNO') {
+    return ['PACIENTE'];
+  }
+
+  return [];
+}
+
+// VERIFICA SE O ATOR PODE CRIAR UM USUARIO COM O PERFIL ALVO.
+export function canCreateUser(actorRole: string | undefined | null, targetRole: string | undefined | null): boolean {
+  if (!targetRole) {
+    return false;
+  }
+  return getAssignableRoles(actorRole).includes(targetRole.toUpperCase() as AppRole);
+}
+
+// VERIFICA SE O ATOR PODE EDITAR UM USUARIO QUE POSSUI O PERFIL ALVO.
+export function canEditUser(actorRole: string | undefined | null, targetRole: string | undefined | null): boolean {
+  return canCreateUser(actorRole, targetRole);
+}
+
+// EXCLUSAO DE USUARIOS: EXCLUSIVAMENTE ADMIN.
+export function canDeleteUser(actorRole: string | undefined | null): boolean {
+  if (!actorRole) {
+    return false;
+  }
+  return actorRole.toUpperCase() === 'ADMIN';
 }

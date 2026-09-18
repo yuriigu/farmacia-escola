@@ -2,10 +2,13 @@
 import { NextResponse } from 'next/server';
 
 // IMPORTS LOCAIS
-import { hasRouteAccess } from './config/rbac';
+import { hasRouteAccess, rolePermissions } from './config/rbac';
 
 // ROTAS PUBLICAS QUE NAO EXIGEM AUTENTICACAO
 const PUBLIC_PATHS = ['/login', '/register'];
+
+// PAPEIS RECONHECIDOS PELO RBAC (BASE PARA O FAIL-CLOSED DE PAPEL DESCONHECIDO)
+const KNOWN_ROLES = Object.keys(rolePermissions);
 
 // FUNCAO DE PROXY PARA VERIFICAR REQUISICOES
 export function proxy(request: any) {
@@ -86,19 +89,34 @@ export function proxy(request: any) {
         // DEFININDO O PAPEL DO USUARIO
         let userRole: string | null = null;
         if (roleCookie) {
-          userRole = decodeURIComponent(roleCookie);
-        } else {
-          userRole = null;
+          const decodedRole = decodeURIComponent(roleCookie).trim().toUpperCase();
+          if (decodedRole !== '') {
+            userRole = decodedRole;
+          }
+        }
+
+        // FAIL-CLOSED: SEM PAPEL VALIDO NAO EXISTE AUTORIZACAO.
+        // ANTES, UM `user_role` AUSENTE OU VAZIO PULAVA A VERIFICACAO
+        // DE PERMISSAO E LIBERAVA A ROTA PARA QUALQUER UM.
+        const isKnownRole = userRole !== null && KNOWN_ROLES.includes(userRole);
+        if (!isKnownRole) {
+          // LIMPA AS CREDENCIAIS INVALIDAS PARA EVITAR LOOP COM /login
+          // (/login REDIRECIONA PARA /dashboard QUANDO O TOKEN EXISTE).
+          const loginUrl = new URL('/login', request.url);
+          loginUrl.searchParams.set('sessao', 'invalida');
+          const blockedResponse = NextResponse.redirect(loginUrl);
+          blockedResponse.cookies.delete('auth_token');
+          blockedResponse.cookies.delete('user_role');
+          blockedResponse.cookies.delete('user_info');
+          return blockedResponse;
         }
 
         // VERIFICANDO PERMISSAO DE ACESSO A ROTA
-        if (userRole) {
-          const hasAccess = hasRouteAccess(userRole, pathname);
-          if (!hasAccess) {
-            const dashboardUrl = new URL('/dashboard', request.url);
-            dashboardUrl.searchParams.set('denied', '1');
-            return NextResponse.redirect(dashboardUrl);
-          }
+        const hasAccess = hasRouteAccess(userRole, pathname);
+        if (!hasAccess) {
+          const dashboardUrl = new URL('/dashboard', request.url);
+          dashboardUrl.searchParams.set('denied', '1');
+          return NextResponse.redirect(dashboardUrl);
         }
       }
     }

@@ -246,8 +246,12 @@ export const userCreateSchema = z.object({
   email: z.string().email('Formato de email inválido'),
   password: z.string().min(1, 'Senha é obrigatória'),
   role: roleSchema.optional(),
-  registerDoc: z.string().optional(),
-  phone: z.string().max(PHONE_MAX, 'Telefone muito longo').optional(),
+  // CAMPOS OPCIONAIS ACEITAM `null` (O FRONTEND ENVIA CAMPOS VAZIOS COMO null)
+  registerDoc: z.string().nullish(),
+  phone: z.string().max(PHONE_MAX, 'Telefone muito longo').nullish(),
+  address: z.string().max(ADDRESS_MAX, 'Endereço muito longo').nullish(),
+  birthDate: dateStringSchema.nullish(),
+  active: z.boolean().optional(),
   permissions: permissionsSchema.optional(),
 }).strict();
 
@@ -256,10 +260,11 @@ export const userUpdateSchema = z.object({
   email: z.string().email('Formato de email inválido').optional(),
   password: z.string().min(6, 'Senha deve ter no mínimo 6 caracteres').optional(),
   role: roleSchema.optional(),
-  registerDoc: z.string().optional(),
-  phone: z.string().max(PHONE_MAX, 'Telefone muito longo').optional(),
-  address: z.string().max(ADDRESS_MAX, 'Endereço muito longo').optional(),
-  birthDate: dateStringSchema.optional(),
+  // CAMPOS OPCIONAIS ACEITAM `null` (O FRONTEND ENVIA CAMPOS VAZIOS COMO null)
+  registerDoc: z.string().nullish(),
+  phone: z.string().max(PHONE_MAX, 'Telefone muito longo').nullish(),
+  address: z.string().max(ADDRESS_MAX, 'Endereço muito longo').nullish(),
+  birthDate: dateStringSchema.nullish(),
   active: z.boolean().optional(),
   permissions: permissionsSchema.optional(),
 }).strict();

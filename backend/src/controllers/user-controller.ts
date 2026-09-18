@@ -128,8 +128,20 @@ export class UserController {
       const adminId = req.user.userId;
       const role = req.user.role;
 
-      if (role !== 'ADMIN') {
-        res.status(403).json({ error: 'Apenas administradores podem cadastrar novos colaboradores' });
+      // ADMIN: PODE CADASTRAR QUALQUER PERFIL.
+      // FARMACEUTICO / MEDICO / ALUNO: PODEM CADASTRAR APENAS PACIENTE.
+      let isAdmin = false;
+      if (role === 'ADMIN') {
+        isAdmin = true;
+      }
+
+      let isStaff = false;
+      if (role === 'FARMACEUTICO' || role === 'MEDICO' || role === 'ALUNO') {
+        isStaff = true;
+      }
+
+      if (!isAdmin && !isStaff) {
+        res.status(403).json({ error: 'Apenas administradores e equipe assistencial podem cadastrar usuários' });
         return;
       }
 
@@ -152,7 +164,21 @@ export class UserController {
         return;
       }
 
-      const user = await this.userService.createUser(adminId, validationResult.data as any);
+      const payload: Record<string, any> = { ...validationResult.data };
+
+      if (!isAdmin) {
+        // EQUIPE ASSISTENCIAL: SOMENTE PACIENTE E SEM PERMISSOES CUSTOMIZADAS
+        if (payload.role !== 'PACIENTE') {
+          res.status(403).json({ error: 'Farmacêuticos, médicos e alunos só podem cadastrar usuários com o perfil Paciente' });
+          return;
+        }
+
+        if ('permissions' in payload) {
+          delete payload.permissions;
+        }
+      }
+
+      const user = await this.userService.createUser(adminId, payload as any);
       res.status(201).json(user);
       return;
     } catch (err: any) {

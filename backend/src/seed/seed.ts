@@ -3,25 +3,22 @@ import { PrismaLibSql } from '@prisma/adapter-libsql';
 import { Role } from '../types/enums';
 import bcrypt from 'bcryptjs';
 
-// OTIMIZADO: timeout de operação (10s) para evitar P1008 em
-// ambientes com I/O lento (Docker volume, NFS, discos congestionados).
-// O seed faz DELETEs em cascata; com o DB ocupado ou disco lento, o
-// padrão (sem timeout explícito) pode estourar.
-// NOTA: o Config do @libsql/client só aceita `url`; timeout extra
-// é gerenciado via retry/backoff neste arquivo (veja retryWithBackoff).
+// adapter do libsql (sqlite). como o seed faz muitos deletes em cascata,
+// o timeout padrao as vezes estoura em ambientes com i/o lento
+// (volume docker, nfs, disco congestionado). por isso a gente trata
+// timeout via retry mais abaixo, em vez de configurar aqui.
+// obs: o config do libsql so aceita `url`, entao nao da pra passar
+// timeout por aqui mesmo.
 const adapter = new PrismaLibSql({
   url: process.env.DATABASE_URL ?? 'file:./prisma/dev.db',
-  // @libsql/client Config só aceita url no tipo; timeout é tratado
-  // por middleware/retry abaixo para evitar P1008.
 });
 
-// ---------------------------------------------------------------------
-// RETRY COM BACKOFF (evita P1008 — Operation timed out / SocketTimeout)
-// ---------------------------------------------------------------------
-// Em ambientes Docker com volume montado, o SQLite/LibSQL pode levar
-// mais tempo em operações de escrita (DELETE em cascata, inserts
-// em lote). Esta função tenta a operação até `maxAttempts` vezes
-// com backoff exponencial, logando cada falha.
+// retry com backoff exponencial. serve pra tolerar o erro p1008
+// (operation timed out / sockettimeout), que aparece quando o
+// sqlite/libsql esta sob contencao (docker com volume montado,
+// disco lento, muitas escritas de uma vez).
+// tenta a operacao ate maxattempts vezes, com espera crescente
+// entre as tentativas, e loga cada falha pra facilitar debug.
 async function retryWithBackoff<T>(
   fn: () => Promise<T>,
   label: string,
@@ -33,6 +30,8 @@ async function retryWithBackoff<T>(
       return await fn();
     } catch (err) {
       lastError = err;
+      // identifica se a falha foi o timeout especifico do prisma,
+      // so pra deixar o log mais explicativo.
       const isTimeout =
         err instanceof Error &&
         'code' in err &&
@@ -43,7 +42,7 @@ async function retryWithBackoff<T>(
         }: ${err instanceof Error ? err.message : err}`
       );
       if (attempt < maxAttempts) {
-        // Backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms
+        // backoff: 200ms, 400ms, 800ms, 1600ms, 3200ms (com teto de 4s).
         const delayMs = Math.min(200 * 2 ** (attempt - 1), 4000);
         console.warn(`[seed:retry] ${label} — aguardando ${delayMs}ms antes da próxima tentativa`);
         await new Promise((resolve) => setTimeout(resolve, delayMs));
@@ -55,11 +54,10 @@ async function retryWithBackoff<T>(
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  // OTIMIZADO: Configurar busy_timeout para mitigar "database is locked"
-  // em ambientes com I/O lento ou contention (Docker volume, NFS).
-  // O SQLite/LibSQL usa bloqueio a nível de arquivo; com esse PRAGMA,
-  // operações que encontrarem o DB trancado aguardam e retentam
-  // internamente em até 5s antes de falhar com SQLITE_BUSY.
+  // configura o busy_timeout do sqlite. quando duas operacoes batem
+  // no mesmo arquivo ao mesmo tempo, o sqlite retorna sqlite_busy.
+  // com esse pragma, ele espera e retenta internamente por ate 5s
+  // antes de desistir. ajuda bastante em docker/nfs.
   try {
     await prisma.$executeRaw`PRAGMA busy_timeout = 5000`;
     console.log('[seed] busy_timeout configurado para 5000ms');
@@ -67,10 +65,10 @@ async function main() {
     console.warn('[seed] Falha ao configurar busy_timeout (pode ser restrito pelo adapter):', err);
   }
 
-  // GUARDA DE SEGURANCA: O SEED CRIA USUARIOS COM SENHAS PADRAO FRACAS
-  // (admin123, farm123, ...). A EXECUCAO EM PRODUCAO E BLOQUEADA POR PADRAO
-  // PARA EVITAR CONTAS COM CREDENCIAIS PREVISIVEIS NO AMBIENTE REAL.
-  // PARA AMBIENTES DE DEMONSTRACAO, DEFINA SEED_ALLOW_INSECURE_PASSWORDS=true.
+  // guarda de seguranca: o seed cria usuarios com senhas padrao fracas
+  // (admin123, farm123, etc). rodar em producao seria perigoso, entao
+  // bloqueamos por padrao. em ambiente de demonstracao, e possivel
+  // liberar definindo seed_allow_insecure_passwords=true.
   if (process.env.NODE_ENV === 'production') {
     if (process.env.SEED_ALLOW_INSECURE_PASSWORDS !== 'true') {
       throw new Error(
@@ -79,10 +77,9 @@ async function main() {
     }
   }
 
-  // OTIMIZADO: deletes envoltos em retry com backoff exponencial para
-  // tolerar P1008 (Operation timed out / SocketTimeout) causado por
-  // disco congestionado, volume Docker ocupado ou contention do SQLite.
-  // A ordem respeita as FKs (tabelas filhas antes das pai).
+  // limpeza geral antes de recriar os dados. a ordem respeita as fks:
+  // primeiro as tabelas filhas (que apontam pra outras), depois as pais.
+  // cada delete vai por retryWithBackoff pra sobreviver a p1008.
   await retryWithBackoff(
     () => prisma.appointmentItem.deleteMany(),
     'appointmentItem.deleteMany',
@@ -120,12 +117,16 @@ async function main() {
     'user.deleteMany',
   );
 
+  // as senhas sao guardadas com hash bcrypt. o seed usa senhas
+  // conhecidas pra facilitar o login em ambiente de desenvolvimento.
   const adminPass = await bcrypt.hash('admin123', 10);
   const farmPass = await bcrypt.hash('farm123', 10);
   const medPass = await bcrypt.hash('medico123', 10);
   const alunoPass = await bcrypt.hash('aluno123', 10);
   const pacPass = await bcrypt.hash('paciente123', 10);
 
+  // cria um usuario pra cada perfil do sistema, cobrindo os papeis
+  // usados nos testes manuais e automatizados.
   const admin = await prisma.user.create({
     data: { name: 'Admin Sistema', email: 'admin@farmaciaescola.edu.br', password: adminPass, role: Role.ADMIN, active: true, registerDoc: 'CRF/SP 00001' },
   });
@@ -146,6 +147,8 @@ async function main() {
     data: { name: 'João Silva', email: 'joao@email.com', password: pacPass, role: Role.PACIENTE, active: true },
   });
 
+  // tres pacientes no seed. so o joao tem usuario de login vinculado,
+  // pra testar o fluxo do paciente que acessa o proprio cadastro.
   const pac1 = await prisma.patient.create({
     data: { name: 'João Silva', cpf: '123.456.789-00', phone: '(11) 99999-0001', birthDate: new Date('1990-05-15'), address: 'Rua A, 100, São Paulo', userId: pacUser.id },
   });
@@ -158,6 +161,8 @@ async function main() {
     data: { name: 'Carlos Santos', cpf: '456.789.123-00', phone: '(11) 99999-0003', birthDate: new Date('1975-03-10') },
   });
 
+  // catalogo de medicamentos cobrindo categorias variadas, com
+  // descricao acessivel pra testar a exibicao no front.
   const med1 = await prisma.medicine.create({
     data: { name: 'Paracetamol', activeIngredient: 'Paracetamol', dosage: '750mg', accessibleDesc: 'Analgésico e antitérmico para dor e febre. Tomar 1 comprimido a cada 8 horas, não excedendo 4 por dia.', category: 'analgesico' },
   });
@@ -184,6 +189,8 @@ async function main() {
 
   const now = new Date();
 
+  // lotes do paracetamol: dois com validades bem diferentes,
+  // pra exercitar o fefo (first expired, first out) na dispensacao.
   const batch1a = await prisma.stockBatch.create({
     data: { medicineId: med1.id, batchNumber: 'LOT-2024-001A', currentQuantity: 15, expirationDate: new Date(now.getFullYear(), now.getMonth() + 1, now.getDate()) }, // vencimento próximo
   });
@@ -195,6 +202,7 @@ async function main() {
     data: { medicineId: med2.id, batchNumber: 'LOT-2024-002', currentQuantity: 80, expirationDate: new Date(now.getFullYear() + 1, 8, 20) },
   });
 
+  // esse lote ja nasce vencido, pra testar o alerta de validade.
   const batch3 = await prisma.stockBatch.create({
     data: { medicineId: med3.id, batchNumber: 'LOT-2024-003', currentQuantity: 45, expirationDate: new Date(now.getFullYear() - 1, 2, 10) }, // já vencido
   });
@@ -207,10 +215,14 @@ async function main() {
     data: { medicineId: med5.id, batchNumber: 'LOT-2024-005', currentQuantity: 60, expirationDate: new Date(now.getFullYear() + 1, 4, 25) },
   });
 
+  // esse lote tem saldo baixo de proposito, pra exercitar o card critico.
   const batch6 = await prisma.stockBatch.create({
     data: { medicineId: med6.id, batchNumber: 'LOT-2024-006', currentQuantity: 3, expirationDate: new Date(now.getFullYear() + 1, 7, 18) }, // estoque baixo
   });
 
+  // dois descartes: um feito pelo farmaceutico (lote vencido) e um
+  // pelo aluno (embalagem danificada). cobre os dois papeis que
+  // costumam registrar descarte.
   await prisma.disposal.create({
     data: { batchId: batch3.id, userId: farmaceutico.id, quantity: 5, reason: 'Medicamento Vencido' },
   });
@@ -219,6 +231,9 @@ async function main() {
     data: { batchId: batch1a.id, userId: aluno.id, quantity: 2, reason: 'Embalagem Danificada' },
   });
 
+  // monta a agenda dos proximos dias. como o seed gera os dias
+  // dinamicamente a partir de hoje, o dataset nao fica preso a
+  // uma data fixa e continua util em qualquer execucao futura.
   const today = new Date();
   const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
   const dayAfter = new Date(today); dayAfter.setDate(today.getDate() + 2);
@@ -234,6 +249,7 @@ async function main() {
     }
   }
 
+  // dois slots no proprio dia, pra dar massa imediata nos testes.
   const todaySlots = ['14:00', '15:00'];
   for (const ts of todaySlots) {
     await prisma.scheduleSlot.create({
@@ -241,16 +257,16 @@ async function main() {
     });
   }
 
+  // busca os slots recem-criados pra usar nos agendamentos abaixo.
   const slotTomorrow9 = await prisma.scheduleSlot.findFirst({ where: { date: tomorrow, timeSlot: '09:00' } });
   const slotDayAfter14 = await prisma.scheduleSlot.findFirst({ where: { date: dayAfter, timeSlot: '14:00' } });
   const slotToday14 = await prisma.scheduleSlot.findFirst({ where: { date: today, timeSlot: '14:00' } });
   const slotToday15 = await prisma.scheduleSlot.findFirst({ where: { date: today, timeSlot: '15:00' } });
   const slotDay3_10 = await prisma.scheduleSlot.findFirst({ where: { date: day3, timeSlot: '10:00' } });
 
-  // ---------------------------------------------------------------------
-  // AGENDAMENTOS — cobrindo os quatro status possíveis: PENDING,
-  // CONFIRMED, COMPLETED e CANCELLED.
-  // ---------------------------------------------------------------------
+  // agendamentos cobrindo os quatro status possiveis: pending,
+  // confirmed, completed e cancelled. assim da pra validar as
+  // transicoes de status e os filtros da tela de consultas.
   if (slotTomorrow9) {
     await prisma.appointment.create({
       data: {
@@ -281,6 +297,8 @@ async function main() {
     });
   }
 
+  // consulta ja finalizada, com dados de dispensacao preenchidos.
+  // serve pra testar os fluxos que dependem de consulta completed.
   let apptCompleted = null;
   if (slotToday15) {
     apptCompleted = await prisma.appointment.create({
@@ -303,6 +321,8 @@ async function main() {
     });
   }
 
+  // resumo final do que foi criado, com as credenciais de teste.
+  // ajuda quem acabou de rodar o seed a saber o que usar pra logar.
   console.log('Seed data created successfully!');
   console.log('');
   console.log('Users (5 - um por perfil):');
@@ -323,8 +343,8 @@ async function main() {
 main()
   .catch((e) => {
     console.error('Erro durante o seed:', e);
-    // OTIMIZADO: erro de timeout (P1008) pode ser causado por disco
-    // congestionado ou volume Docker ocupado. Log detalhado para debug.
+    // erro de timeout (p1008) costuma vir de disco congestionado ou
+    // volume docker ocupado. logamos o stack inteiro pra ajudar o debug.
     if (e instanceof Error) {
       console.error('Stack:', e.stack);
     }

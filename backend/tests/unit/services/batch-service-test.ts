@@ -5,17 +5,28 @@ import { MedicineRepository } from '../../../src/repositories/medicine-repositor
 import { mockBatch, mockBatchesList } from '../../fixtures/batches-fixture';
 import { mockMedicine } from '../../fixtures/medicines-fixture';
 
+// mockamos os dois repositorios e o activity-log-service pra isolar
+// o batch-service. aqui a gente testa a regra de negocio dos lotes:
+// listar, buscar por id, criar, ajustar saldo com justificativa e
+// bloquear/desbloquear sanitariamente. o log de auditoria entra como
+// mock porque o service chama ele em todos os fluxos de escrita.
 vi.mock('../../../src/repositories/batch-repository');
 vi.mock('../../../src/repositories/medicine-repository');
 vi.mock('../../../src/services/activity-log-service');
 
+// testes do batch-service.
+// cobrem o crud basico e as duas operacoes sensiveis: ajuste de saldo
+// e bloqueio/desbloqueio sanitario.
 describe('BatchService', () => {
   let batchService: BatchService;
   let mockBatchRepo: any;
   let mockMedicineRepo: any;
 
   beforeEach(() => {
+    // limpa contadores entre testes.
     vi.clearAllMocks();
+
+    // mock do repositorio de lote com os metodos que o service usa.
     mockBatchRepo = {
       findAll: vi.fn(),
       findById: vi.fn(),
@@ -26,10 +37,14 @@ describe('BatchService', () => {
       setBlockStatus: vi.fn(),
       delete: vi.fn(),
     };
+    // mock do repositorio de medicamento, usado no create pra validar
+    // que o medicamento existe antes de criar o lote.
     mockMedicineRepo = {
       findById: vi.fn(),
     };
 
+    // quando o service instancia cada repositorio no construtor,
+    // essas implementacoes entregam os mocks no lugar.
     (BatchRepository as any).mockImplementation(function () {
       return mockBatchRepo;
     });
@@ -40,6 +55,8 @@ describe('BatchService', () => {
     batchService = new BatchService();
   });
 
+  // verifica que o getall delega pro findall do repo e devolve o
+  // resultado sem transformacao.
   it('deve listar lotes', async () => {
     mockBatchRepo.findAll.mockResolvedValue(mockBatchesList);
 
@@ -49,6 +66,8 @@ describe('BatchService', () => {
     expect(mockBatchRepo.findAll).toHaveBeenCalledTimes(1);
   });
 
+  // verifica que o getbyid chama o findbyid com o id certo e devolve
+  // o que o repo retornar.
   it('deve buscar lote por ID', async () => {
     mockBatchRepo.findById.mockResolvedValue(mockBatch);
 
@@ -58,6 +77,9 @@ describe('BatchService', () => {
     expect(mockBatchRepo.findById).toHaveBeenCalledWith(1);
   });
 
+  // caminho feliz do create. o mockmedicinerepo ja resolve com o
+  // fixture pro service passar na validacao de "medicamento existe".
+  // o test confirma que o create do repo foi chamado.
   it('deve criar novo lote com sucesso incluindo fornecedor', async () => {
     mockMedicineRepo.findById.mockResolvedValue(mockMedicine);
     mockBatchRepo.create.mockResolvedValue(mockBatch);
@@ -74,6 +96,8 @@ describe('BatchService', () => {
     expect(mockBatchRepo.create).toHaveBeenCalled();
   });
 
+  // verifica o ajuste auditado de saldo: chama setquantity com o
+  // valor absoluto novo, e o retorno traz a quantidade atualizada.
   it('deve realizar ajuste de estoque com justificativa e log', async () => {
     mockBatchRepo.findById.mockResolvedValue(mockBatch);
     const updatedBatch = { ...mockBatch, currentQuantity: 95 };
@@ -88,6 +112,9 @@ describe('BatchService', () => {
     expect(mockBatchRepo.setQuantity).toHaveBeenCalledWith(1, 95);
   });
 
+  // caminho de bloqueio: exige motivo e passa pro repo com o motivo
+  // preenchido. o retorno do service deve trazer isblocked=true e o
+  // motivo.
   it('deve bloquear lote com motivo sanitário', async () => {
     mockBatchRepo.findById.mockResolvedValue(mockBatch);
     const blockedBatch = { ...mockBatch, isBlocked: true, blockReason: 'Recall sanitário Anvisa' };
@@ -103,6 +130,9 @@ describe('BatchService', () => {
     expect(mockBatchRepo.setBlockStatus).toHaveBeenCalledWith(1, true, 'Recall sanitário Anvisa');
   });
 
+  // caminho de desbloqueio: o motivo e limpo (null) e o repo recebe
+  // isblocked=false com motivo null. e a regra de negocio: motivo so
+  // faz sentido enquanto o lote esta bloqueado.
   it('deve desbloquear lote sanitariamente', async () => {
     const blockedBatch = { ...mockBatch, isBlocked: true, blockReason: 'Suspeita de avaria' };
     mockBatchRepo.findById.mockResolvedValue(blockedBatch);

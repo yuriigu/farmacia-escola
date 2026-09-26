@@ -6,11 +6,19 @@ import { PatientRepository } from '../../../src/repositories/patient-repository'
 import { mockBatch } from '../../fixtures/batches-fixture';
 import { mockPatient } from '../../fixtures/patients-fixture';
 
+// mockamos os tres repositorios que o withdrawal-service usa e o
+// activity-log-service pra isolar a regra de negocio da dispensacao.
+// os testes aqui cobrem o caminho basico: listar (pra equipe) e
+// criar uma retirada. a logica de fefo e o fluxo de cancelamento
+// ficam cobertos em outros testes (repositorio e fluxo de cancel).
 vi.mock('../../../src/repositories/withdrawal-repository');
 vi.mock('../../../src/repositories/batch-repository');
 vi.mock('../../../src/repositories/patient-repository');
 vi.mock('../../../src/services/activity-log-service');
 
+// testes do withdrawal-service.
+// o foco aqui e a delegacao pro repositorio e a orquestracao basica
+// do create (checar lote, resolver paciente por cpf, criar retirada).
 describe('WithdrawalService', () => {
   let withdrawalService: WithdrawalService;
   let mockWithdrawalRepo: any;
@@ -18,7 +26,10 @@ describe('WithdrawalService', () => {
   let mockPatientRepo: any;
 
   beforeEach(() => {
+    // limpa contadores entre testes.
     vi.clearAllMocks();
+
+    // mock dos tres repositorios que o service instancia no construtor.
     mockWithdrawalRepo = {
       findAll: vi.fn(),
       findById: vi.fn(),
@@ -32,6 +43,8 @@ describe('WithdrawalService', () => {
       create: vi.fn(),
     };
 
+    // quando o service instancia cada repositorio, essas implementacoes
+    // entregam os mocks no lugar.
     (WithdrawalRepository as any).mockImplementation(function () {
       return mockWithdrawalRepo;
     });
@@ -45,6 +58,8 @@ describe('WithdrawalService', () => {
     withdrawalService = new WithdrawalService();
   });
 
+  // verifica que o getall, chamado com papel admin, delega pro findall
+  // do repo sem filtros extras.
   it('deve listar todas as retiradas para farmacêutico/admin', async () => {
     mockWithdrawalRepo.findAll.mockResolvedValue([]);
 
@@ -54,6 +69,9 @@ describe('WithdrawalService', () => {
     expect(mockWithdrawalRepo.findAll).toHaveBeenCalledWith();
   });
 
+  // caminho feliz do create: o lote existe, o paciente e resolvido
+  // pelo cpf, e o repo devolve a retirada criada. o service orquestra
+  // tudo isso, mas a baixa efetiva no estoque fica no repositorio.
   it('deve registrar retirada e decrementar estoque do lote', async () => {
     mockBatchRepo.findById.mockResolvedValue({
       ...mockBatch,

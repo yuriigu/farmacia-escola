@@ -3,23 +3,35 @@ import { ActivityLogService } from './activity-log-service';
 import { StockStatusService } from './stock-status-service';
 import { prisma } from '../utils/prisma';
 
+// service de medicamento. concentra as regras de negocio do catalogo:
+// listar com saldo calculado, buscar por id, criar, atualizar e excluir.
+// aqui a gente enriquece o medicamento com informacoes derivadas
+// (status de estoque, quantidade fisica, reservada e disponivel)
+// usando o stockstatusservice. tambem cuida da formatacao de dosagem
+// e do registro de auditoria.
 export class MedicineService {
   private medicineRepo: MedicineRepository;
   private logService: ActivityLogService;
   private stockStatusService: StockStatusService;
 
   constructor() {
+    // repositorio de medicamento, log de auditoria e o service
+    // que sabe calcular status de estoque por lote e por medicamento.
     this.medicineRepo = new MedicineRepository();
     this.logService = new ActivityLogService();
     this.stockStatusService = new StockStatusService();
   }
 
+  // lista medicamentos com os campos de estoque ja calculados.
+  // a estrategia e: 1 query pros medicamentos (com lotes enxutos)
+  // + 1 query agregada pro reservado, totalizando 2 consultas,
+  // em vez de varrer items e somar em js lote a lote.
   async getAll() {
-    // OTIMIZADO: 1 query de medicamentos + 1 agregação de reservas (2 queries
-    // no total) em vez de findMany de items + loops JS por lote.
-    // Usa groupBy quando disponível; cai para findMany agregado em JS se o
-    // client mockado/teste não expuser groupBy (compatível com vitest).
     const medicines = await this.medicineRepo.findAll();
+
+    // monta o mapa de reservas por medicamento. usamos groupby no banco
+    // (usa indice [medicineId] em appointmentitem) e, se o client nao
+    // suportar (ex: mock em teste), caimos pra findmany + soma em js.
     let reservedMap: Record<number, number> = {};
     try {
       const appointmentItem = (prisma as any).appointmentItem;
@@ -49,6 +61,8 @@ export class MedicineService {
       reservedMap = {};
     }
 
+    // percorre os medicamentos enriquecendo cada um com status dos
+    // lotes, totais de quantidade e status geral do estoque.
     const formattedMedicines = [];
     for (let i = 0; i < medicines.length; i++) {
       const med = medicines[i];
@@ -66,8 +80,12 @@ export class MedicineService {
         }
       }
 
+      // aqui chamamos o stockstatusservice pra calcular o status geral
+      // do medicamento a partir dos lotes e da quantidade minima.
       const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList, medMinQuantity);
 
+      // calcula o status de cada lote individualmente pra enriquecer
+      // a resposta que vai pro front.
       const formattedBatches = [];
       for (let j = 0; j < batchesList.length; j++) {
         const batch = batchesList[j];
@@ -82,10 +100,12 @@ export class MedicineService {
         });
       }
 
+      // quantidade reservada vem do mapa montado acima.
       let resQty = 0;
       if (reservedMap[med.id]) {
         resQty = reservedMap[med.id];
       }
+      // disponivel real = fisico - reservado, nunca negativo.
       const physicalQty = stockCalc.totalQuantity;
       let availQty = 0;
       if (physicalQty > resQty) {
@@ -108,6 +128,9 @@ export class MedicineService {
     return formattedMedicines;
   }
 
+  // busca um medicamento pelo id, tambem enriquecido com status dos
+  // lotes, totais e reserva. a reserva vem de um aggregate no banco
+  // (soma das quantidades em consultas pending/confirmed).
   async getById(id: number) {
     const med = await this.medicineRepo.findById(id);
     if (!med) {
@@ -144,11 +167,10 @@ export class MedicineService {
       });
     }
 
+    // soma do reservado. tentamos aggregate no banco e, se nao rolar,
+    // caimos pra findmany + soma em js.
     let resQty = 0;
     try {
-      // OTIMIZADO: SUM agregado no banco (usa índice [medicineId]) em vez de
-      // trazer todas as linhas de items para somar em JS. Com fallback para
-      // findMany quando o client mockado não expõe `aggregate`.
       const appointmentItem = (prisma as any).appointmentItem;
       if (appointmentItem && typeof appointmentItem.aggregate === 'function') {
         const agg = await appointmentItem.aggregate({
@@ -175,6 +197,7 @@ export class MedicineService {
       resQty = 0;
     }
 
+    // disponivel real = fisico - reservado, nunca negativo.
     const physicalQty = stockCalc.totalQuantity;
     let availQty = 0;
     if (physicalQty > resQty) {
@@ -195,6 +218,9 @@ export class MedicineService {
     };
   }
 
+  // cria um medicamento. valida nome e monta a dosagem no formato
+  // "valor unidade" quando vieram os campos separados (dosagevalue + dosageunit).
+  // no fim, registra o log de auditoria.
   async create(userId: number, role: string, data: {
     name: string;
     activeIngredient?: string;
@@ -205,6 +231,7 @@ export class MedicineService {
     accessibleDesc?: string;
     category?: string;
   }) {
+    // nome e obrigatorio e nao pode ser so espaco em branco.
     if (!data.name) {
       throw { statusCode: 400, message: 'Nome do medicamento é obrigatório' };
     } else {
@@ -213,6 +240,7 @@ export class MedicineService {
       }
     }
 
+    // se veio dosagem estruturada (valor + unidade), monta a string.
     let formattedDosage = data.dosage;
     if (data.dosageValue !== undefined) {
       if (data.dosageValue !== null) {
@@ -222,6 +250,7 @@ export class MedicineService {
       }
     }
 
+    // chama o repositorio (/repositories/medicine-repository.ts) pra criar.
     const medicine = await this.medicineRepo.create({
       ...data,
       name: data.name.trim(),
@@ -239,6 +268,9 @@ export class MedicineService {
     return medicine;
   }
 
+  // atualiza dados do medicamento. valida nome quando veio, aplica a
+  // mesma regra de dosagem estruturada e devolve o medicamento ja com
+  // os campos de estoque calculados.
   async update(userId: number, role: string, id: number, data: {
     name?: string;
     activeIngredient?: string;
@@ -254,6 +286,7 @@ export class MedicineService {
       throw { statusCode: 404, message: 'Medicamento não encontrado' };
     }
 
+    // se o nome veio, nao pode ser vazio.
     if (data.name !== undefined) {
       if (!data.name.trim()) {
         throw { statusCode: 400, message: 'Nome do medicamento não pode ser vazio' };
@@ -265,6 +298,7 @@ export class MedicineService {
       updateData.name = updateData.name.trim();
     }
 
+    // mesma regra de dosagem do create.
     if (data.dosageValue !== undefined) {
       if (data.dosageValue !== null) {
         if (data.dosageUnit) {
@@ -273,6 +307,7 @@ export class MedicineService {
       }
     }
 
+    // chama o repositorio (/repositories/medicine-repository.ts) pra atualizar.
     const updated = await this.medicineRepo.update(id, updateData);
 
     await this.logService.log(
@@ -283,6 +318,7 @@ export class MedicineService {
       `Atualizou medicamento: ${updated.name}`
     );
 
+    // recalcula o status de estoque pra devolver junto com o update.
     let batchesList = [];
     if (updated.batches) {
       if (Array.isArray(updated.batches)) {
@@ -307,12 +343,16 @@ export class MedicineService {
     };
   }
 
+  // exclui um medicamento. e soft delete (deletedAt), pra preservar
+  // historico de consultas e movimentacoes. registra auditoria no fim.
   async delete(userId: number, role: string, id: number) {
     const existing = await this.medicineRepo.findById(id);
     if (!existing) {
       throw { statusCode: 404, message: 'Medicamento não encontrado' };
     }
 
+    // chama o repositorio (/repositories/medicine-repository.ts) pra
+    // aplicar o soft delete.
     const deleted = await this.medicineRepo.delete(id);
 
     await this.logService.log(

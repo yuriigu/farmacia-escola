@@ -4,19 +4,31 @@ import { ActivityLogService } from './activity-log-service';
 import { Role } from '../types/enums';
 import { prisma } from '../utils/prisma';
 
+// service de usuario. concentra as regras de negocio da gestao de contas:
+// listar, buscar, criar, atualizar, ativar/desativar e excluir usuarios.
+// tambem cuida de coisas sensiveis: validacao de email e senha, hash de
+// senha, sanitizacao da resposta (tira senha e normaliza campos do paciente)
+// e as travas pra nao deixar o sistema sem admin ativo.
 export class UserService {
   private userRepo: UserRepository;
   private logService: ActivityLogService;
   private readonly emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
   constructor() {
+    // repositorio de usuario e service de log de auditoria.
     this.userRepo = new UserRepository();
     this.logService = new ActivityLogService();
   }
 
+  // limpa o objeto do usuario antes de devolver pra fora.
+  // tira a senha, resolve birthdate e address considerando que eles
+  // podem vir do proprio usuario ou do paciente vinculado, e formata
+  // a data como string so com a parte do dia (yyyy-mm-dd).
   private sanitizeUser(user: any) {
     const { password, ...userWithoutPassword } = user;
 
+    // birthdate pode estar no usuario (quando o repo devolve) ou
+    // no paciente (quando o cadastro de paciente carrega o dado).
     let rawBirthDate = null;
     if (user.birthDate) {
       rawBirthDate = user.birthDate;
@@ -32,6 +44,7 @@ export class UserService {
       }
     }
 
+    // mesma ideia pro endereco.
     let address = null;
     if (user.address) {
       address = user.address;
@@ -47,6 +60,7 @@ export class UserService {
       }
     }
 
+    // formata birthdate como yyyy-mm-dd. aceita string (com t) ou date.
     let birthDateStr: string | null = null;
     if (rawBirthDate) {
       if (typeof rawBirthDate === 'string') {
@@ -63,23 +77,27 @@ export class UserService {
     };
   }
 
+  // valida o formato do email com regex simples.
   private validateEmail(email: string) {
     if (!this.emailRegex.test(email)) {
       throw { statusCode: 400, message: 'Formato de email inválido' };
     }
   }
 
+  // valida tamanho minimo da senha. a regra e 6 caracteres.
   private validatePassword(password: string) {
     if (password.length < 6) {
       throw { statusCode: 400, message: 'A senha deve ter pelo menos 6 caracteres' };
     }
   }
 
+  // lista todos os usuarios ja sanitizados (sem senha).
   async getAllUsers() {
     const users = await this.userRepo.findAll();
     return users.map((user) => this.sanitizeUser(user));
   }
 
+  // busca um usuario pelo id, sanitizado. se nao achar, lanca 404.
   async getUserById(id: number) {
     const user = await this.userRepo.findById(id);
     if (!user) {
@@ -88,6 +106,10 @@ export class UserService {
     return this.sanitizeUser(user);
   }
 
+  // cria um novo usuario. valida nome, email, senha e perfil, checa
+  // duplicidade de email, normaliza os campos e aplica hash na senha.
+  // permissions so e guardado pra aluno (regra de negocio do sistema),
+  // pros demais perfis o campo e limpo. registra auditoria no fim.
   async createUser(adminId: number, data: {
     name: string;
     email: string;
@@ -99,6 +121,7 @@ export class UserService {
     address?: string | null;
     permissions?: any;
   }) {
+    // normaliza nome e email (trim, lowercase no email).
     let cleanName = '';
     if (data.name) {
       cleanName = data.name.trim();
@@ -113,6 +136,7 @@ export class UserService {
       cleanEmail = '';
     }
 
+    // nome, email, senha e perfil sao obrigatorios.
     if (!cleanName) {
       throw { statusCode: 400, message: 'Nome, email, senha e perfil são obrigatórios' };
     } else {
@@ -129,14 +153,17 @@ export class UserService {
       }
     }
 
+    // validacoes de formato antes de qualquer ida ao banco.
     this.validateEmail(cleanEmail);
     this.validatePassword(data.password);
 
+    // checa se o email ja esta em uso.
     const existing = await this.userRepo.findByEmail(cleanEmail);
     if (existing) {
       throw { statusCode: 409, message: 'Email já cadastrado' };
     }
 
+    // normaliza os campos opcionais (trim ou null).
     let phoneVal = null;
     if (data.phone) {
       phoneVal = data.phone.trim();
@@ -165,6 +192,7 @@ export class UserService {
       birthDateVal = null;
     }
 
+    // permissions so faz sentido pra aluno. pra outros perfis, limpa.
     let permissionsVal = undefined;
     if (data.role === Role.ALUNO) {
       permissionsVal = data.permissions;
@@ -172,7 +200,11 @@ export class UserService {
       permissionsVal = undefined;
     }
 
+    // hash da senha com custo 12.
     const hashedPassword = await bcrypt.hash(data.password, 12);
+
+    // chama o repositorio (/repositories/user-repository.ts) pra criar.
+    // ele tambem cuida de criar o paciente vinculado quando faz sentido.
     const user = await this.userRepo.create({
       ...data,
       name: cleanName,
@@ -196,6 +228,11 @@ export class UserService {
     return this.sanitizeUser(user);
   }
 
+  // atualiza um usuario. tem algumas travas importantes:
+  // - auto-edicao nao pode alterar o registerdoc
+  // - rebaixar ou desativar o ultimo admin ativo e bloqueado
+  // - senha em branco nao sobrescreve a atual
+  // apos o update, sanitiza e registra auditoria.
   async updateUser(adminId: number, id: number, data: {
     name?: string;
     email?: string;
@@ -213,6 +250,8 @@ export class UserService {
       throw { statusCode: 404, message: 'Usuário não encontrado' };
     }
 
+    // trava 1: se o admin esta editando a si mesmo, nao pode trocar
+    // o registerdoc (documento profissional que o identifica).
     if (adminId === id) {
       if (data.registerDoc !== undefined) {
         let currentDoc = '';
@@ -235,6 +274,9 @@ export class UserService {
       }
     }
 
+    // trava 2: se o usuario alvo e admin ativo, nao permite rebaixar
+    // nem desativar se for o unico admin ativo. evita o sistema ficar
+    // sem administrador.
     if (user.role === Role.ADMIN) {
       if (user.active) {
         let isDemotingRole = false;
@@ -277,8 +319,10 @@ export class UserService {
       }
     }
 
+    // monta o update so com os campos que vieram.
     const updateData: any = {};
 
+    // nome nao pode ser vazio quando veio.
     if (data.name !== undefined) {
       const cleanName = data.name.trim();
       if (!cleanName) {
@@ -287,6 +331,7 @@ export class UserService {
       updateData.name = cleanName;
     }
 
+    // email valida formato e unicidade (se mudou em relacao ao atual).
     if (data.email !== undefined) {
       const cleanEmail = data.email.trim().toLowerCase();
       this.validateEmail(cleanEmail);
@@ -300,6 +345,7 @@ export class UserService {
       updateData.email = cleanEmail;
     }
 
+    // senha em branco nao sobrescreve. se veio valor, valida e hasheia.
     if (data.password !== undefined) {
       if (data.password.trim() !== '') {
         this.validatePassword(data.password);
@@ -311,6 +357,7 @@ export class UserService {
       updateData.role = data.role;
     }
 
+    // campos opcionais aceitam null pra limpar.
     if (data.phone !== undefined) {
       let updatePhone = null;
       if (data.phone) {
@@ -359,6 +406,8 @@ export class UserService {
       updateData.permissions = data.permissions;
     }
 
+    // chama o repositorio (/repositories/user-repository.ts) pra persistir.
+    // ele tambem sincroniza o cadastro de paciente quando os campos batem.
     const updated = await this.userRepo.update(id, updateData);
 
     await this.logService.log(
@@ -372,12 +421,16 @@ export class UserService {
     return this.sanitizeUser(updated);
   }
 
+  // ativa ou desativa um usuario. mesma trava do update: nao deixa
+  // desativar o ultimo admin ativo. a acao gera log diferente
+  // (activate ou deactivate) pra ficar claro o que aconteceu.
   async toggleActive(adminId: number, id: number, active: boolean) {
     const user = await this.userRepo.findById(id);
     if (!user) {
       throw { statusCode: 404, message: 'Usuário não encontrado' };
     }
 
+    // trava: nao desativar o ultimo admin ativo.
     if (user.role === Role.ADMIN) {
       if (user.active) {
         if (Boolean(active) === false) {
@@ -394,8 +447,11 @@ export class UserService {
       }
     }
 
+    // chama o repositorio (/repositories/user-repository.ts) pra
+    // atualizar so o campo active.
     const updated = await this.userRepo.update(id, { active: Boolean(active) });
-    
+
+    // monta a acao do log de acordo com o novo estado.
     let actionLog = 'deactivate';
     let actionMessage = 'Desativou';
     if (active) {
@@ -417,6 +473,8 @@ export class UserService {
     return this.sanitizeUser(updated);
   }
 
+  // exclui um usuario. trava principal: admin nao pode excluir a si mesmo
+  // (evita perder a propria conta sem querer).
   async deleteUser(adminId: number, id: number) {
     if (adminId === id) {
       throw { statusCode: 400, message: 'Um administrador não pode excluir a própria conta' };
@@ -427,8 +485,9 @@ export class UserService {
       throw { statusCode: 404, message: 'Usuário não encontrado' };
     }
 
+    // chama o repositorio (/repositories/user-repository.ts) pra excluir.
     await this.userRepo.delete(id);
-    
+
     await this.logService.log(
       adminId,
       'delete',

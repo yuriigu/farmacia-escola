@@ -5,6 +5,12 @@ import { StockStatusService } from './stock-status-service';
 import { StockMovementType } from '../types/enums';
 import { prisma } from '../utils/prisma';
 
+// service de lote de estoque. concentra as regras de negocio sobre
+// lotes: criar com entrada inicial, atualizar dados cadastrais,
+// ajustar saldo (com rastro de auditoria), bloquear/desbloquear
+// por questao sanitaria e excluir.
+// toda acao que mexe em quantidade ou em estado critico passa pelo
+// historico de movimentacoes e pelo log de auditoria.
 export class BatchService {
   private batchRepo: BatchRepository;
   private medicineRepo: MedicineRepository;
@@ -12,16 +18,21 @@ export class BatchService {
   private stockStatusService: StockStatusService;
 
   constructor() {
+    // repositorios e services de apoio. o stockstatusservice fica
+    // disponivel caso o service precise de calculo de status
+    // de estoque em algum momento.
     this.batchRepo = new BatchRepository();
     this.medicineRepo = new MedicineRepository();
     this.logService = new ActivityLogService();
     this.stockStatusService = new StockStatusService();
   }
 
+  // lista lotes, com filtro opcional por medicamento.
   async getAll(medicineId?: number) {
     return this.batchRepo.findAll(medicineId);
   }
 
+  // busca um lote pelo id. se nao achar, lanca 404.
   async getById(id: number) {
     const batch = await this.batchRepo.findById(id);
     if (!batch) {
@@ -30,6 +41,10 @@ export class BatchService {
     return batch;
   }
 
+  // cria um novo lote. valida todos os campos, confere se o medicamento
+  // existe e se ja nao ha lote com o mesmo numero pra esse medicamento.
+  // se veio quantidade inicial, registra a movimentacao de entrada
+  // e, no fim, grava o log de auditoria.
   async create(userId: number, role: string, data: {
     medicineId: number;
     batchNumber: string;
@@ -42,6 +57,8 @@ export class BatchService {
   }) {
     const { medicineId, batchNumber, currentQuantity, expirationDate, supplier } = data;
 
+    // checagem em cascata dos obrigatorios. mensagem unica porque o
+    // cliente costuma mostrar tudo junto mesmo.
     if (!medicineId) {
       throw { statusCode: 400, message: 'Todos os campos do lote são obrigatórios' };
     } else {
@@ -62,10 +79,12 @@ export class BatchService {
       }
     }
 
+    // fornecedor nao pode ser so espaco em branco.
     if (!supplier.trim()) {
       throw { statusCode: 400, message: 'Fornecedor/origem é obrigatório' };
     }
 
+    // valida a quantidade inicial: precisa ser numero e >= 0.
     const qty = Number(currentQuantity);
     if (isNaN(qty)) {
       throw { statusCode: 400, message: 'A quantidade inicial do lote deve ser um número maior ou igual a zero' };
@@ -75,11 +94,13 @@ export class BatchService {
       }
     }
 
+    // validade e obrigatoria e precisa parsear.
     const expDate = new Date(expirationDate);
     if (isNaN(expDate.getTime())) {
       throw { statusCode: 400, message: 'Data de validade inválida' };
     }
 
+    // fabricacao e opcional, mas se veio precisa parsear.
     let mfgDate: Date | null = null;
     if (data.manufacturingDate) {
       const parsedMfg = new Date(data.manufacturingDate);
@@ -91,11 +112,14 @@ export class BatchService {
       mfgDate = null;
     }
 
+    // confere se o medicamento existe (nao deletado).
     const medicine = await this.medicineRepo.findById(medicineId);
     if (!medicine) {
       throw { statusCode: 404, message: 'Medicamento não encontrado' };
     }
 
+    // checa duplicidade de numero de lote por medicamento antes de tentar
+    // criar. se ja existe, devolve 409 direto.
     const existingBatch = await this.batchRepo.findByMedicineAndBatchNumber(medicineId, batchNumber.trim());
     if (existingBatch) {
       throw {
@@ -104,6 +128,7 @@ export class BatchService {
       };
     }
 
+    // normaliza os campos de bloqueio inicial.
     let isBlockedValue = false;
     if (data.isBlocked) {
       isBlockedValue = true;
@@ -118,6 +143,8 @@ export class BatchService {
       blockReasonValue = null;
     }
 
+    // cria o lote. se estourar erro de unicidade, tambem devolvemos
+    // 409 (protege contra corrida entre a checagem acima e o insert).
     let batch = null;
     try {
       batch = await this.batchRepo.create({
@@ -150,6 +177,8 @@ export class BatchService {
       throw err;
     }
 
+    // registra a movimentacao de entrada quando veio saldo inicial.
+    // se falhar, seguimos em frente pra nao derrubar o cadastro.
     if (qty > 0) {
       try {
         await prisma.stockMovement.create({
@@ -162,7 +191,7 @@ export class BatchService {
           },
         });
       } catch {
-        // Continue if ledger record has issues
+        // se o historico falhar, ignora: o cadastro em si ja deu certo.
       }
     }
 
@@ -177,6 +206,9 @@ export class BatchService {
     return batch;
   }
 
+  // atualiza dados cadastrais do lote (numero, validade, fornecedor, etc).
+  // de proposito nao mexe em quantidade, porque saldo so muda pelo
+  // endpoint auditado de ajuste (adjustStock).
   async update(userId: number, role: string, id: number, data: {
     batchNumber?: string;
     expirationDate?: string | Date;
@@ -188,6 +220,7 @@ export class BatchService {
       throw { statusCode: 404, message: 'Lote não encontrado' };
     }
 
+    // monta o update so com os campos que vieram.
     const updateData: any = {};
 
     if (data.batchNumber !== undefined) {
@@ -199,6 +232,7 @@ export class BatchService {
     }
 
     if (data.manufacturingDate !== undefined) {
+      // fabricacao aceita null pra limpar o campo.
       if (data.manufacturingDate) {
         const mfg = new Date(data.manufacturingDate);
         if (isNaN(mfg.getTime())) {
@@ -218,6 +252,7 @@ export class BatchService {
       updateData.expirationDate = expDate;
     }
 
+    // chama o repositorio (/repositories/batch-repository.ts) pra persistir.
     const updated = await this.batchRepo.update(id, updateData);
 
     await this.logService.log(
@@ -231,6 +266,9 @@ export class BatchService {
     return updated;
   }
 
+  // ajuste auditado de saldo. e a unica forma de corrigir a quantidade
+  // de um lote diretamente, porque exige justificativa e gera movimentacao
+  // do tipo adjustment (com o delta) e log de auditoria.
   async adjustStock(userId: number, role: string, id: number, data: {
     newQuantity: number;
     reason: string;
@@ -245,6 +283,7 @@ export class BatchService {
       }
     }
 
+    // quantidade precisa ser numero >= 0.
     const qty = Number(newQuantity);
     if (isNaN(qty)) {
       throw { statusCode: 400, message: 'A quantidade deve ser um número válido' };
@@ -254,6 +293,7 @@ export class BatchService {
       }
     }
 
+    // justificativa obrigatoria, porque sem rastro o ajuste nao vale.
     if (!reason) {
       throw { statusCode: 400, message: 'A justificativa do ajuste é obrigatória' };
     } else {
@@ -267,10 +307,13 @@ export class BatchService {
       throw { statusCode: 404, message: 'Lote não encontrado' };
     }
 
+    // guarda o saldo anterior pra calcular o delta e registrar no historico.
     const previousQuantity = batch.currentQuantity;
     const delta = qty - previousQuantity;
     const updated = await this.batchRepo.setQuantity(id, qty);
 
+    // movimentacao de ajuste. se falhar, so ignora (o ajuste em si
+    // ja foi feito, mas o ideal seria alertar).
     try {
       await prisma.stockMovement.create({
         data: {
@@ -282,7 +325,7 @@ export class BatchService {
         },
       });
     } catch {
-      // Continue if ledger record has issues
+      // se o historico falhar, ignora: o ajuste em si ja foi aplicado.
     }
 
     await this.logService.log(
@@ -296,6 +339,9 @@ export class BatchService {
     return updated;
   }
 
+  // aplica ou retira o bloqueio sanitario do lote.
+  // quando esta bloqueando, o motivo e obrigatorio. quando desbloqueia,
+  // o motivo e limpo.
   async setBlockStatus(userId: number, role: string, id: number, data: {
     isBlocked: boolean;
     blockReason?: string | null;
@@ -310,6 +356,7 @@ export class BatchService {
       }
     }
 
+    // bloqueio exige motivo. desbloqueio nao.
     if (isBlocked) {
       if (!blockReason) {
         throw { statusCode: 400, message: 'O motivo do bloqueio sanitário é obrigatório' };
@@ -325,6 +372,7 @@ export class BatchService {
       throw { statusCode: 404, message: 'Lote não encontrado' };
     }
 
+    // normaliza o motivo: guardado so quando bloqueia; caso contrario, null.
     let finalReason: string | null = null;
     if (isBlocked) {
       if (blockReason) {
@@ -336,8 +384,10 @@ export class BatchService {
       finalReason = null;
     }
 
+    // chama o repositorio (/repositories/batch-repository.ts) pra aplicar.
     const updated = await this.batchRepo.setBlockStatus(id, isBlocked, finalReason);
 
+    // monta o texto do log de acordo com a acao (block ou unblock).
     let actionText = '';
     let actionType = 'block';
     if (isBlocked) {
@@ -359,6 +409,8 @@ export class BatchService {
     return updated;
   }
 
+  // exclui um lote. se houver movimentacoes ou descartes ligados a ele,
+  // o banco vai bloquear pela fk, e o erro sobe pro middleware global.
   async delete(userId: number, role: string, id: number) {
     const batch = await this.batchRepo.findById(id);
     if (!batch) {

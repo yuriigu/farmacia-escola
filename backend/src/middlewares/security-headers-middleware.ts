@@ -1,9 +1,10 @@
 import { Request, Response, NextFunction } from 'express';
 
-// CABECALHOS DE SEGURANCA HTTP (EQUIVALENTE AO HELMET, SEM DEPENDENCIA EXTERNA)
-// A API devolve exclusivamente JSON, portanto a politica abaixo nega qualquer
-// carregamento de conteudo ativo (scripts, frames, objetos) mesmo em caso de
-// MIME sniffing ou de navegacao direta para um endpoint da API.
+// cabecalhos de seguranca http. faz o papel de um helmet da vida,
+// porem sem dependencia externa, so com setHeader mesmo.
+// a api so devolve json, entao a politica de conteudo abaixo
+// nega qualquer coisa ativa (script, frame, objeto) mesmo em caso
+// de mime sniffing ou de alguem navegar direto pra um endpoint.
 const API_CONTENT_SECURITY_POLICY = [
   "default-src 'none'",
   "script-src 'none'",
@@ -16,36 +17,43 @@ const API_CONTENT_SECURITY_POLICY = [
   "frame-ancestors 'none'",
 ].join('; ');
 
-// UM ANO EM SEGUNDOS (RECOMENDACAO OWASP PARA HSTS)
+// um ano em segundos, seguindo a recomendacao da owasp pra hsts.
 const HSTS_MAX_AGE = 31536000;
 
+// middleware que aplica os cabecalhos de seguranca em toda resposta.
+// registrado globalmente no app, antes das rotas, pra garantir que
+// ate respostas de erro saiam com as protecoes.
 export function securityHeaders(
   _req: Request,
   res: Response,
   next: NextFunction
 ): void {
-  // NAO REVELAR A TECNOLOGIA DO SERVIDOR
+  // tira o header que revela que o servidor roda express,
+  // evitando entregar pista da stack pra quem quiser sondar.
   res.removeHeader('X-Powered-By');
 
-  // IMPEDE A INTERPRETACAO DE RESPOSTAS COM MIME TYPE DIVERGENTE
+  // impede que o browser tente adivinhar o tipo do conteudo
+  // e acabe executando algo que nao deveria.
   res.setHeader('X-Content-Type-Options', 'nosniff');
 
-  // IMPEDE QUE A API SEJA EMBUTIDA EM IFRAMES (CLICKJACKING)
+  // trava a api de ser embutida em iframe, evitando clickjacking.
   res.setHeader('X-Frame-Options', 'DENY');
 
-  // POLITICA DE SEGURANCA DE CONTEUDO PARA RESPOSTAS DA API
+  // politica de conteudo especifica pra api, negando tudo.
   res.setHeader('Content-Security-Policy', API_CONTENT_SECURITY_POLICY);
 
-  // NAO PROPAGAR A URL DE ORIGEM PARA DESTINOS EXTERNOS
+  // nao deixa vazar a url de origem pra destinos externos.
   res.setHeader('Referrer-Policy', 'no-referrer');
 
-  // DESABILITA APIS DE BROWSER NAO UTILIZADAS PELA API
+  // desliga apis de browser que a api nao usa,
+  // reduzindo superficie de ataque caso algo escape pro front.
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=(), usb=()');
 
-  // BLOQUEIA POLITICAS DE CROSS-DOMAIN LEGADAS (FLASH/PDF)
+  // bloqueia politicas cross-domain legadas (flash/pdf).
   res.setHeader('X-Permitted-Cross-Domain-Policies', 'none');
 
-  // HSTS SOMENTE SOBRE HTTPS (EM DESENVOLVIMENTO HTTP ISSO BLOQUEARIA O ACESSO)
+  // hsts so faz sentido em https. em dev via http isso travaria o acesso,
+  // entao so ligamos quando o ambiente for producao.
   if (process.env.NODE_ENV === 'production') {
     res.setHeader('Strict-Transport-Security', `max-age=${HSTS_MAX_AGE}; includeSubDomains`);
   }

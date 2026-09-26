@@ -10,18 +10,22 @@ import {
   appointmentUpdateStatusSchema,
 } from '../middlewares/validation-middleware';
 
+// controller que expõe os endpoints de agendamento (consulta).
+// ele concentra a validacao de entrada, checagens de permissao por papel
+// e delega a regra de negocio pro service, que fala com o banco.
 export class AppointmentController {
   private appointmentService: AppointmentService;
 
   constructor() {
+    // instanciamos o service de agendamento (/services/appointment-service.ts),
+    // que e quem realmente executa as regras de criacao, atualizacao e dispensa.
     this.appointmentService = new AppointmentService();
   }
 
-// OTIMIZADO (N+1 / round-trips): a checagem de permissão usa req.user
-// (já resolvido e validado pelo authMiddleware — inclui patientId) em vez de
-// 1-2 queries extras (patient + appointment) antes do service, que refazia as
-// mesmas leituras. Elimina até 2 round-trips por GET.
-// NOTA: mantém import do prisma (usado em create/update/cancel/dispense).
+  // lista os agendamentos de acordo com o papel do usuario logado.
+  // paciente ve so os dele, admin/farmaceutico/aluno veem tudo.
+  // a checagem usa o req.user que ja veio resolvido pelo auth-middleware,
+  // evitando consultas extras ao banco so pra descobrir o patientId.
   getAll = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -32,6 +36,9 @@ export class AppointmentController {
       const role = req.user.role;
       let patientId: number | undefined = undefined;
 
+      // se for paciente, filtramos pelo patientId que veio junto com o token.
+      // se por algum motivo ele nao tiver patientId, devolvemos lista vazia
+      // em vez de estourar erro.
       if (role === 'PACIENTE') {
         if (!req.user.patientId) {
           res.json([]);
@@ -40,6 +47,9 @@ export class AppointmentController {
         patientId = req.user.patientId;
       }
 
+      // chamamos o service (/services/appointment-service.ts) passando
+      // o papel, o id do usuario e o patientId opcional. ele aplica
+      // os filtros corretos e devolve a lista.
       const appointments = await this.appointmentService.getAll(role, userId, patientId);
       res.json(appointments);
       return;
@@ -54,6 +64,9 @@ export class AppointmentController {
     }
   };
 
+  // busca um agendamento pelo id. a checagem de existencia e de permissao
+  // fica toda no service, que devolve 404 ou 403 conforme o caso.
+  // assim evitamos consultas duplicadas aqui no controller.
   getById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -72,9 +85,8 @@ export class AppointmentController {
         }
       }
 
-      // OTIMIZADO: delega existência + autorização ao service (que já faz
-      // findById + checagem de patientId com 404/403). Remove 1-2 queries
-      // duplicadas por GET byId.
+      // aqui chamamos o service (/services/appointment-service.ts) passando
+      // o req.user inteiro pra ele aplicar a autorizacao (paciente so ve o proprio).
       const appointment = await this.appointmentService.getById(id, req.user);
       res.json(appointment);
       return;
@@ -89,6 +101,9 @@ export class AppointmentController {
     }
   };
 
+  // cria um novo agendamento. valida o corpo com o schema zod,
+  // e se quem esta criando for paciente, injeta os dados do proprio
+  // paciente no payload (pra ele nao agendar em nome de outro).
   create = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -98,6 +113,8 @@ export class AppointmentController {
       const userId = req.user.userId;
       const role = req.user.role;
 
+      // validacao com o schema zod vindo do validation-middleware.
+      // se falhar, devolvemos a primeira mensagem e a lista de issues.
       const validationResult = appointmentCreateSchema.safeParse(req.body);
       if (!validationResult.success) {
         let errorMsg = 'Dados inválidos na requisição';
@@ -119,6 +136,8 @@ export class AppointmentController {
 
       const payload = { ...validationResult.data };
 
+      // se for paciente criando, buscamos o cadastro dele no banco
+      // (via prisma em /utils/prisma.ts) pra amarrar o agendamento ao proprio perfil.
       if (role === 'PACIENTE') {
         const patientRecord = await prisma.patient.findUnique({
           where: { userId: userId },
@@ -134,6 +153,8 @@ export class AppointmentController {
         }
       }
 
+      // chamamos o service (/services/appointment-service.ts) pra criar de fato,
+      // passando o usuario logado e o payload ja preparado.
       const appointment = await this.appointmentService.create(req.user, payload);
       res.status(201).json(appointment);
       return;
@@ -148,6 +169,9 @@ export class AppointmentController {
     }
   };
 
+  // atualiza um agendamento existente. valida o corpo, checa permissoes
+  // (paciente so mexe no proprio) e valida a transicao de status
+  // antes de mandar pro service.
   update = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -168,6 +192,8 @@ export class AppointmentController {
         }
       }
 
+      // busca o agendamento no banco (via prisma em /utils/prisma.ts)
+      // pra comparar o status atual e checar de quem ele e.
       const appointmentRecord = await prisma.appointment.findUnique({
         where: { id: id },
       });
@@ -177,6 +203,7 @@ export class AppointmentController {
         return;
       }
 
+      // se for paciente, garantimos que ele so mexe no agendamento dele.
       if (role === 'PACIENTE') {
         const patientRecord = await prisma.patient.findUnique({
           where: { userId: userId },
@@ -194,6 +221,7 @@ export class AppointmentController {
 
       const currentStatus = appointmentRecord.status;
 
+      // validacao do corpo do update com o schema zod do validation-middleware.
       const validationResult = appointmentUpdateSchema.safeParse(req.body);
       if (!validationResult.success) {
         let errorMsg = 'Dados inválidos na requisição';
@@ -213,21 +241,21 @@ export class AppointmentController {
         return;
       }
 
-      // Allow updates to cancelled/completed appointments only for status changes to COMPLETED
-      // (for re-completion scenarios, e.g., if user accidentally clicked cancel or needs to re-complete)
-      // Only block updates if status is COMPLETED and target is not COMPLETED (already completed)
+      // regra de negocio: agendamento cancelado ainda pode ser re-concluido,
+      // mas agendamento ja concluido so aceita update se o alvo tambem for
+      // concluido (no-op). assim a gente evita reabrir um atendimento fechado.
       if (currentStatus === 'CANCELLED') {
-        // Cancelled appointments can still be re-completed if needed (allow COMPLETED transition)
-        // No blocking - just let the update proceed
+        // cancelado pode voltar pra concluido se precisar, entao deixa passar.
       } else if (currentStatus === 'COMPLETED') {
-        // Already completed - only allow if target is also COMPLETED (no-op)
-        // If target is different, block it
+        // ja finalizado: so aceita se o alvo tambem for completed (no-op),
+        // qualquer outra mudanca e bloqueada.
         if (validationResult.data.status && validationResult.data.status.toUpperCase() !== 'COMPLETED') {
           res.status(400).json({ error: 'Agendamento já finalizado não pode ter seus dados ou status modificados' });
           return;
         }
       }
 
+      // validacao das transicoes de status permitidas, dependendo do status atual.
       if (validationResult.data.status) {
         const targetStatus = validationResult.data.status.toUpperCase();
         if (currentStatus !== targetStatus) {
@@ -270,6 +298,7 @@ export class AppointmentController {
           }
         }
 
+        // paciente so pode cancelar, nao pode confirmar nem concluir.
         if (role === 'PACIENTE') {
           if (targetStatus !== 'CANCELLED') {
             res.status(403).json({ error: 'Pacientes só têm permissão para cancelar seus próprios agendamentos' });
@@ -278,6 +307,8 @@ export class AppointmentController {
         }
       }
 
+      // chamamos o service (/services/appointment-service.ts) pra aplicar
+      // o update de verdade, ja com as validacoes acima garantidas.
       const updated = await this.appointmentService.update(userId, role, id, validationResult.data);
       res.json(updated);
       return;
@@ -292,6 +323,9 @@ export class AppointmentController {
     }
   };
 
+  // atualiza so o status do agendamento. e um endpoint mais enxuto que o update,
+  // pensado pra acoes rapidas (confirmar, cancelar, concluir) e que tambem
+  // aceita a selecao de lotes quando o alvo e completed.
   updateStatus = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -312,6 +346,7 @@ export class AppointmentController {
         }
       }
 
+      // busca o agendamento pra saber o status atual e de quem ele e.
       const appointmentRecord = await prisma.appointment.findUnique({
         where: { id: id },
       });
@@ -321,6 +356,7 @@ export class AppointmentController {
         return;
       }
 
+      // paciente so pode agir no proprio agendamento.
       if (role === 'PACIENTE') {
         const patientRecord = await prisma.patient.findUnique({
           where: { userId: userId },
@@ -336,6 +372,7 @@ export class AppointmentController {
         }
       }
 
+      // validacao do schema especifico de update de status.
       const validationResult = appointmentUpdateStatusSchema.safeParse(req.body);
       if (!validationResult.success) {
         let errorMsg = 'Dados inválidos na requisição';
@@ -357,18 +394,17 @@ export class AppointmentController {
 
       const currentStatus = appointmentRecord.status;
       const targetStatus = validationResult.data.status.toUpperCase();
-      
-      // Allow completion of cancelled appointments (re-completion scenario)
-      // Only block transitions from CANCELLED to non-COMPLETED statuses
+
+      // agendamento cancelado so pode ir pra completed (re-conclusao).
+      // qualquer outro destino a partir daqui e bloqueado.
       if (currentStatus === 'CANCELLED') {
         if (targetStatus !== 'COMPLETED') {
           res.status(400).json({ error: 'Transição inválida: um agendamento cancelado só pode ser re-concluído' });
           return;
         }
       }
-      // Allow all transitions from COMPLETED (including re-completion as no-op)
-      // Removed: block if already completed
 
+      // validacao das transicoes permitidas conforme o status atual.
       if (currentStatus !== targetStatus) {
         if (currentStatus === 'PENDING') {
           let isValid = false;
@@ -406,8 +442,7 @@ export class AppointmentController {
               return;
             }
           } else {
-            // Allow any transition from CANCELLED to COMPLETED (handled above)
-            // Allow any other unexpected status to transition to COMPLETED
+            // qualquer outro status inesperado so pode ir pra completed.
             let isValid = false;
             if (targetStatus === 'COMPLETED') {
               isValid = true;
@@ -420,6 +455,7 @@ export class AppointmentController {
         }
       }
 
+      // paciente continua so podendo cancelar.
       if (role === 'PACIENTE') {
         if (targetStatus !== 'CANCELLED') {
           res.status(403).json({ error: 'Pacientes só têm permissão para cancelar seus próprios agendamentos' });
@@ -427,12 +463,16 @@ export class AppointmentController {
         }
       }
 
+      // se o corpo tambem trouxe selecao de lotes (schema de dispensa),
+      // extraimos aqui pra passar pro service junto com a mudanca de status.
       const dispenseParsed = appointmentDispenseSchema.safeParse(req.body);
       let batchSelections: Array<{ medicineId: number; batchId: number; quantity: number }> | undefined = undefined;
       if (dispenseParsed.success && dispenseParsed.data.batchSelections) {
         batchSelections = dispenseParsed.data.batchSelections;
       }
 
+      // chamamos o service (/services/appointment-service.ts) pra aplicar
+      // a transicao de status e, se for o caso, ja dar baixa nos lotes.
       const updated = await this.appointmentService.updateStatus(
         userId,
         role,
@@ -441,7 +481,7 @@ export class AppointmentController {
         validationResult.data.notes,
         batchSelections
       );
-      
+
       res.json(updated);
       return;
     } catch (err: any) {
@@ -456,6 +496,9 @@ export class AppointmentController {
     }
   };
 
+  // endpoint dedicado a dispensacao (entrega de medicamento).
+  // e um atalho que sempre leva o agendamento pra completed,
+  // validando o corpo e checando o papel de quem esta dispensando.
   dispense = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -469,17 +512,24 @@ export class AppointmentController {
         res.status(400).json({ error: 'ID de agendamento invalido' });
         return;
       }
+
+      // so admin, farmaceutico e aluno podem dispensar.
       const allowed = role === 'ADMIN' || role === 'FARMACEUTICO' || role === 'ALUNO';
       if (!allowed) {
         res.status(403).json({ error: 'Acesso negado para este perfil de usuario' });
         return;
       }
+
+      // valida o corpo com o schema de dispensa (batchSelections e notes).
       const parsed = appointmentDispenseSchema.safeParse(req.body ?? {});
       if (!parsed.success) {
         const first = parsed.error.issues[0];
         res.status(400).json({ error: first ? first.message : 'Dados invalidos na requisicao', details: parsed.error.issues });
         return;
       }
+
+      // reaproveitamos o updateStatus do service (/services/appointment-service.ts)
+      // forcando o alvo pra completed e passando as selecoes de lote.
       const result = await this.appointmentService.updateStatus(
         userId,
         role,
@@ -501,6 +551,8 @@ export class AppointmentController {
     }
   };
 
+  // estorna (desfaz) uma dispensacao ja feita, devolvendo os itens pro estoque.
+  // exige um motivo, validado pelo schema de estorno.
   revertDispense = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -514,12 +566,17 @@ export class AppointmentController {
         res.status(400).json({ error: 'ID de agendamento invalido' });
         return;
       }
+
+      // valida o corpo com o schema de estorno (reason).
       const parsed = appointmentRevertDispenseSchema.safeParse(req.body ?? {});
       if (!parsed.success) {
         const first = parsed.error.issues[0];
         res.status(400).json({ error: first ? first.message : 'Dados invalidos na requisicao', details: parsed.error.issues });
         return;
       }
+
+      // chama o service (/services/appointment-service.ts) pra reverter
+      // a dispensacao e devolver os lotes ao estoque.
       const result = await this.appointmentService.revertDispense(userId, role, id, parsed.data.reason);
       res.json(result);
       return;
@@ -534,6 +591,8 @@ export class AppointmentController {
     }
   };
 
+  // remove/cancela um agendamento. faz a checagem de dono pro paciente
+  // e delega a exclusao pro service, que aplica as regras restantes.
   delete = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -554,6 +613,7 @@ export class AppointmentController {
         }
       }
 
+      // confere se o agendamento existe antes de tentar apagar.
       const appointmentRecord = await prisma.appointment.findUnique({
         where: { id: id },
       });
@@ -563,6 +623,7 @@ export class AppointmentController {
         return;
       }
 
+      // paciente so pode apagar/cancelar o proprio agendamento.
       if (role === 'PACIENTE') {
         const patientRecord = await prisma.patient.findUnique({
           where: { userId: userId },
@@ -578,6 +639,7 @@ export class AppointmentController {
         }
       }
 
+      // chama o service (/services/appointment-service.ts) pra excluir/cancelar.
       const result = await this.appointmentService.delete(userId, role, id);
       res.json(result);
       return;

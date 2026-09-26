@@ -4,13 +4,22 @@ import { PatientService } from '../services/patient-service';
 import { prisma } from '../utils/prisma';
 import { patientCreateSchema, patientUpdateSchema } from '../middlewares/validation-middleware';
 
+// controller responsavel pelos endpoints de paciente.
+// concentra as regras de acesso (quem pode listar, ver, criar, editar
+// e excluir paciente) e delega a regra de negocio pro service.
+// paciente comum so enxerga a si mesmo, a equipe (admin, farmaceutico,
+// aluno e medico) enxerga a listagem inteira.
 export class PatientController {
   private patientService: PatientService;
 
   constructor() {
+    // instanciamos o service de paciente (/services/patient-service.ts),
+    // que cuida da persistencia e das regras de negocio.
     this.patientService = new PatientService();
   }
 
+  // lista pacientes. paciente comum recebe so o proprio registro,
+  // a equipe recebe a lista completa com filtro de busca opcional.
   getAll = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -20,6 +29,7 @@ export class PatientController {
       const userId = req.user.userId;
       const role = req.user.role;
 
+      // filtro de busca opcional por nome/cpf vindo da query string.
       let search = undefined;
       if (req.query.search) {
         search = req.query.search as string;
@@ -27,6 +37,8 @@ export class PatientController {
         search = undefined;
       }
 
+      // se for paciente, so devolvemos o cadastro dele mesmo.
+      // se por acaso nao existir mais (soft delete), devolve lista vazia.
       if (role === 'PACIENTE') {
         const patientRecord = await prisma.patient.findFirst({
           where: { userId: userId, deletedAt: null },
@@ -40,6 +52,7 @@ export class PatientController {
         }
       }
 
+      // checagem de quem e da equipe. so eles veem a listagem geral.
       let isStaff = false;
       if (role === 'ADMIN') {
         isStaff = true;
@@ -64,6 +77,7 @@ export class PatientController {
         return;
       }
 
+      // chamamos o service (/services/patient-service.ts) com os filtros.
       const patients = await this.patientService.getAll(role, userId, search);
       res.json(patients);
       return;
@@ -78,6 +92,8 @@ export class PatientController {
     }
   };
 
+  // busca um paciente pelo id. a autorizacao (paciente so ve o proprio,
+  // equipe ve todos) fica toda no service, que devolve 404 ou 403.
   getById = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -98,6 +114,8 @@ export class PatientController {
         }
       }
 
+      // chamamos o service (/services/patient-service.ts) passando
+      // o papel e o id do usuario pra ele aplicar a autorizacao.
       const patient = await this.patientService.getById(id, role, userId);
       res.json(patient);
       return;
@@ -112,6 +130,8 @@ export class PatientController {
     }
   };
 
+  // cadastra um novo paciente. so admin, farmaceutico e aluno podem.
+  // o cadastro tambem cria o usuario de acesso do paciente la no service.
   create = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -121,6 +141,7 @@ export class PatientController {
       const userId = req.user.userId;
       const role = req.user.role;
 
+      // so a equipe de cadastro pode criar paciente.
       let isAllowedRole = false;
       if (role === 'ADMIN') {
         isAllowedRole = true;
@@ -141,6 +162,7 @@ export class PatientController {
         return;
       }
 
+      // validacao do schema de criacao de paciente.
       const validationResult = patientCreateSchema.safeParse(req.body);
       if (!validationResult.success) {
         let errorMsg = 'Dados inválidos na requisição';
@@ -160,6 +182,8 @@ export class PatientController {
         return;
       }
 
+      // chamamos o service (/services/patient-service.ts) pra criar
+      // o paciente e o usuario de acesso dele.
       const patient = await this.patientService.create(userId, role, validationResult.data);
       res.status(201).json(patient);
       return;
@@ -174,6 +198,9 @@ export class PatientController {
     }
   };
 
+  // atualiza os dados de um paciente.
+  // equipe (admin, farmaceutico, aluno) pode editar qualquer um,
+  // e o proprio paciente pode editar o seu. os demais sao bloqueados.
   update = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -194,6 +221,7 @@ export class PatientController {
         }
       }
 
+      // confere se o paciente existe e nao foi deletado (soft delete).
       const patientRecord = await prisma.patient.findFirst({
         where: { id: id, deletedAt: null },
       });
@@ -203,6 +231,8 @@ export class PatientController {
         return;
       }
 
+      // regra de autorizacao: equipe edita qualquer um,
+      // paciente so edita o proprio cadastro.
       let canUpdate = false;
       if (role === 'ADMIN') {
         canUpdate = true;
@@ -231,6 +261,7 @@ export class PatientController {
         return;
       }
 
+      // validacao do schema de update de paciente.
       const validationResult = patientUpdateSchema.safeParse(req.body);
       if (!validationResult.success) {
         let errorMsg = 'Dados inválidos na requisição';
@@ -250,6 +281,7 @@ export class PatientController {
         return;
       }
 
+      // chamamos o service (/services/patient-service.ts) pra aplicar o update.
       const updated = await this.patientService.update(userId, role, id, validationResult.data);
       res.json(updated);
       return;
@@ -264,6 +296,9 @@ export class PatientController {
     }
   };
 
+  // exclui um paciente (soft delete via deletedAt, preservando historico
+  // de consultas e movimentacoes ligadas a ele).
+  // so admin e farmaceutico podem excluir.
   delete = async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       if (!req.user) {
@@ -284,6 +319,7 @@ export class PatientController {
         }
       }
 
+      // exclusao e mais restrita que o cadastro: so admin e farmaceutico.
       let isAllowedRole = false;
       if (role === 'ADMIN') {
         isAllowedRole = true;
@@ -300,6 +336,7 @@ export class PatientController {
         return;
       }
 
+      // confere se o paciente existe e esta ativo antes de excluir.
       const patientRecord = await prisma.patient.findFirst({
         where: { id: id, deletedAt: null },
       });
@@ -309,6 +346,8 @@ export class PatientController {
         return;
       }
 
+      // chamamos o service (/services/patient-service.ts) pra aplicar
+      // o soft delete e ajustar o usuario de acesso vinculado.
       const result = await this.patientService.delete(userId, role, id);
       res.json(result);
       return;

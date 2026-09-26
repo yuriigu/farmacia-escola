@@ -1,11 +1,20 @@
+// arquivo de schema do prisma. aqui definimos a estrutura do banco,
+// os models e seus relacionamentos. e a fonte da verdade para o client gerado.
+
+// bloco do generator. diz para o prisma gerar o client js
+// que sera usado pela aplicacao para falar com o banco.
 generator client {
   provider = "prisma-client-js"
 }
 
+// bloco do datasource. aponta para o banco sqlite local.
+// trocar aqui caso um dia migre para postgres ou outro banco.
 datasource db {
   provider = "sqlite"
 }
 
+// model de usuario do sistema. guarda quem acessa a aplicacao,
+// o papel (role) e as permissoes. e a base para login e autorizacao.
 model User {
   id          Int      @id @default(autoincrement())
   name        String
@@ -18,6 +27,9 @@ model User {
   permissions String?
   createdAt   DateTime @default(now())
 
+  // relacoes: um usuario pode ter varios descartes, um prontuario de paciente,
+  // varios logs de atividade, slots de agenda, movimentacoes de estoque
+  // e ser o responsavel por dispensar varias consultas.
   disposals      Disposal[]
   patient        Patient?
   activityLogs   ActivityLog[]
@@ -25,12 +37,15 @@ model User {
   movements      StockMovement[]
   dispensedAppointments Appointment[] @relation("DispensedAppointments")
 
+  // indices para acelerar buscas por papel, status ativo e nome.
   @@index([role])
   @@index([active])
   @@index([role, active])
   @@index([name])
 }
 
+// model de log de atividade. registra quem fez o que, em qual entidade
+// e quando. serve para auditoria e rastreio de acoes no sistema.
 model ActivityLog {
   id        Int      @id @default(autoincrement())
   userId    Int
@@ -40,8 +55,11 @@ model ActivityLog {
   details   String?
   createdAt DateTime @default(now())
 
+  // ponte com o model de usuario. se o usuario for deletado,
+  // os logs dele tambem vao embora em cascata.
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  // indices para filtrar logs por usuario, entidade e data.
   @@index([userId])
   @@index([entity])
   @@index([createdAt])
@@ -49,6 +67,8 @@ model ActivityLog {
   @@index([userId, createdAt])
 }
 
+// model de paciente. guarda os dados cadastrais e usa soft delete
+// via deletedAt, ou seja, nao apaga de verdade para manter historico.
 model Patient {
   id        Int       @id @default(autoincrement())
   name      String
@@ -60,15 +80,19 @@ model Patient {
   deletedAt DateTime?
   userId    Int?      @unique
 
+  // ponte com usuario (opcional) e lista de consultas do paciente.
   user         User?        @relation(fields: [userId], references: [id])
   appointments Appointment[]
 
+  // indices pensados para buscar por nome, cpf e ignorar deletados.
   @@index([deletedAt])
   @@index([name])
   @@index([deletedAt, name])
   @@index([cpf, deletedAt])
 }
 
+// model de medicamento. e o catalogo base, tambem com soft delete.
+// guarda dosagem, principio ativo e quantidade minima em estoque.
 model Medicine {
   id               Int       @id @default(autoincrement())
   name             String
@@ -82,9 +106,12 @@ model Medicine {
   createdAt        DateTime  @default(now())
   deletedAt        DateTime?
 
+  // relacoes: um medicamento tem varios lotes e pode aparecer
+  // em varios itens de consulta.
   batches          StockBatch[]
   appointmentItems AppointmentItem[]
 
+  // indices para busca por nome, categoria e ignorar deletados.
   @@index([deletedAt])
   @@index([name])
   @@index([deletedAt, name])
@@ -92,6 +119,8 @@ model Medicine {
   @@index([category, deletedAt])
 }
 
+// model de lote de estoque. cada lote tem numero proprio, validade
+// e quantidade atual. tambem permite bloquear um lote com motivo.
 model StockBatch {
   id                Int       @id @default(autoincrement())
   medicineId        Int
@@ -102,15 +131,21 @@ model StockBatch {
   supplier          String    @default("Não informado")
   isBlocked         Boolean   @default(false)
   blockReason       String?
+
+  // receivedAt marca quando o lote entrou no estoque.
   receivedAt        DateTime  @default(now())
 
+  // ponte com medicamento, descartes, movimentacoes e consultas.
   medicine          Medicine        @relation(fields: [medicineId], references: [id])
   disposals         Disposal[]
   movements         StockMovement[]
   appointmentItems  AppointmentItem[]
   appointments      Appointment[]
 
+  // nao pode existir dois lotes com o mesmo numero para o mesmo medicamento.
   @@unique([medicineId, batchNumber])
+
+  // indices para validade, bloqueio e cruzamentos com quantidade.
   @@index([medicineId])
   @@index([expirationDate])
   @@index([isBlocked])
@@ -118,6 +153,8 @@ model StockBatch {
   @@index([expirationDate, currentQuantity])
 }
 
+// model de descarte de lote. registra quando e porque um lote foi descartado,
+// alem de permitir reverter o descarte mantendo o motivo da reversao.
 model Disposal {
   id              Int      @id @default(autoincrement())
   batchId         Int
@@ -130,9 +167,11 @@ model Disposal {
   revertReason    String?
   reverted        Boolean  @default(false)
 
+  // ponte com o lote descartado e com o usuario que fez o descarte.
   batch StockBatch @relation(fields: [batchId], references: [id])
   user  User       @relation(fields: [userId], references: [id])
 
+  // indices para filtrar por lote, usuario, status e data.
   @@index([batchId])
   @@index([userId])
   @@index([status])
@@ -140,6 +179,8 @@ model Disposal {
   @@index([batchId, status])
 }
 
+// model de movimentacao de estoque. funciona como um extrato do lote,
+// registrando entradas, saidas e ajustes com um tipo descritivo.
 model StockMovement {
   id        Int      @id @default(autoincrement())
   batchId   Int
@@ -149,9 +190,12 @@ model StockMovement {
   createdAt DateTime @default(now())
   userId    Int?
 
+  // ponte com o lote. se o lote sumir, as movimentacoes dele tambem.
+  // o usuario e opcional, para movimentacoes automaticas do sistema.
   batch StockBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   user  User?      @relation(fields: [userId], references: [id])
 
+  // indices para extrato por lote e por tipo, ordenado por data.
   @@index([batchId])
   @@index([type])
   @@index([createdAt])
@@ -159,6 +203,8 @@ model StockMovement {
   @@index([batchId, type])
 }
 
+// model de slot de agenda. representa uma janela de atendimento
+// com data, horario, capacidade maxima e responsavel opcional.
 model ScheduleSlot {
   id           Int      @id @default(autoincrement())
   date         DateTime
@@ -168,16 +214,22 @@ model ScheduleSlot {
   assignedToId Int?
   createdAt    DateTime @default(now())
 
+  // ponte com o usuario responsavel pelo slot e com as consultas marcadas.
   assignedTo  User?         @relation(fields: [assignedToId], references: [id])
   appointments Appointment[]
 
+  // nao pode existir dois slots com a mesma data e horario.
   @@unique([date, timeSlot])
+
+  // indices para buscar slots ativos em uma data e por responsavel.
   @@index([date])
   @@index([active])
   @@index([active, date])
   @@index([assignedToId])
 }
 
+// model de consulta. guarda o agendamento, o status e o momento
+// em que a consulta foi dispensada (entrega de medicamento).
 model Appointment {
   id                Int       @id @default(autoincrement())
   patientId         Int
@@ -192,12 +244,15 @@ model Appointment {
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 
+  // pontes com paciente, slot de agenda, lote, usuario que dispensou
+  // e os itens de medicamento da consulta.
   patient         Patient           @relation(fields: [patientId], references: [id])
   slot            ScheduleSlot?     @relation(fields: [slotId], references: [id])
   batch           StockBatch?       @relation(fields: [batchId], references: [id])
   dispensedByUser User?             @relation("DispensedAppointments", fields: [dispensedByUserId], references: [id])
   items           AppointmentItem[]
 
+  // indices para relatorios por data, status, paciente e slot.
   @@index([scheduledDate, status])
   @@index([patientId])
   @@index([status])
@@ -207,6 +262,8 @@ model Appointment {
   @@index([createdAt])
 }
 
+// model de item de consulta. liga uma consulta a um medicamento
+// com a quantidade solicitada e, se ja separado, o lote escolhido.
 model AppointmentItem {
   id             Int         @id @default(autoincrement())
   appointmentId  Int
@@ -214,10 +271,12 @@ model AppointmentItem {
   quantity       Int
   batchId        Int?
 
+  // pontes com a consulta, o medicamento e o lote reservado.
   appointment Appointment @relation(fields: [appointmentId], references: [id])
   medicine    Medicine    @relation(fields: [medicineId], references: [id])
   batch       StockBatch? @relation(fields: [batchId], references: [id])
 
+  // indices para buscar itens por consulta, medicamento e lote.
   @@index([appointmentId])
   @@index([medicineId])
   @@index([batchId])

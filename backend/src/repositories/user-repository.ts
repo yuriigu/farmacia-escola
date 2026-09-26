@@ -1,7 +1,13 @@
 import { prisma } from '../utils/prisma';
 import { Role } from '../types/enums';
 
+// repositorio de usuario. e a camada que fala direto com o prisma
+// pra ler e gravar usuarios (e, quando faz sentido, o paciente vinculado).
+// o service usa essa classe pra nao conhecer detalhes do banco.
 export class UserRepository {
+  // busca usuario pelo email, que e unico. e o que o login usa.
+  // traz o paciente junto porque o auth precisa saber se o usuario
+  // tem cadastro de paciente associado.
   async findByEmail(email: string) {
     return prisma.user.findUnique({
       where: { email },
@@ -9,6 +15,7 @@ export class UserRepository {
     });
   }
 
+  // busca usuario por id, tambem com o paciente vinculado quando houver.
   async findById(id: number) {
     return prisma.user.findUnique({
       where: { id },
@@ -16,6 +23,9 @@ export class UserRepository {
     });
   }
 
+  // lista usuarios do sistema. a projection evita trazer senha
+  // e mantem a resposta mais enxuta. do paciente, so os campos
+  // usados pela tela de gestao de usuarios.
   async findAll() {
     return prisma.user.findMany({
       select: {
@@ -42,6 +52,9 @@ export class UserRepository {
     });
   }
 
+  // cria um usuario e, se fizer sentido pelo perfil ou pelos dados
+  // que vieram, cria tambem o paciente vinculado. tudo numa transacao
+  // pra nao ficar usuario orfao se a segunda parte falhar.
   async create(data: {
     name: string;
     email: string;
@@ -66,6 +79,8 @@ export class UserRepository {
         },
       });
 
+      // decide se cria o paciente. a regra e: se veio birthDate,
+      // address, ou se o papel e PACIENTE, entao cria.
       let patient = null;
       let shouldCreatePatient = false;
       if (data.birthDate) {
@@ -83,6 +98,7 @@ export class UserRepository {
       }
 
       if (shouldCreatePatient) {
+        // pega so os digitos do registerDoc pra tentar usar como cpf.
         let cpfValue = '';
         if (data.registerDoc) {
           cpfValue = data.registerDoc.replace(/\D/g, '');
@@ -90,6 +106,8 @@ export class UserRepository {
           cpfValue = '';
         }
 
+        // se for um cpf valido (11 digitos), usa. senao, gera um
+        // pseudo-cpf unico pra nao quebrar o unique do banco.
         let validCpf = '';
         if (cpfValue.length === 11) {
           validCpf = cpfValue;
@@ -97,6 +115,7 @@ export class UserRepository {
           validCpf = `CPF${user.id}${Date.now().toString().slice(-6)}`;
         }
 
+        // normaliza birthDate pra Date, aceitando string ou Date.
         let patientBirthDate = null;
         if (data.birthDate) {
           patientBirthDate = new Date(data.birthDate);
@@ -116,6 +135,7 @@ export class UserRepository {
         });
       }
 
+      // devolve um shape enxuto, sem a senha.
       return {
         id: user.id,
         name: user.name,
@@ -139,6 +159,10 @@ export class UserRepository {
     });
   }
 
+  // atualiza usuario e, quando faz sentido, sincroniza o paciente vinculado.
+  // o padrao de checar `campo !== undefined` e proposital: distingue
+  // "nao veio no payload" de "veio com valor null/undefined explicito",
+  // permitindo update parcial sem zerar campos nao informados.
   async update(
     id: number,
     data: {
@@ -155,6 +179,7 @@ export class UserRepository {
     }
   ) {
     return prisma.$transaction(async (tx) => {
+      // monta o update do usuario so com os campos que vieram.
       const userUpdateData: any = {};
       if (data.name !== undefined) userUpdateData.name = data.name;
       if (data.email !== undefined) userUpdateData.email = data.email;
@@ -173,6 +198,9 @@ export class UserRepository {
 
       let patient = user.patient;
 
+      // decide se precisa mexer no paciente. qualquer campo que tambem
+      // vive no cadastro do paciente (nome, phone, address, birthDate,
+      // registerDoc) dispara a sincronizacao.
       let hasPatientData = false;
       if (data.birthDate !== undefined) {
         hasPatientData = true;
@@ -197,12 +225,14 @@ export class UserRepository {
       }
 
       if (hasPatientData) {
+        // se o paciente ja existe, atualiza so os campos que vieram.
         if (patient) {
           const patientUpdateData: any = {};
           if (data.name !== undefined) patientUpdateData.name = data.name;
           if (data.phone !== undefined) patientUpdateData.phone = data.phone;
           if (data.address !== undefined) patientUpdateData.address = data.address;
           if (data.birthDate !== undefined) {
+            // normaliza pra Date ou null, evitando Invalid Date.
             let updateBirthDate = null;
             if (data.birthDate) {
               updateBirthDate = new Date(data.birthDate);
@@ -212,6 +242,7 @@ export class UserRepository {
             patientUpdateData.birthDate = updateBirthDate;
           }
           if (data.registerDoc !== undefined) {
+            // so atualiza cpf se o registerDoc virar um cpf valido.
             if (data.registerDoc) {
               const cleanCpf = data.registerDoc.replace(/\D/g, '');
               if (cleanCpf.length === 11) {
@@ -224,6 +255,8 @@ export class UserRepository {
             data: patientUpdateData,
           });
         } else {
+          // se nao existe paciente ainda, criamos agora caso os dados
+          // justifiquem (tem birthDate, address ou o papel virou PACIENTE).
           let shouldCreatePatientOnUpdate = false;
           if (data.birthDate) {
             shouldCreatePatientOnUpdate = true;
@@ -240,6 +273,8 @@ export class UserRepository {
           }
 
           if (shouldCreatePatientOnUpdate) {
+            // mesma logica do create: usa cpf do registerDoc se for valido,
+            // senao gera um pseudo-cpf unico.
             let cpfValue = '';
             if (data.registerDoc) {
               cpfValue = data.registerDoc.replace(/\D/g, '');
@@ -254,6 +289,7 @@ export class UserRepository {
               validCpf = `CPF${user.id}${Date.now().toString().slice(-6)}`;
             }
 
+            // normaliza birthDate pra Date ou null.
             let updateBirthDate = null;
             if (data.birthDate) {
               updateBirthDate = new Date(data.birthDate);
@@ -275,6 +311,7 @@ export class UserRepository {
         }
       }
 
+      // devolve o mesmo shape do create, sem senha.
       return {
         id: user.id,
         name: user.name,
@@ -298,6 +335,9 @@ export class UserRepository {
     });
   }
 
+  // exclusao de usuario. aqui e hard delete mesmo (apaga a linha).
+  // o service e quem decide se deve chamar isso ou so desativar,
+  // dependendo do contexto de negocio.
   async delete(id: number) {
     return prisma.user.delete({ where: { id } });
   }

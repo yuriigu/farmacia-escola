@@ -1,14 +1,21 @@
 import { prisma } from '../utils/prisma';
 
+// repositorio de paciente. e a camada que fala direto com o prisma
+// pra ler e gravar pacientes. o service usa essa classe pra nao
+// conhecer detalhes de banco.
 export class PatientRepository {
-  // OTIMIZADO: paginação opcional + limite padrão de segurança. A listagem de
-  // pacientes alimenta autocomplete de CPF (dispara a cada 3 dígitos); sem
-  // limite o backend varria a tabela inteira a cada keystroke.
+  // lista pacientes, com busca opcional por nome ou cpf e paginacao
+  // opcional. o limite padrao de 100 e importante porque essa listagem
+  // alimenta o autocomplete de cpf, que dispara a cada 3 digitos.
+  // sem o limite, o banco varreria a tabela inteira a cada tecla digitada.
   async findAll(search?: string, pagination?: { take?: number; skip?: number }) {
+    // filtro base: nunca trazer paciente deletado (soft delete).
     let where: any = {
       deletedAt: null,
     };
 
+    // se veio termo de busca, ampliamos o filtro pra nome ou cpf
+    // usando contains. o cpf aceita tanto puro quanto formatado.
     if (search) {
       where = {
         deletedAt: null,
@@ -28,14 +35,17 @@ export class PatientRepository {
       },
       orderBy: { name: 'asc' },
       take: pagination?.take ?? 100,
+      // skip so entra na query se foi passado, mantendo o default limpo.
       ...(pagination?.skip ? { skip: pagination.skip } : {}),
     });
   }
 
+  // busca um paciente por id, ja trazendo o historico de consultas dele.
+  // o limite de 50 e a ordenacao sao aplicados no banco pra nao carregar
+  // historico inteiro de quem tem centenas de consultas. as projections
+  // sao enxutas de proposito: em vez de trazer medicine/batch/slot
+  // completos, escolhemos so os campos usados pela tela.
   async findById(id: number) {
-    // OTIMIZADO: limite + ordenação aplicados no banco para o histórico do
-    // paciente + projections enxutas (antes trazia `medicine: true`,
-    // `batch: true`, `slot: true` completos sem limite).
     return prisma.patient.findFirst({
       where: {
         id: id,
@@ -62,18 +72,24 @@ export class PatientRepository {
     });
   }
 
+  // busca paciente por cpf. e o metodo mais chatinho do repositorio,
+  // porque o banco guarda cpf em formatos variados (limpo e formatado),
+  // entao a gente tenta em camadas, do mais eficiente pro mais caro:
+  // 1) igualdade exata (cpf e @unique, entao usa indice)
+  // 2) contains (like) so se a igualdade falhar
+  // 3) fallback em sql unico, normalizando o cpf no proprio banco
+  // assim evitamos carregar linhas pra memoria e mantemos custo baixo.
   async findByCpf(cpf: string) {
-    // Normaliza o CPF removendo formatação para busca consistente.
-    // O banco legado/seed guarda CPF formatado (ex: 123.456.789-00),
-    // então é preciso buscar tanto pela versão limpa quanto pela formatada.
-    // OTIMIZADO: tenta igualdades exatas indexadas (cpf é @unique) antes de
-    // qualquer LIKE; o fallback normalizado usa $queryRaw com REPLACE() em
-    // UMA única query em vez de carregar até 200 linhas para a memória.
+    // normaliza removendo formatacao e monta a versao formatada
+    // (123.456.789-00) pra cobrir os dois formatos usados no banco.
     const cleanCpf = cpf.replace(/\D/g, '');
     const formattedCpf = cleanCpf.length === 11
       ? `${cleanCpf.slice(0, 3)}.${cleanCpf.slice(3, 6)}.${cleanCpf.slice(6, 9)}-${cleanCpf.slice(9)}`
       : cpf;
     const prismaAny = prisma as any;
+
+    // tentativa 1: igualdade exata. como cpf e @unique, isso usa indice
+    // e e o caminho mais rapido. cobre tanto o formato limpo quanto o formatado.
     const exactHit = await prismaAny.patient.findFirst({
       where: {
         OR: [{ cpf: cleanCpf }, { cpf: formattedCpf }],
@@ -83,9 +99,9 @@ export class PatientRepository {
     if (exactHit) {
       return exactHit;
     }
-    // LIKE apenas quando a igualdade exata falha (mantém compatibilidade
-    // com variações parciais). `contains` não usa índice, mas roda só no
-    // caminho excepcional.
+
+    // tentativa 2: contains. so roda aqui, no caminho excepcional,
+    // porque contains nao usa indice. serve pra casar variacoes parciais.
     try {
       const likeHit = await prismaAny.patient.findFirst({
         where: {
@@ -97,11 +113,13 @@ export class PatientRepository {
         return likeHit;
       }
     } catch {
-      // Em SQLite/LibSQL o filtro `contains` com OR sobre a mesma coluna
-      // pode quebrar a tradução do Prisma; cai para o fallback SQL abaixo.
+      // em sqlite/libsql o contains com OR sobre a mesma coluna
+      // as vezes quebra a traducao do prisma. nesse caso, caimos
+      // pro fallback em sql logo abaixo.
     }
-    // Fallback final em SQL único com normalização no banco (sem trazer
-    // linhas para memória). Limit 1 + índice em cpf mantém custo O(log n).
+
+    // tentativa 3: fallback em sql unico, normalizando o cpf no banco
+    // e trazendo so o id (limit 1). evita carregar linhas pra memoria.
     try {
       const rows: Array<{ id: number }> = await prismaAny.$queryRawUnsafe(
         'SELECT id FROM "Patient" WHERE deletedAt IS NULL AND REPLACE(REPLACE(REPLACE(cpf, \'.\', \'\'), \'-\', \'\'), \' \', \'\') = ? LIMIT 1',
@@ -116,6 +134,9 @@ export class PatientRepository {
     return null;
   }
 
+  // busca o cadastro de paciente associado a um usuario do sistema.
+  // usado quando o usuario logado e paciente e a gente precisa do id
+  // do cadastro dele pra amarrar consultas.
   async findByUserId(userId: number) {
     return prisma.patient.findFirst({
       where: {
@@ -130,6 +151,8 @@ export class PatientRepository {
     });
   }
 
+  // cria um novo paciente. userId e opcional porque, no cadastro publico,
+  // o usuario e criado junto e o id pode ser atribuido depois.
   async create(data: {
     name: string;
     cpf: string;
@@ -143,6 +166,7 @@ export class PatientRepository {
     });
   }
 
+  // atualiza os dados cadastrais do paciente.
   async update(
     id: number,
     data: {
@@ -159,6 +183,9 @@ export class PatientRepository {
     });
   }
 
+  // exclusao logica (soft delete): em vez de apagar a linha, marca
+  // deletedAt com a data atual. assim preservamos historico de
+  // consultas e movimentacoes ligadas ao paciente.
   async delete(id: number) {
     return prisma.patient.update({
       where: { id: id },

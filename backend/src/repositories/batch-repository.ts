@@ -1,8 +1,12 @@
 import { prisma } from '../utils/prisma';
 
+// repositorio de lote de estoque. e a camada que fala direto com o prisma
+// pra ler e gravar lotes. o service usa essa classe pra nao conhecer
+// detalhes de banco.
 export class BatchRepository {
-  // Projeção enxuta de medicine usada nas listagens (evita `medicine: true`
-  // completo em todas as linhas de estoque).
+  // projection enxuta do medicamento usada nas listagens.
+  // evita trazer o registro inteiro de medicine em cada linha de estoque,
+  // o que pesaria bastante quando o lote e incluido em varias consultas.
   private readonly medicineSelect = {
     id: true,
     name: true,
@@ -11,7 +15,12 @@ export class BatchRepository {
     category: true,
   } as const;
 
+  // lista lotes. filtra por medicamento quando o id e passado e
+  // sempre ignora lotes de medicamentos deletados (soft delete).
+  // aceita paginacao opcional com take/skip; sem take, o padrao e 200.
   async findAll(medicineId?: number, pagination?: { take?: number; skip?: number }) {
+    // filtro base: nunca trazer lote de medicamento deletado.
+    // se veio medicineId, apertamos pra esse medicamento.
     let where: any = {
       medicine: {
         deletedAt: null,
@@ -30,10 +39,14 @@ export class BatchRepository {
       include: { medicine: { select: this.medicineSelect } },
       orderBy: { expirationDate: 'asc' },
       take: pagination?.take ?? 200,
+      // skip so entra na query se foi passado, mantendo o default limpo.
       ...(pagination?.skip ? { skip: pagination.skip } : {}),
     });
   }
 
+  // busca um lote por id. usa findFirst porque junto com o id
+  // vai a condicao de medicamento nao deletado, ou seja, filtra em mais
+  // de um criterio (id sozinho nao bastaria com findUnique).
   async findById(id: number) {
     return prisma.stockBatch.findFirst({
       where: {
@@ -46,6 +59,9 @@ export class BatchRepository {
     });
   }
 
+  // busca um lote pelo par (medicamento, numero do lote), que e
+  // a chave unica la no schema. serve pra checar duplicidade antes
+  // de tentar criar.
   async findByMedicineAndBatchNumber(medicineId: number, batchNumber: string) {
     return prisma.stockBatch.findFirst({
       where: {
@@ -55,6 +71,7 @@ export class BatchRepository {
     });
   }
 
+  // cria um novo lote no banco.
   async create(data: {
     medicineId: number;
     batchNumber: string;
@@ -71,6 +88,9 @@ export class BatchRepository {
     });
   }
 
+  // ajusta a quantidade do lote de forma relativa (delta pode ser
+  // positivo ou negativo). e o que as entradas e saidas de estoque
+  // usam pra nao sobrescrever o saldo atual.
   async updateQuantity(id: number, delta: number) {
     return prisma.stockBatch.update({
       where: { id },
@@ -78,6 +98,8 @@ export class BatchRepository {
     });
   }
 
+  // define a quantidade absoluta do lote. usado no ajuste auditado,
+  // onde o operador informa o saldo final corrigido.
   async setQuantity(id: number, newQuantity: number) {
     return prisma.stockBatch.update({
       where: { id },
@@ -86,6 +108,9 @@ export class BatchRepository {
     });
   }
 
+  // altera o estado de bloqueio sanitario do lote.
+  // a regra e: se esta bloqueando e veio um motivo, guarda o motivo;
+  // se esta bloqueando sem motivo ou desbloqueando, limpa o campo.
   async setBlockStatus(id: number, isBlocked: boolean, blockReason?: string | null) {
     let reasonValue: string | null = null;
     if (isBlocked) {
@@ -108,6 +133,9 @@ export class BatchRepository {
     });
   }
 
+  // atualiza os dados cadastrais do lote (numero, validade, fornecedor, etc).
+  // de proposito nao mexe em quantidade, porque saldo so muda pelos
+  // metodos updateQuantity / setQuantity.
   async update(
     id: number,
     data: {
@@ -124,6 +152,9 @@ export class BatchRepository {
     });
   }
 
+  // apaga o lote de vez. quem chama e responsavel por garantir que
+  // nao ha movimentacoes ou descartes amarrados a ele, ou por tratar
+  // o erro de constraint caso haja.
   async delete(id: number) {
     return prisma.stockBatch.delete({ where: { id } });
   }

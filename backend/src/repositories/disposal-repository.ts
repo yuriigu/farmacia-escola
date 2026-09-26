@@ -1,6 +1,13 @@
 import { prisma } from '../utils/prisma';
 
+// repositorio de descarte. e a camada que fala direto com o prisma
+// pra ler e gravar descartes de lote. o service usa essa classe pra
+// nao precisar conhecer detalhes de banco nem de transacao.
 export class DisposalRepository {
+  // lista todos os descartes, do mais recente pro mais antigo.
+  // depois da consulta, a gente normaliza a resposta pra que o front
+  // nao precise saber dos nomes internos do banco: expoe `createdAt`
+  // (que no banco e `date`) e apelida campos do lote (code, expiresAt).
   async findAll() {
     const disposals = await prisma.disposal.findMany({
       include: {
@@ -24,6 +31,9 @@ export class DisposalRepository {
     }));
   }
 
+  // busca um descarte pelo id. faz a mesma normalizacao do findAll
+  // (createdAt, code, expiresAt). se nao achar, devolve null e quem
+  // chamou decide se vira 404 ou outra coisa.
   async findById(id: number) {
     const disposal = await prisma.disposal.findUnique({
       where: { id },
@@ -50,6 +60,13 @@ export class DisposalRepository {
     };
   }
 
+  // registra um novo descarte. e um fluxo sensivel porque mexe no saldo
+  // do lote, entao roda tudo dentro de uma transacao:
+  // - confere que o lote existe e tem saldo suficiente
+  // - debita do lote com updateMany condicional (protege contra corrida)
+  // - cria o registro de descarte
+  // - grava a movimentacao de estoque com a quantidade negativa
+  // assim, ou tudo acontece, ou nada acontece.
   async create(data: {
     batchId: number;
     userId: number;
@@ -66,10 +83,14 @@ export class DisposalRepository {
         throw { statusCode: 404, message: 'Lote não encontrado' };
       }
 
+      // checagem rapida antes de tentar debitar. o updateMany abaixo
+      // tambem valida, pra cobrir concorrencia.
       if (batch.currentQuantity < data.quantity) {
         throw { statusCode: 400, message: 'Quantidade de descarte maior que o saldo em estoque' };
       }
 
+      // debito condicional: so decrementa se o saldo ainda for suficiente.
+      // evita que duas requisicoes simultaneas estourem o estoque.
       const updateResult = await tx.stockBatch.updateMany({
         where: {
           id: data.batchId,
@@ -88,6 +109,7 @@ export class DisposalRepository {
         throw { statusCode: 400, message: 'Quantidade de descarte maior que o saldo em estoque devido à concorrência' };
       }
 
+      // cria o registro principal do descarte, ja com status DISPOSED.
       const disposal = await tx.disposal.create({
         data: {
           batchId: data.batchId,
@@ -107,6 +129,8 @@ export class DisposalRepository {
         },
       });
 
+      // grava o movimento de estoque. usamos quantidade negativa
+      // pra indicar saida, e a nota amarra esse movimento ao id do descarte.
       await tx.stockMovement.create({
         data: {
           batchId: data.batchId,
@@ -121,16 +145,23 @@ export class DisposalRepository {
     });
   }
 
+  // reverte um descarte: devolve a quantidade ao lote original,
+  // marca o descarte como REVERTED e grava o rastro (movimentacao
+  // de estoque e log de atividade).
+  // tudo numa transacao pra nao ficar estado pela metade.
   async revert(id: number, userId: number, revertReason: string) {
     return prisma.$transaction(async (tx) => {
       const disposal = await tx.disposal.findUnique({ where: { id } });
       if (!disposal) {
         throw { statusCode: 404, message: 'Descarte não encontrado' };
       }
+      // trava basica: nao deixa reverter duas vezes o mesmo descarte.
       if (disposal.status === 'REVERTED') {
         throw { statusCode: 400, message: 'O descarte já foi revertido' };
       }
 
+      // updateMany condicional: so marca REVERTED se ainda estiver DISPOSED.
+      // protege contra duas reversoes simultaneas.
       const updateDisposalResult = await tx.disposal.updateMany({
         where: {
           id: id,
@@ -158,11 +189,13 @@ export class DisposalRepository {
         },
       });
 
+      // devolve a quantidade ao lote original.
       await tx.stockBatch.update({
         where: { id: disposal.batchId },
         data: { currentQuantity: { increment: disposal.quantity } },
       });
 
+      // registra o movimento de entrada referente a reversao.
       await tx.stockMovement.create({
         data: {
           batchId: disposal.batchId,
@@ -173,6 +206,8 @@ export class DisposalRepository {
         },
       });
 
+      // log de auditoria. aqui fica a trilha de quem reverteu e por que,
+      // alem dos dados que ficam no proprio descarte.
       await tx.activityLog.create({
         data: {
           userId,
@@ -186,6 +221,7 @@ export class DisposalRepository {
       if (!updated) {
         throw { statusCode: 404, message: 'Descarte não encontrado' };
       }
+      // mesma normalizacao dos outros metodos de leitura.
       return {
         ...updated,
         createdAt: updated.date,
@@ -198,6 +234,8 @@ export class DisposalRepository {
     });
   }
 
+  // atualiza campos simples do descarte (motivo e/ou observacoes).
+  // nao mexe em quantidade nem status, pra nao baguncar o estoque.
   async update(id: number, data: { reason?: string; notes?: string }) {
     return prisma.disposal.update({
       where: { id },
@@ -213,6 +251,10 @@ export class DisposalRepository {
     });
   }
 
+  // apaga um descarte. se ele ainda estava ativo (DISPOSED), a exclusao
+  // precisa devolver a quantidade ao lote e registrar o movimento de
+  // reversao, pra nao deixar o estoque furado. tudo numa transacao.
+  // se ja estava REVERTED, so apaga o registro.
   async delete(id: number) {
     return prisma.$transaction(async (tx) => {
       const disposal = await tx.disposal.findUnique({ where: { id } });
@@ -221,11 +263,14 @@ export class DisposalRepository {
       }
 
       if (disposal.status === 'DISPOSED') {
+        // devolve o saldo ao lote original.
         await tx.stockBatch.update({
           where: { id: disposal.batchId },
           data: { currentQuantity: { increment: disposal.quantity } },
         });
 
+        // registra o movimento de reversao. userId fica null porque
+        // a exclusao pode nao ter um usuario associado direto (ex: rotina).
         await tx.stockMovement.create({
           data: {
             batchId: disposal.batchId,

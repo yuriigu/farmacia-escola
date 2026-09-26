@@ -1,3 +1,8 @@
+// fixture de medicamento usada nos testes. representa um medicamento
+// comum do catalogo (analgesico), sem flag de controlado, com estoque
+// confortavel. os valores sao fixos de proposito pra deixar os testes
+// deterministicos e faceis de comparar.
+
 export const mockMedicine = {
   id: 1,
   name: 'Paracetamol',
@@ -12,6 +17,9 @@ export const mockMedicine = {
   updatedAt: new Date('2025-01-01T00:00:00.000Z'),
 };
 
+// variacao de medicamento controlado. existe pra cobrir os fluxos
+// que tratam receita/restricao diferente do medicamento comum, e pra
+// ter um segundo item na lista (util em testes de filtro e paginacao).
 export const mockControlledMedicine = {
   id: 2,
   name: 'Clonazepam',
@@ -26,4 +34,6 @@ export const mockControlledMedicine = {
   updatedAt: new Date('2025-01-01T00:00:00.000Z'),
 };
 
+// lista com as duas variacoes, pra testes que consomem array
+// (listagens, filtros, paginacao).
 export const mockMedicinesList = [mockMedicine, mockControlledMedicine];

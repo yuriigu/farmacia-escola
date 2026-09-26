@@ -1,5 +1,11 @@
 import { mockMedicine } from './medicines-fixture';
 
+// fixture de lote de estoque usada nos testes. representa um lote
+// tipico ja com o medicamento vinculado, e traz tanto os campos
+// atuais do model (batchnumber, supplier, isblocked) quanto alguns
+// aliases legados (code, manufacturer) que aparecem em consumidores
+// antigos. a ideia e cobrir os dois formatos sem precisar de duas fixtures.
+// valores fixos pra deixar os testes deterministicos.
 export const mockBatch = {
   id: 1,
   medicineId: 1,
@@ -19,4 +25,6 @@ export const mockBatch = {
   medicine: mockMedicine,
 };
 
+// versao em lista do lote, util pra testar endpoints que devolvem
+// array (listagens, filtros, paginacao).
 export const mockBatchesList = [mockBatch];

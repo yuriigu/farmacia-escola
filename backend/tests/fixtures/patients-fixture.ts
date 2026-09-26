@@ -1,3 +1,7 @@
+// fixture de paciente usada nos testes. representa um paciente tipico
+// ja vinculado a um usuario do sistema (userid preenchido), que e o
+// caso do paciente que faz login pra ver o proprio prontuario.
+// valores fixos pra deixar os testes deterministicos.
 export const mockPatient = {
   id: 1,
   name: 'Maria Silva Santos',
@@ -10,6 +14,10 @@ export const mockPatient = {
   updatedAt: new Date('2025-01-01T00:00:00.000Z'),
 };
 
+// lista com dois pacientes. o segundo tem userid null de proposito,
+// pra cobrir o caso do paciente cadastrado pela equipe mas que ainda
+// nao tem usuario de acesso (sem login). util em testes de listagem
+// e de filtro por dono.
 export const mockPatientsList = [
   mockPatient,
   {

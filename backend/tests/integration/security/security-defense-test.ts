@@ -18,6 +18,18 @@ import {
   userUpdateSchema,
 } from '../../../src/middlewares/validation-middleware';
 
+// suite de testes de seguranca e defesa em profundidade.
+// a ideia e cobrir as camadas de protecao do sistema de ponta a ponta:
+// - anti-enumeracao de usuario e de email/cpf ja cadastrados
+// - sanitizacao de entrada via zod
+// - validacao de jwt (assinatura adulterada, algoritmo none)
+// - rbac (paciente nao acessa areas restritas)
+// - cabecalhos http de hardening
+// - mascaramento de detalhes internos em erros 5xx
+// - rate limit nos endpoints de autenticacao
+// - validacoes estritas que rodam antes de bater no banco
+// o mock do prisma fica no minimo, porque aqui a gente quer testar
+// comportamento observavel, nao a implementacao interna.
 vi.mock('../../../src/utils/prisma', () => ({
   prisma: {
     user: {
@@ -31,6 +43,8 @@ describe('Security and Defense in Depth Tests', () => {
   let app: express.Express;
 
   beforeEach(() => {
+    // limpa contadores e monta um app express minimo com as rotas que
+    // a maioria dos testes usa: auth e disposals.
     vi.clearAllMocks();
 
     app = express();
@@ -40,6 +54,9 @@ describe('Security and Defense in Depth Tests', () => {
   });
 
   describe('Autenticação e Anti-Enumeração', () => {
+    // verifica que o login devolve a mesma mensagem e o mesmo status
+    // tanto pra usuario inexistente quanto pra senha errada. isso evita
+    // que um atacante descubra quem tem conta so observando a resposta.
     it('deve retornar exatamente a mesma mensagem de erro para usuário inexistente e senha incorreta', async () => {
       const authService = new AuthService();
       const mockUserRepo = {
@@ -47,6 +64,7 @@ describe('Security and Defense in Depth Tests', () => {
       };
       (authService as any).userRepo = mockUserRepo;
 
+      // cenario 1: usuario nao existe.
       let nonExistentError: any = null;
       try {
         await authService.login('naoexiste@farmacia.ufba.br', 'senha123');
@@ -54,6 +72,8 @@ describe('Security and Defense in Depth Tests', () => {
         nonExistentError = err;
       }
 
+      // cenario 2: usuario existe, mas a senha esta errada. usamos um
+      // hash bcrypt valido pra o compare rodar de verdade e falhar.
       const mockExistingUser = {
         id: 1,
         email: 'existe@farmacia.ufba.br',
@@ -69,6 +89,7 @@ describe('Security and Defense in Depth Tests', () => {
         wrongPasswordError = err;
       }
 
+      // os dois cenarios precisam ser identicos: 401 e mesma mensagem.
       expect(nonExistentError.statusCode).toBe(401);
       expect(wrongPasswordError.statusCode).toBe(401);
       expect(nonExistentError.message).toBe('Credenciais inválidas');
@@ -76,6 +97,9 @@ describe('Security and Defense in Depth Tests', () => {
       expect(nonExistentError.message).toBe(wrongPasswordError.message);
     });
 
+    // mesma ideia do teste anterior, mas no cadastro publico: tanto
+    // email quanto cpf ja usados devem devolver a mesma mensagem, pra
+    // nao revelar qual dos dois bateu.
     it('deve retornar mensagem padronizada no cadastro sem revelar se email ou cpf já existem', async () => {
       const authService = new AuthService();
       const mockUserRepo = {
@@ -87,6 +111,7 @@ describe('Security and Defense in Depth Tests', () => {
       (authService as any).userRepo = mockUserRepo;
       (authService as any).patientRepo = mockPatientRepo;
 
+      // cenario 1: email ja em uso.
       mockUserRepo.findByEmail.mockResolvedValue({ id: 1, email: 'usado@teste.com' });
       mockPatientRepo.findByCpf.mockResolvedValue(null);
 
@@ -102,6 +127,7 @@ describe('Security and Defense in Depth Tests', () => {
         emailConflictError = err;
       }
 
+      // cenario 2: cpf ja em uso.
       mockUserRepo.findByEmail.mockResolvedValue(null);
       mockPatientRepo.findByCpf.mockResolvedValue({ id: 1, cpf: '12345678901' });
 
@@ -117,6 +143,7 @@ describe('Security and Defense in Depth Tests', () => {
         cpfConflictError = err;
       }
 
+      // os dois precisam ser 409 com a mesma mensagem generica.
       expect(emailConflictError.statusCode).toBe(409);
       expect(cpfConflictError.statusCode).toBe(409);
       expect(emailConflictError.message).toBe('Dados cadastrais já em uso ou inválidos');
@@ -126,6 +153,8 @@ describe('Security and Defense in Depth Tests', () => {
   });
 
   describe('Sanitização de Entradas com Zod', () => {
+    // o middleware zod deve cortar email malformado antes de chegar
+    // no controller, com 400 e campo error.
     it('deve rejeitar requisições de login com email malformado via middleware Zod', async () => {
       const res = await request(app)
         .post('/api/auth/login')
@@ -138,6 +167,7 @@ describe('Security and Defense in Depth Tests', () => {
       expect(res.body).toHaveProperty('error');
     });
 
+    // senha curta no cadastro tambem deve ser barrada pelo zod.
     it('deve rejeitar requisições de cadastro com senha menor que 6 caracteres via middleware Zod', async () => {
       const res = await request(app)
         .post('/api/auth/register')
@@ -152,6 +182,8 @@ describe('Security and Defense in Depth Tests', () => {
       expect(res.body).toHaveProperty('error');
     });
 
+    // descarte com quantidade negativa deve ser barrado pelo zod
+    // antes de qualquer logica de negocio.
     it('deve rejeitar descarte com quantidade negativa ou não positiva', async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         id: 1,
@@ -178,6 +210,8 @@ describe('Security and Defense in Depth Tests', () => {
   });
 
   describe('Validação de JWT e RBAC', () => {
+    // token adulterado (assinatura invalida) deve ser rejeitado com
+    // 401 e a mensagem padrao do middleware.
     it('deve rejeitar tokens adulterados com HTTP 401', async () => {
       const validToken = generateToken({ userId: 1, role: Role.ADMIN });
       const tamperedToken = `${validToken}violado`;
@@ -190,6 +224,8 @@ describe('Security and Defense in Depth Tests', () => {
       expect(res.body).toEqual({ error: 'Token inválido ou expirado' });
     });
 
+    // token assinado com algoritmo none e o ataque classico de jwt.
+    // o verify fixa hs256, entao isso precisa ser rejeitado.
     it('deve rejeitar tokens assinados com algoritmo inseguro none com HTTP 401', async () => {
       const insecureToken = jwt.sign(
         { userId: 1, role: 'ADMIN' },
@@ -204,6 +240,8 @@ describe('Security and Defense in Depth Tests', () => {
       expect(res.status).toBe(401);
     });
 
+    // paciente nao tem permissao de descarte, entao a rota deve cortar
+    // com 403 antes de chegar no controller.
     it('deve proibir perfil PACIENTE de acessar rotas de descarte com HTTP 403', async () => {
       (prisma.user.findUnique as any).mockResolvedValue({
         id: 2,
@@ -225,6 +263,8 @@ describe('Security and Defense in Depth Tests', () => {
   });
 
   describe('Cabecalhos de Seguranca HTTP', () => {
+    // confirma que o middleware de security headers aplica os cabecalhos
+    // esperados e remove o x-powered-by.
     it('deve aplicar cabecalhos de hardening e remover X-Powered-By nas respostas da API', async () => {
       const hardenedApp = express();
       hardenedApp.use(securityHeaders);
@@ -245,6 +285,8 @@ describe('Security and Defense in Depth Tests', () => {
       expect(res.headers['x-powered-by']).toBeUndefined();
     });
 
+    // hsts so deve aparecer em producao. em teste (nao prod), nao pode
+    // vir o header, senao travaria o acesso via http.
     it('nao deve anunciar Strict-Transport-Security fora de producao', async () => {
       const hardenedApp = express();
       hardenedApp.use(securityHeaders);
@@ -259,6 +301,9 @@ describe('Security and Defense in Depth Tests', () => {
   });
 
   describe('Vazamento de Dados em Respostas de Erro', () => {
+    // erro 500 deve sair generico, sem vazar detalhe de orm, sql ou
+    // caminho de arquivo. testa inclusive o stack, que nao pode ir
+    // no body.
     it('deve mascarar detalhes internos (ORM/SQL/caminhos) em erros 500', async () => {
       const failingApp = express();
       failingApp.get('/boom', () => {
@@ -277,6 +322,8 @@ describe('Security and Defense in Depth Tests', () => {
       expect(res.body.stack).toBeUndefined();
     });
 
+    // erro 4xx controlado pela aplicacao (com statuscode) deve manter
+    // a mensagem de negocio. o que nao pode e vazar stack.
     it('deve preservar mensagens de erro de negocio (4xx) controladas pela aplicacao', async () => {
       const failingApp = express();
       failingApp.get('/forbidden', () => {
@@ -295,7 +342,10 @@ describe('Security and Defense in Depth Tests', () => {
   });
 
   describe('Limitacao de Taxa nos Endpoints de Autenticacao', () => {
+    // confirma que o rate limit corta a terceira tentativa (max=2)
+    // e libera de novo depois da janela.
     it('deve bloquear tentativas repetidas com HTTP 429 e liberar apos a janela', async () => {
+      // relogio injetado pra controlar o tempo da janela.
       let currentTime = 1000000;
       const limitedApp = express();
       limitedApp.use(express.json());
@@ -318,12 +368,14 @@ describe('Security and Defense in Depth Tests', () => {
       expect(third.body).toHaveProperty('error');
       expect(Number(third.headers['retry-after'])).toBeGreaterThan(0);
 
-      // APOS A JANELA DE 60s AS REQUISICOES VOLTAM A SER ACEITAS
+      // apos a janela de 60s as requisicoes voltam a ser aceitas.
       currentTime = currentTime + 61000;
       const afterWindow = await request(limitedApp).post('/api/auth/login').send({ email: 'a@b.com' });
       expect(afterWindow.status).toBe(200);
     });
 
+    // confirma que o rate limit por conta normaliza o email (case
+    // insensitive) e que contas diferentes nao se misturam.
     it('deve contabilizar tentativas por conta informada no corpo da requisicao', async () => {
       const limitedApp = express();
       limitedApp.use(express.json());
@@ -347,6 +399,8 @@ describe('Security and Defense in Depth Tests', () => {
   });
 
   describe('Validacao Estrita de Tipos com Zod (antes do banco de dados)', () => {
+    // payload classico de sqli no login deve ser barrado pelo zod
+    // antes de qualquer consulta.
     it('deve rejeitar payload de SQL Injection no login antes de qualquer consulta', async () => {
       const res = await request(app)
         .post('/api/auth/login')
@@ -356,11 +410,15 @@ describe('Security and Defense in Depth Tests', () => {
       expect(res.body).toHaveProperty('error');
     });
 
+    // chaves nao previstas (tipo $where do mongo) devem ser rejeitadas
+    // pelo strict() dos schemas.
     it('deve rejeitar chaves nao previstas no corpo (injecao de operadores)', () => {
       const withOperator = userUpdateSchema.safeParse({ name: 'Teste', $where: '1=1' });
       expect(withOperator.success).toBe(false);
     });
 
+    // so papeis conhecidos passam. o schema tambem normaliza a caixa
+    // (toUpperCase) no role.
     it('deve aceitar apenas perfis conhecidos e normalizar a caixa', () => {
       const invalid = userCreateSchema.safeParse({
         name: 'Usuario Teste',
@@ -382,6 +440,8 @@ describe('Security and Defense in Depth Tests', () => {
       }
     });
 
+    // no mapa de permissoes, so chaves conhecidas passam. e aceita
+    // tanto a chave canonica (users_read) quanto a legada (medicines).
     it('deve aceitar apenas chaves de permissao conhecidas no mapa de permissoes', () => {
       const invalid = userUpdateSchema.safeParse({ permissions: { ROOT_ACCESS: true } });
       expect(invalid.success).toBe(false);
@@ -390,6 +450,8 @@ describe('Security and Defense in Depth Tests', () => {
       expect(valid.success).toBe(true);
     });
 
+    // so status validos do ciclo de vida passam. o schema tambem
+    // normaliza pra maiuscula e exige o campo.
     it('deve aceitar apenas status validos no ciclo de vida do agendamento', () => {
       const invalid = appointmentUpdateStatusSchema.safeParse({ status: 'PWNED' });
       expect(invalid.success).toBe(false);
@@ -407,6 +469,8 @@ describe('Security and Defense in Depth Tests', () => {
       }
     });
 
+    // valida datas e cpf no cadastro publico. a data precisa parsear
+    // e o cpf precisa ter 11 digitos (com ou sem formatacao).
     it('deve rejeitar datas invalidas e CPFs sem 11 digitos no cadastro publico', () => {
       const badDate = registerPatientSchema.safeParse({
         name: 'Usuario Teste',
@@ -436,4 +500,3 @@ describe('Security and Defense in Depth Tests', () => {
     });
   });
 });
-

@@ -7,15 +7,13 @@ import { Role } from '../../../src/types/enums';
 import appointmentRoutes from '../../../src/routes/appointment-routes';
 import { errorMiddleware } from '../../../src/middlewares/error-middleware';
 
-/**
- * REGRESSAO DE SEGURANCA: Isolamento de agendamentos por paciente.
- *
- * Este teste NAO mocka o controller/service/repository. Mockamos apenas o
- * cliente Prisma mais profundo (src/utils/prisma) para simular um banco com
- * tres pacientes distintos e seus agendamentos. Assim, qualquer falha no filtro
- * `where: { patientId }` faz o teste falhar — o mock devolve TODOS os agendamentos
- * quando a query nao carrega o filtro.
- */
+// regressao de seguranca: isolamento de agendamentos por paciente.
+// esse teste de proposito nao mocka controller, service nem repository.
+// mockamos so o cliente prisma mais profundo (src/utils/prisma) pra
+// simular um banco com tres pacientes e seus agendamentos. assim,
+// qualquer falha no filtro where: { patientid } faz o teste quebrar,
+// porque o mock devolve todos os agendamentos quando a query chega
+// sem filtro. e o tipo de teste que pega vazamento de dado.
 vi.mock('../../../src/utils/prisma', () => ({
   prisma: {
     user: { findUnique: vi.fn() },
@@ -24,10 +22,10 @@ vi.mock('../../../src/utils/prisma', () => ({
   },
 }));
 
-// --- Dados simulados do "banco" ---
-// Joao (patientId=1) — 2 agendamentos
-// Carlos (patientId=2) — 2 agendamentos
-// Maria (patientId=3) — 1 agendamento
+// dados simulados do "banco":
+// joao (patientid=1) - 2 agendamentos
+// carlos (patientid=2) - 2 agendamentos
+// maria (patientid=3) - 1 agendamento
 const patient1Appointments = [
   { id: 1, patientId: 1, scheduledDate: '2025-10-15T10:00:00.000Z', scheduledTime: '10:00', status: 'PENDING' },
   { id: 2, patientId: 1, scheduledDate: '2025-10-16T11:00:00.000Z', scheduledTime: '11:00', status: 'CONFIRMED' },
@@ -47,8 +45,10 @@ describe('Isolamento de Dados de Agendamentos (PACIENTE)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
-    // Simula o banco: query com filtro patientId devolve apenas os agendamentos
-    // daquele paciente. Sem filtro, devolve TUDO (vazamento se autorizacao omitida).
+    // simula o banco: query com filtro patientid devolve so os
+    // agendamentos daquele paciente. sem filtro, devolve tudo -
+    // e e exatamente esse comportamento que pega vazamento quando a
+    // autorizacao e omitida.
     (prisma.appointment.findMany as any).mockImplementation(async (args: any) => {
       const where = args?.where;
       if (where && typeof where.patientId === 'number') {
@@ -57,9 +57,10 @@ describe('Isolamento de Dados de Agendamentos (PACIENTE)', () => {
       return allAppointments;
     });
 
-        // Re-deriva o paciente a partir do userId autenticado (defense in depth).
-    // Compartilhado entre findFirst (service) e findUnique (controller legacy),
-    // para que o teste seja valido tanto na arvore de trabalho quanto no HEAD.
+    // re-deriva o paciente a partir do userid autenticado
+    // (defense in depth). o mock responde tanto ao findfirst (service)
+    // quanto ao findunique (controller legado), pra o teste funcionar
+    // independente de qual caminho esta ativo.
     const patientByUser: Record<number, any> = {
       10: { id: 1, userId: 10, name: 'Joao Silva' },
       20: { id: 2, userId: 20, name: 'Carlos Santos' },
@@ -74,19 +75,24 @@ describe('Isolamento de Dados de Agendamentos (PACIENTE)', () => {
       return patientByUser[userId] ?? null;
     });
 
+    // findunique do appointment: busca pelo id, usado pelo getbyid.
     (prisma.appointment.findUnique as any).mockImplementation(async (args: any) => {
       const id = args?.where?.id;
       return allAppointments.find((a) => a.id === id) ?? null;
     });
 
+    // monta um app express minimo com o router real de agendamento
+    // e o middleware global de erro, pra que erros lancados pelo
+    // service virem respostas http corretas.
     app = express();
     app.use(express.json());
     app.use('/api/appointments', appointmentRoutes);
     app.use(errorMiddleware);
   });
 
-  // Mock de prisma.user.findUnique (realizado pelo authMiddleware).
-  // O authMiddleware re-deriva patientId do banco (nao do token) — defense in depth.
+  // mock do prisma.user.findunique, que e o que o auth-middleware usa.
+  // o middleware re-deriva o patientid do banco (nao do token),
+  // entao o mock precisa responder com o paciente certo pro userid.
   function mockUser(id: number, role: Role, patientId: number | null) {
     (prisma.user.findUnique as any).mockImplementation(async (args: any) => {
       const requestedId = args?.where?.id;
@@ -103,10 +109,12 @@ describe('Isolamento de Dados de Agendamentos (PACIENTE)', () => {
   }
 
 
-  // =====================================================================
-  // LISTAGEM — GET /api/appointments
-  // =====================================================================
+  // listagem - get /api/appointments
   describe('GET /api/appointments — listagem', () => {
+    // garante que paciente ve so os proprios agendamentos. o teste
+    // confirma o tamanho da lista, que so tem ids do joao, que nenhum
+    // id de outros pacientes vazou, e que o filtro chegou ao banco
+    // (where.patientid = 1).
     it('PACIENTE deve retornar SOMENTE os agendamentos do paciente autenticado (Joao)', async () => {
       mockUser(10, Role.PACIENTE, 1); // Joao
 
@@ -129,6 +137,8 @@ describe('Isolamento de Dados de Agendamentos (PACIENTE)', () => {
       expect(findManyArgs.where.patientId).toBe(1);
     });
 
+    // mesma checagem do teste anterior, agora com o carlos, pra
+    // garantir que o isolamento nao e so um caso do joao.
     it('PACIENTE nao deve ver agendamentos de outro paciente (Carlos)', async () => {
       mockUser(20, Role.PACIENTE, 2); // Carlos
 
@@ -148,10 +158,10 @@ describe('Isolamento de Dados de Agendamentos (PACIENTE)', () => {
   });
 
 
-  // =====================================================================
-  // ACESSO ADMINISTRATIVO — GET /api/appointments
-  // =====================================================================
+  // acesso administrativo - get /api/appointments
   describe('GET /api/appointments — acesso administrativo', () => {
+    // admin ve tudo, sem filtro de patientid. o teste confirma o
+    // tamanho total e que a query nao recebeu filtro.
     it('ADMIN deve retornar TODOS os agendamentos (sem filtro de patientId)', async () => {
       mockUser(1, Role.ADMIN, null);
 
@@ -168,6 +178,7 @@ describe('Isolamento de Dados de Agendamentos (PACIENTE)', () => {
       expect(findManyArgs.where.patientId).toBeUndefined();
     });
 
+    // mesma checagem pro farmaceutico, que tambem ve tudo.
     it('FARMACEUTICO deve retornar TODOS os agendamentos (sem filtro de patientId)', async () => {
       mockUser(2, Role.FARMACEUTICO, null);
 
@@ -184,10 +195,10 @@ describe('Isolamento de Dados de Agendamentos (PACIENTE)', () => {
     });
   });
 
-  // =====================================================================
-  // ACESSO POR ID — GET /api/appointments/:id
-  // =====================================================================
+  // acesso por id - get /api/appointments/:id
   describe('GET /api/appointments/:id — isolamento por ID', () => {
+    // joao tentando acessar o agendamento 3, que e do carlos. precisa
+    // receber 403 com o campo error.
     it('PACIENTE deve obter 403 ao tentar acessar agendamento de outro paciente', async () => {
       mockUser(10, Role.PACIENTE, 1); // Joao
       const token = generateToken({ userId: 10, role: Role.PACIENTE, patientId: 1 });
@@ -201,6 +212,7 @@ describe('Isolamento de Dados de Agendamentos (PACIENTE)', () => {
       expect(res.body).toHaveProperty('error');
     });
 
+    // joao acessando o proprio agendamento (id=1), deve dar 200.
     it('PACIENTE deve obter seu proprio agendamento (200)', async () => {
       mockUser(10, Role.PACIENTE, 1); // Joao
       const token = generateToken({ userId: 10, role: Role.PACIENTE, patientId: 1 });
@@ -214,4 +226,3 @@ describe('Isolamento de Dados de Agendamentos (PACIENTE)', () => {
     });
   });
 });
-

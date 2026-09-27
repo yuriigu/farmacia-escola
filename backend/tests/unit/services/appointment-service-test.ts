@@ -134,12 +134,32 @@ describe('AppointmentService', () => {
     expect(mockAppRepo.updateStatus).toHaveBeenCalledWith(1, 'CONFIRMADO', undefined);
   });
 
-  // verifica a validacao obrigatoria de itens no create: sem items,
-  // o service precisa lancar erro 400 antes mesmo de tentar criar.
-  it('deve rejeitar agendamento sem escala', async () => {
+  // verifica as guardas de escala no create. a escala e opcional
+  // (registro presencial nao exige horario reservado), mas quando um
+  // slotid e informado ele precisa existir (404) e ser do mesmo dia
+  // pedido (400) — a data da escala tem que bater com a data agendada.
+  it('deve rejeitar agendamento com escala inválida', async () => {
+    // escala inexistente: a busca do slot devolve null.
+    mockSlotRepo.findById.mockResolvedValue(null);
+
     await expect(appointmentService.create(
       { userId: 1, role: 'ADMIN' as string },
-      { patientId: 1, scheduledDate: '2025-10-15', items: [{ medicineId: 1, quantity: 1 }] },
+      { patientId: 1, scheduledDate: '2025-10-15', slotId: 99, items: [{ medicineId: 1, quantity: 1 }] },
+    )).rejects.toMatchObject({ statusCode: 404 });
+
+    // escala existente, mas de outro dia: a data precisa bater.
+    mockSlotRepo.findById.mockResolvedValue({
+      id: 3,
+      date: new Date('2025-10-20T00:00:00.000Z'),
+      timeSlot: '10:00',
+      maxCapacity: 4,
+      active: true,
+      appointments: [],
+    });
+
+    await expect(appointmentService.create(
+      { userId: 1, role: 'ADMIN' as string },
+      { patientId: 1, scheduledDate: '2025-10-15', slotId: 3, items: [{ medicineId: 1, quantity: 1 }] },
     )).rejects.toMatchObject({ statusCode: 400 });
   });
 });

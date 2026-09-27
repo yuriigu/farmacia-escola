@@ -1,39 +1,42 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { WithdrawalController } from '../../../src/controllers/withdrawal-controller';
-import { WithdrawalService } from '../../../src/services/withdrawal-service';
+import { AppointmentController } from '../../../src/controllers/appointment-controller';
+import { AppointmentService } from '../../../src/services/appointment-service';
 
-// mockamos o withdrawal-service pra isolar o controller.
-// o foco aqui e o comportamento http: o que o controller repassa
-// pro service e como ele responde. a regra de negocio (fefo, baixa
-// no lote, transacao) fica de fora desses testes.
-// o activity-log-service tambem e mockado porque o controller pode
-// encostar nele indiretamente.
-vi.mock('../../../src/services/withdrawal-service');
+// mockamos o appointment-service pra isolar o controller.
+// o foco aqui e o comportamento http dos endpoints de retirada:
+// a listagem, a dispensacao (completed) e o estorno.
+//
+// obs: no sistema atual a retirada e feita via endpoints de agendamento
+// (dispense / revertDispense), entao os antigos withdrawal-controller e
+// withdrawal-service nao existem mais no src.
+vi.mock('../../../src/services/appointment-service');
 vi.mock('../../../src/services/activity-log-service');
 
-// testes de integracao do withdrawal-controller.
-// cobrem a listagem e a criacao (com status 201).
+// testes de integracao do controller de dispensacao/retirada.
 describe('WithdrawalController Integration', () => {
-  let withdrawalController: WithdrawalController;
-  let mockWithdrawalService: any;
+  let appointmentController: AppointmentController;
+  let mockAppointmentService: any;
 
   beforeEach(() => {
     // limpa contagem de chamadas entre testes pra nao vazar estado.
     vi.clearAllMocks();
 
     // mock do service com os metodos que o controller usa.
-    mockWithdrawalService = {
+    mockAppointmentService = {
       getAll: vi.fn(),
       getById: vi.fn(),
       create: vi.fn(),
+      updateStatus: vi.fn(),
+      dispense: vi.fn(),
+      revertDispense: vi.fn(),
     };
 
-    // quando o controller instancia o withdrawalservice no construtor,
+    // quando o controller instancia o appointmentservice no construtor,
     // essa implementacao entrega o nosso mock no lugar.
-    (WithdrawalService as any).mockImplementation(function () {
-      return mockWithdrawalService;
+    (AppointmentService as any).mockImplementation(function () {
+      return mockAppointmentService;
     });
-    withdrawalController = new WithdrawalController();
+    appointmentController = new AppointmentController();
   });
 
   // verifica que o getall delega pro service e devolve o que ele
@@ -47,32 +50,62 @@ describe('WithdrawalController Integration', () => {
       status: vi.fn().mockReturnThis(),
     } as any;
 
-    mockWithdrawalService.getAll.mockResolvedValue([]);
+    mockAppointmentService.getAll.mockResolvedValue([]);
 
-    await withdrawalController.getAll(mockReq, mockRes);
+    await appointmentController.getAll(mockReq, mockRes);
 
-    expect(mockWithdrawalService.getAll).toHaveBeenCalled();
+    expect(mockAppointmentService.getAll).toHaveBeenCalledWith('ADMIN', 1, undefined);
     expect(mockRes.json).toHaveBeenCalledWith([]);
   });
 
-  // verifica o fluxo de criacao: o controller deve chamar o service
-  // com o usuario e o payload, e responder 201 com o objeto criado.
-  it('deve criar retirada com status 201', async () => {
+  // verifica o fluxo de dispensacao: o controller deve chamar o service
+  // forcando o status completed e repassando a nota, e responder 200
+  // com o objeto dispensado.
+  it('deve dispensar retirada com status completed', async () => {
     const mockReq = {
       user: { userId: 1, role: 'FARMACEUTICO' },
-      body: { patientName: 'Maria', patientCpf: '12345678901', batchId: 1, quantity: 2 },
+      params: { id: '1' },
+      body: { notes: 'Dispensação supervisionada' },
     } as any;
     const mockRes = {
       json: vi.fn(),
       status: vi.fn().mockReturnThis(),
     } as any;
 
-    mockWithdrawalService.create.mockResolvedValue({ id: 1, quantity: 2 });
+    mockAppointmentService.updateStatus.mockResolvedValue({ id: 1, status: 'COMPLETED' });
 
-    await withdrawalController.create(mockReq, mockRes);
+    await appointmentController.dispense(mockReq, mockRes);
 
-    // confirma o status 201 e o corpo da resposta.
-    expect(mockRes.status).toHaveBeenCalledWith(201);
-    expect(mockRes.json).toHaveBeenCalledWith({ id: 1, quantity: 2 });
+    // confirma que o service foi chamado com o alvo completed.
+    expect(mockAppointmentService.updateStatus).toHaveBeenCalledWith(
+      1,
+      'FARMACEUTICO',
+      1,
+      'COMPLETED',
+      'Dispensação supervisionada',
+      undefined
+    );
+    expect(mockRes.json).toHaveBeenCalledWith({ id: 1, status: 'COMPLETED' });
+  });
+
+  // verifica o fluxo de estorno: o controller valida o motivo e delega
+  // pro service, respondendo com o agendamento devolvido ao estoque.
+  it('deve estornar retirada com motivo', async () => {
+    const mockReq = {
+      user: { userId: 2, role: 'ADMIN' },
+      params: { id: '11' },
+      body: { reason: 'Erro de separacao' },
+    } as any;
+    const mockRes = {
+      json: vi.fn(),
+      status: vi.fn().mockReturnThis(),
+    } as any;
+
+    mockAppointmentService.revertDispense.mockResolvedValue({ id: 11, status: 'CONFIRMED' });
+
+    await appointmentController.revertDispense(mockReq, mockRes);
+
+    expect(mockAppointmentService.revertDispense).toHaveBeenCalledWith(2, 'ADMIN', 11, 'Erro de separacao');
+    expect(mockRes.json).toHaveBeenCalledWith({ id: 11, status: 'CONFIRMED' });
   });
 });

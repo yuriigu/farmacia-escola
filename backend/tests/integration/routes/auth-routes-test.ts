@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { generateToken } from '../../../src/utils/jwt';
 import { prisma } from '../../../src/utils/prisma';
+import { Role } from '../../../src/types/enums';
 
 // mockamos o auth-controller inteiro pra isolar a camada de rotas.
 // o foco dos testes aqui e o pipeline http: se a rota existe, se o
@@ -92,7 +93,7 @@ describe('Auth Routes Integration', () => {
   // /utils/jwt) e confirma que o auth-middleware deixa passar e o
   // controller devolve o perfil.
   it('GET /api/auth/me - deve retornar perfil quando autenticado com Bearer token', async () => {
-    const token = generateToken({ userId: 1, role: 'ADMIN' });
+    const token = generateToken({ userId: 1, role: Role.ADMIN });
 
     const response = await request(app)
       .get('/api/auth/me')

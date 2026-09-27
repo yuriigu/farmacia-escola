@@ -11,6 +11,7 @@ vi.mock('../../../src/utils/prisma', () => ({
   prisma: {
     medicine: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -47,14 +48,14 @@ describe('MedicineRepository', () => {
   // repositorio mudar a projection no futuro, o teste quebra de
   // proposito, porque a tela de detalhe depende disso.
   it('deve buscar medicamento por ID', async () => {
-    (prisma.medicine.findUnique as any).mockResolvedValue(mockMedicine);
+    (prisma.medicine.findFirst as any).mockResolvedValue(mockMedicine);
 
     const result = await medicineRepo.findById(1);
 
     expect(result).toEqual(mockMedicine);
-    expect(prisma.medicine.findUnique).toHaveBeenCalledWith({
-      where: { id: 1 },
-      include: { batches: true },
+    expect(prisma.medicine.findFirst).toHaveBeenCalledWith({
+      where: { id: 1, deletedAt: null },
+      include: { batches: { select: expect.any(Object) } },
     });
   });
 
@@ -72,16 +73,17 @@ describe('MedicineRepository', () => {
     expect(prisma.medicine.create).toHaveBeenCalled();
   });
 
-  // verifica que o delete chama o delete do prisma com o where correto.
-  // o nome "delete" aqui e o metodo do repositorio (que faz soft delete
-  // via deletedat no service, mas o repo em si chama o delete do prisma
-  // neste fluxo de teste).
+  // verifica que o delete do repositorio faz soft delete: o prisma
+  // recebe um update marcando deletedat, e nao um delete fisico.
   it('deve deletar medicamento', async () => {
-    (prisma.medicine.delete as any).mockResolvedValue(mockMedicine);
+    (prisma.medicine.update as any).mockResolvedValue(mockMedicine);
 
     const result = await medicineRepo.delete(1);
 
     expect(result).toEqual(mockMedicine);
-    expect(prisma.medicine.delete).toHaveBeenCalledWith({ where: { id: 1 } });
+    expect(prisma.medicine.update).toHaveBeenCalledWith({
+      where: { id: 1 },
+      data: { deletedAt: expect.any(Date) },
+    });
   });
 });

@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { generateToken } from '../../../src/utils/jwt';
 import { prisma } from '../../../src/utils/prisma';
+import { Role } from '../../../src/types/enums';
 import { mockMedicine, mockMedicinesList } from '../../fixtures/medicines-fixture';
 
 // mockamos o medicine-controller inteiro pra isolar a camada de rotas.
@@ -91,7 +92,7 @@ describe('Medicine Routes Integration', () => {
     });
 
     // token de admin gerado de verdade pra passar pelo auth-middleware.
-    adminToken = generateToken({ userId: 1, role: 'ADMIN' });
+    adminToken = generateToken({ userId: 1, role: Role.ADMIN });
 
     // monta um app express minimo so com o router de medicamento
     // sob o prefixo /api/medicines.
@@ -127,7 +128,7 @@ describe('Medicine Routes Integration', () => {
   // medicamento, entao a rota deve cortar com 403 antes de chegar
   // no controller. aqui e a prova de que o rbac esta ligado nas rotas.
   it('POST /api/medicines - deve barrar usuário com papel PACIENTE (403)', async () => {
-    const patientToken = generateToken({ userId: 3, role: 'PACIENTE' });
+    const patientToken = generateToken({ userId: 3, role: Role.PACIENTE });
 
     const res = await request(app)
       .post('/api/medicines')

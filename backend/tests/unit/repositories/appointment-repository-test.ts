@@ -27,7 +27,7 @@ vi.mock('../../../src/utils/prisma', () => ({
           findUnique: vi.fn().mockResolvedValue(mockAppointment),
         },
         appointmentItem: {
-          create: vi.fn().mockResolvedValue({ id: 1 }),
+          createMany: vi.fn().mockResolvedValue({ count: 1 }),
         },
         scheduleSlot: {
           update: vi.fn(),

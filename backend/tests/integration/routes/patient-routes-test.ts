@@ -3,6 +3,7 @@ import express from 'express';
 import request from 'supertest';
 import { generateToken } from '../../../src/utils/jwt';
 import { prisma } from '../../../src/utils/prisma';
+import { Role } from '../../../src/types/enums';
 import { mockPatient, mockPatientsList } from '../../fixtures/patients-fixture';
 
 // mockamos o patient-controller inteiro pra isolar a camada de rotas.
@@ -76,7 +77,7 @@ describe('Patient Routes Integration', () => {
     });
 
     // token de admin gerado de verdade pra passar pelo auth-middleware.
-    adminToken = generateToken({ userId: 1, role: 'ADMIN' });
+    adminToken = generateToken({ userId: 1, role: Role.ADMIN });
 
     // monta um app express minimo so com o router de paciente
     // sob o prefixo /api/patients.

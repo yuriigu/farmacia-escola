@@ -39,6 +39,7 @@ describe('Disposal lifecycle integration', () => {
       },
       user: { name: 'Farmaceutico' },
     });
+    const stockMovementCreate = vi.fn().mockResolvedValue({ id: 1 });
 
     // mock do $transaction. ele so chama o callback com um tx fake
     // contendo os metodos que o repositorio usa.
@@ -49,6 +50,9 @@ describe('Disposal lifecycle integration', () => {
       },
       disposal: {
         create: disposalCreate,
+      },
+      stockMovement: {
+        create: stockMovementCreate,
       },
     }));
 
@@ -69,6 +73,10 @@ describe('Disposal lifecycle integration', () => {
     expect(disposalCreate).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({ reason: 'EXPIRED', notes: 'Validade expirada' }),
     }));
+    // confirma a movimentacao de estoque (saida negativa) amarrada ao descarte.
+    expect(stockMovementCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ batchId: 5, type: 'DISPOSAL', quantity: -4, userId: 2 }),
+    }));
     // confirma o status inicial.
     expect(result.status).toBe('DISPOSED');
   });
@@ -82,6 +90,7 @@ describe('Disposal lifecycle integration', () => {
     const disposalUpdate = vi.fn().mockResolvedValue({ count: 1 });
     const batchUpdate = vi.fn().mockResolvedValue({ id: 5, currentQuantity: 16 });
     const activityLogCreate = vi.fn().mockResolvedValue({ id: 20 });
+    const stockMovementCreate = vi.fn().mockResolvedValue({ id: 21 });
     const updatedDisposal = {
       id: 10,
       batchId: 5,
@@ -111,6 +120,9 @@ describe('Disposal lifecycle integration', () => {
       stockBatch: {
         update: batchUpdate,
       },
+      stockMovement: {
+        create: stockMovementCreate,
+      },
       activityLog: {
         create: activityLogCreate,
       },
@@ -119,12 +131,12 @@ describe('Disposal lifecycle integration', () => {
     const result = await disposalRepository.revert(10, 2, 'Descarte registrado incorretamente');
 
     // confirma o updatemany condicional do descarte (so se ainda
-    // estiver disposed e nao revertido).
+    // estiver disposed). a trava de reversao dupla usa o status, e
+    // nao mais um booleano "reverted".
     expect(disposalUpdate).toHaveBeenCalledWith({
-      where: { id: 10, status: 'DISPOSED', reverted: false },
+      where: { id: 10, status: 'DISPOSED' },
       data: {
         status: 'REVERTED',
-        reverted: true,
         revertReason: 'Descarte registrado incorretamente',
       },
     });
@@ -133,6 +145,10 @@ describe('Disposal lifecycle integration', () => {
       where: { id: 5 },
       data: { currentQuantity: { increment: 4 } },
     });
+    // confirma o movimento de estoque de reversao.
+    expect(stockMovementCreate).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({ batchId: 5, type: 'REVERT', quantity: 4, userId: 2 }),
+    }));
     // confirma o log de auditoria com a acao, entidade, id e motivo.
     expect(activityLogCreate).toHaveBeenCalledWith({
       data: {

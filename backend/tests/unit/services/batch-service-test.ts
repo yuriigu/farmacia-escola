@@ -30,7 +30,7 @@ describe('BatchService', () => {
     mockBatchRepo = {
       findAll: vi.fn(),
       findById: vi.fn(),
-      findByBatchNumber: vi.fn(),
+      findByMedicineAndBatchNumber: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       setQuantity: vi.fn(),
@@ -82,6 +82,8 @@ describe('BatchService', () => {
   // o test confirma que o create do repo foi chamado.
   it('deve criar novo lote com sucesso incluindo fornecedor', async () => {
     mockMedicineRepo.findById.mockResolvedValue(mockMedicine);
+    // sem lote duplicado com o mesmo numero pro medicamento.
+    mockBatchRepo.findByMedicineAndBatchNumber.mockResolvedValue(null);
     mockBatchRepo.create.mockResolvedValue(mockBatch);
 
     const result = await batchService.create(1, 'FARMACEUTICO', {

@@ -1,4 +1,8 @@
-// DESCARTE DE MEDICAMENTO (MATCHES formatDisposals DO BACKEND)
+// descarte de medicamento. casa com o formato que o backend
+// devolve no /api/disposals (formatdisposals). alem dos campos
+// base (quantidade, motivo, status), traz o batch resumido com
+// aliases legados (code/expiresat) e o nome do usuario que
+// registrou. status disposed = ativo, reverted = ja estornado.
 export interface Disposal {
   id: number;
   createdAt: string;
@@ -26,7 +30,9 @@ export interface Disposal {
   };
 }
 
-// RASCUNHO DE DESCARTE (FORMULARIOS)
+// rascunho de descarte usado no formulario de registro.
+// e a versao enxuta com so o que o usuario preenche antes de
+// mandar pra api.
 export interface DisposalDraft {
   batchId: number;
   quantity: number;

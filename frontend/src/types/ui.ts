@@ -1,15 +1,21 @@
 import type { ReactNode } from 'react';
 import type { LucideIcon } from 'lucide-react';
 
-// ITEM DE ABA DA BARRA DE ABAS
-export interface TabItem {
+// item de aba da barra de abas (tabbar).
+// o icon e opcional (quando nao vem, a aba so mostra o label)
+// e o badge tambem (usado pra contagem, tipo "5" do lado do nome).
+interface TabItem {
   id: string;
   label: string;
   icon?: LucideIcon;
   badge?: number | string;
 }
 
-// COLUNA DA TABELA DE DADOS REUTILIZAVEL
+// coluna da tabela de dados reutilizavel (datatable).
+// cada coluna define o header e, pra montar o valor da celula,
+// ou um accessorkey (busca direta no item) ou uma funcao cell
+// (render custom). align, width e as duas classnames controlam
+// o layout fino.
 export interface Column<T = any> {
   header: ReactNode;
   accessorKey?: keyof T | string;
@@ -20,7 +26,11 @@ export interface Column<T = any> {
   width?: string;
 }
 
-// PROPRIEDADES DA TABELA DE DADOS REUTILIZAVEL
+// propriedades da tabela de dados reutilizavel.
+// cobrem os tres estados do datatable (loading, vazio e com dados),
+// mais a configuracao de colunas e a acao opcional de clique.
+// o keyextractor permite customizar a chave da linha (por padrao
+// o componente tenta item.id e, se nao houver, cai no index).
 export interface DataTableProps<T = any> {
   columns: Column<T>[];
   data: T[];
@@ -36,7 +46,10 @@ export interface DataTableProps<T = any> {
   keyExtractor?: (_item: T, _index: number) => string | number;
 }
 
-// PROPRIEDADES DO CABECALHO DE PAGINA
+// propriedades do cabecalho de pagina (pageheader).
+// titulo e obrigatorio; descricao, icone, badge e acoes sao
+// opcionais, permitindo o mesmo componente servir pra telas
+// simples e complexas.
 export interface PageHeaderProps {
   title: string;
   description?: string;

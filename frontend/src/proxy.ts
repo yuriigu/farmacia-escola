@@ -1,21 +1,33 @@
-// IMPORTS DE BIBLIOTECAS
+// imports de bibliotecas
 import { NextResponse } from 'next/server';
 
-// IMPORTS LOCAIS
+// imports locais
 import { hasRouteAccess, rolePermissions } from './config/rbac';
 
-// ROTAS PUBLICAS QUE NAO EXIGEM AUTENTICACAO
+// rotas publicas que nao exigem autenticacao. sao as unicas que
+// podem ser acessadas sem token (login e cadastro publico).
 const PUBLIC_PATHS = ['/login', '/register'];
 
-// PAPEIS RECONHECIDOS PELO RBAC (BASE PARA O FAIL-CLOSED DE PAPEL DESCONHECIDO)
+// papeis reconhecidos pelo rbac. usados como base pro fail-closed
+// de papel desconhecido: qualquer coisa fora dessa lista e tratada
+// como nao autorizado.
 const KNOWN_ROLES = Object.keys(rolePermissions);
 
-// FUNCAO DE PROXY PARA VERIFICAR REQUISICOES
+// funcao de proxy executada pelo middleware do next em toda
+// requisicao que bate no matcher. faz tres checagens em ordem:
+// 1) se a rota e privada e o usuario nao tem token, redireciona
+//    pro login (com ?redirect= pra voltar depois).
+// 2) se o usuario esta autenticado e tenta acessar login/register,
+//    joga ele pro dashboard (ja esta logado).
+// 3) se esta autenticado numa rota privada, resolve o papel e
+//    checa se ele tem acesso aquela rota via hasrouteaccess.
 export function proxy(request: any) {
-  // OBTENDO O CAMINHO DA REQUISICAO
+  // caminho da requisicao, base de quase todas as decisoes abaixo.
   const pathname = request.nextUrl.pathname;
 
-  // VERIFICANDO SE DEVE IGNORAR ARQUIVOS ESTATICOS E APIS
+  // pula arquivos estaticos e rotas da api: esses nao passam por
+  // auth aqui, porque a api ja tem middleware proprio e estaticos
+  // nao precisam de sessao.
   let isIgnoredPath = false;
   if (pathname.startsWith('/_next')) {
     isIgnoredPath = true;
@@ -33,7 +45,8 @@ export function proxy(request: any) {
     return NextResponse.next();
   }
 
-  // OBTENDO O TOKEN DE AUTENTICACAO DOS COOKIES
+  // le o token do cookie. e o que define se o usuario esta
+  // autenticado nesse primeiro nivel.
   let tokenCookie = undefined;
   const authTokenCookieObj = request.cookies.get('auth_token');
   if (authTokenCookieObj) {
@@ -42,7 +55,7 @@ export function proxy(request: any) {
     tokenCookie = undefined;
   }
 
-  // OBTENDO O PAPEL DO USUARIO DOS COOKIES
+  // le o papel do cookie. usado na checagem de acesso da rota.
   let roleCookie = undefined;
   const roleCookieObj = request.cookies.get('user_role');
   if (roleCookieObj) {
@@ -51,7 +64,8 @@ export function proxy(request: any) {
     roleCookie = undefined;
   }
 
-  // VERIFICANDO SE A ROTA ATUAL E PUBLICA
+  // resolve se a rota atual e publica (login ou register) olhando
+  // tanto o caminho exato quanto subcaminhos (ex: /login/xxx).
   const isPublicPath = PUBLIC_PATHS.some((path) => {
     let match = false;
     if (pathname === path) {
@@ -64,7 +78,8 @@ export function proxy(request: any) {
     return match;
   });
 
-  // CASO 1: USUARIO NAO AUTENTICADO TENTANDO ACESSAR ROTA PRIVADA
+  // caso 1: usuario nao autenticado tentando acessar rota privada.
+  // manda pro login com ?redirect= pra voltar pra onde tentou.
   if (!tokenCookie) {
     if (!isPublicPath) {
       const loginUrl = new URL('/login', request.url);
@@ -75,18 +90,23 @@ export function proxy(request: any) {
     }
   }
 
-  // CASO 2: USUARIO AUTENTICADO TENTANDO ACESSAR LOGIN OU CADASTRO
+  // caso 2: usuario autenticado tentando acessar login ou cadastro.
+  // nao faz sentido ficar nessas telas quando ja tem sessao, entao
+  // manda pro dashboard.
   if (tokenCookie) {
     if (isPublicPath) {
       return NextResponse.redirect(new URL('/dashboard', request.url));
     }
   }
 
-  // CASO 3: USUARIO AUTENTICADO ACESSANDO ROTA PROTEGIDA
+  // caso 3: usuario autenticado acessando rota protegida. aqui
+  // resolvemos o papel e checamos acesso via rbac.
   if (tokenCookie) {
     if (!isPublicPath) {
       if (pathname !== '/') {
-        // DEFININDO O PAPEL DO USUARIO
+        // resolve o papel do cookie. normaliza em maiusculo e
+        // trim, e considera invalido quando decodifica pra string
+        // vazia.
         let userRole: string | null = null;
         if (roleCookie) {
           const decodedRole = decodeURIComponent(roleCookie).trim().toUpperCase();
@@ -95,13 +115,14 @@ export function proxy(request: any) {
           }
         }
 
-        // FAIL-CLOSED: SEM PAPEL VALIDO NAO EXISTE AUTORIZACAO.
-        // ANTES, UM `user_role` AUSENTE OU VAZIO PULAVA A VERIFICACAO
-        // DE PERMISSAO E LIBERAVA A ROTA PARA QUALQUER UM.
+        // fail-closed: sem papel valido nao existe autorizacao.
+        // antes, um user_role ausente ou vazio pulava a checagem
+        // de permissao e liberava a rota pra qualquer um.
         const isKnownRole = userRole !== null && KNOWN_ROLES.includes(userRole);
         if (!isKnownRole) {
-          // LIMPA AS CREDENCIAIS INVALIDAS PARA EVITAR LOOP COM /login
-          // (/login REDIRECIONA PARA /dashboard QUANDO O TOKEN EXISTE).
+          // limpa as credenciais invalidas pra evitar loop com
+          // /login (que redireciona pro /dashboard quando o token
+          // existe).
           const loginUrl = new URL('/login', request.url);
           loginUrl.searchParams.set('sessao', 'invalida');
           const blockedResponse = NextResponse.redirect(loginUrl);
@@ -111,7 +132,9 @@ export function proxy(request: any) {
           return blockedResponse;
         }
 
-        // VERIFICANDO PERMISSAO DE ACESSO A ROTA
+        // checa acesso do papel aquela rota. se nao tiver, manda
+        // pro dashboard com ?denied=1 (o appshell le isso e mostra
+        // o toast de acesso negado).
         const hasAccess = hasRouteAccess(userRole, pathname);
         if (!hasAccess) {
           const dashboardUrl = new URL('/dashboard', request.url);
@@ -125,7 +148,9 @@ export function proxy(request: any) {
   return NextResponse.next();
 }
 
-// CONFIGURACAO DO MATCHER
+// configuracao do matcher do middleware. o regex libera tudo
+// que NAO for _next/static, _next/image ou favicon.ico, evitando
+// rodar a checagem em assets internos que nao precisam de auth.
 export const config = {
   matcher: [
     '/((?!_next/static|_next/image|favicon.ico).*)',

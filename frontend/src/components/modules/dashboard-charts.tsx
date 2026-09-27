@@ -9,17 +9,25 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartTooltipContent } from '@/components/shared/chart-tooltip-content';
 import { CHART_COLORS } from '@/lib/constants';
 
+// props do bloco de graficos. o componente e burro de proposito:
+// recebe os dados ja calculados (pizza de agendamento e contagem de
+// status de estoque) e so se preocupa em renderizar.
 interface DashboardChartsProps {
   appointmentPieData: Array<{ name: string; value: number }>;
   stockTaxonomyCounts: { ok: number; low: number; critical: number; expired: number };
   hasMedicines: boolean;
 }
 
-// CHUNK LAZY DO DASHBOARD: isola o recharts (~350KB) em chunk separado,
-// carregado via next/dynamic apenas após o LCP das métricas.
+// chunk lazy do dashboard: isola o recharts (~350kb) num chunk
+// separado, carregado via next/dynamic so depois do lcp das metricas.
+// assim o usuario ve os numeros rapidos e o grafico entra logo em seguida,
+// sem atrasar a primeira renderizacao.
 export function DashboardCharts({ appointmentPieData, stockTaxonomyCounts, hasMedicines }: DashboardChartsProps) {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* card 1: pizza com a distribuicao de agendamentos por status.
+          as cores vem do chart_colors, ciclando quando ha mais fatias
+          do que cores disponiveis. */}
       <Card className="rounded-3xl border-slate-200 dark:border-slate-700 shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-bold flex items-center gap-2">
@@ -28,6 +36,8 @@ export function DashboardCharts({ appointmentPieData, stockTaxonomyCounts, hasMe
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* fallback quando ainda nao ha agendamento: texto discreto
+              em vez de tentar renderizar um grafico vazio. */}
           {appointmentPieData.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
               <PieChart>
@@ -45,6 +55,7 @@ export function DashboardCharts({ appointmentPieData, stockTaxonomyCounts, hasMe
                     <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
                   ))}
                 </Pie>
+                {/* tooltip customizado, reutilizado entre os dois graficos */}
                 <RechartsTooltip content={<ChartTooltipContent />} />
               </PieChart>
             </ResponsiveContainer>
@@ -56,6 +67,9 @@ export function DashboardCharts({ appointmentPieData, stockTaxonomyCounts, hasMe
         </CardContent>
       </Card>
 
+      {/* card 2: barra com o panorama de estoque por status.
+          cada barra tem uma cor fixa (verde/amarelo/vermelho/roxo)
+          pra bater com a semantica de cada estado. */}
       <Card className="rounded-3xl border-slate-200 dark:border-slate-700 shadow-sm">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-bold flex items-center gap-2">
@@ -64,6 +78,7 @@ export function DashboardCharts({ appointmentPieData, stockTaxonomyCounts, hasMe
           </CardTitle>
         </CardHeader>
         <CardContent>
+          {/* fallback quando ainda nao ha medicamento cadastrado. */}
           {hasMedicines ? (
             <ResponsiveContainer width="100%" height={240}>
               <BarChart

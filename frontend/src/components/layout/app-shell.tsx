@@ -1,9 +1,9 @@
 'use client';
 
-// IMPORTS DO REACT
+// imports do react
 import { useState, useEffect, ReactNode, Suspense } from 'react';
 
-// IMPORTS DE BIBLIOTECAS
+// imports de bibliotecas
 import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from '@/lib/toast-handler';
@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
-// IMPORTS LOCAIS
+// imports locais
 import { useAuthStore } from '@/lib/auth-store';
 import { fetchAllData, fetchBatchesData, useDataLoader } from '@/lib/pharmacy-store';
 import {
@@ -27,8 +27,10 @@ import {
   DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger
 } from '@/components/ui/dropdown-menu';
 
-// MAPEAMENTO DE ROTA PARA ID DE MODULO
-// (URLs canonicas em ingles + aliases amigaveis em portugues servidos via rewrites)
+// mapeamento de rota para id de modulo.
+// as urls canonicas estao em ingles, mas existem aliases em portugues
+// servidos via rewrites do next. o mapa cobre os dois pra o appshell
+// saber qual modulo esta ativo em cada rota.
 const PATH_MODULE_MAP: Record<string, ModuleId> = {
   '/dashboard': 'dashboard',
   '/medicines': 'medicines',
@@ -56,16 +58,21 @@ const PATH_MODULE_MAP: Record<string, ModuleId> = {
   '/perfil': 'profile',
 };
 
-// INTERFACE DAS PROPRIEDADES DO COMPONENTE
+// interface das propriedades do componente.
 interface AppShellProps {
   children: ReactNode;
   activeModuleId?: ModuleId;
   pageTitle?: string;
 }
 
-// COMPONENTE INTERNO DO SHELL
+// componente interno do shell. e quem faz o trabalho pesado:
+// - hidrata a sessao
+// - cuida da sidebar, cabecalho, breadcrumb e dropdown de perfil
+// - aplica o rbac da rota atual
+// - roda o ciclo de atualizacao periodica dos dados
+// o wrapper publico (appshell) so envolve isso num suspense.
 function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
-  // ESTADOS DO COMPONENTE
+  // estados do componente: abertura da sidebar, sessao, tema e rota.
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { token, user, loading: authLoading, hydrate, logout } = useAuthStore();
   const { theme, setTheme } = useTheme();
@@ -73,7 +80,8 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  // OBTENDO O PAPEL DO USUARIO DE FORMA EXPLICITA
+  // pega o papel do usuario de forma explicita, com fallback vazio
+  // pra nao quebrar os checks de permissao mais abaixo.
   let userRole = '';
   if (user) {
     if (user.role) {
@@ -85,7 +93,7 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     userRole = '';
   }
 
-  // OBTENDO AS PERMISSOES DO USUARIO
+  // permissoes customizadas do usuario (podem ser nulas).
   let userPermissions: Record<string, boolean> | undefined = undefined;
   if (user) {
     if (user.permissions) {
@@ -97,10 +105,15 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     userPermissions = undefined;
   }
 
+  // resolve quais modulos o usuario enxerga, com base no papel e
+  // nas permissoes. e o que decide a lista de links da sidebar.
   const visibleModules = getVisibleModules(userRole, userPermissions);
+  // checa se a rota atual esta autorizada pro papel. se nao estiver,
+  // a gente mostra a tela de acesso restrito em vez do children.
   const isRouteAuthorized = hasRouteAccess(userRole, pathname || '/dashboard');
 
-  // DETERMINANDO O ID DO MODULO ATUAL
+  // resolve o id do modulo atual em cascata: primeiro a prop explicita,
+  // depois o mapa da url, e por fim dashboard como padrao.
   let currentModuleId: ModuleId = 'dashboard';
   if (activeModuleId) {
     currentModuleId = activeModuleId;
@@ -112,12 +125,14 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
 
   const activeModule = getModuleById(currentModuleId);
 
-  // HIDRATAR ESTADO AO MONTAR COMPONENTE
+  // hidrata a store de auth uma vez ao montar. le token/user do
+  // storage e popula o estado.
   useEffect(() => {
     hydrate();
   }, [hydrate]);
 
-  // NOTIFICAR ACESSO NEGADO SE REDIRECIONADO
+  // se o usuario foi redirecionado pra ca com ?denied=1 (ex: por ter
+  // tentado acessar algo sem permissao), mostramos um toast avisando.
   useEffect(() => {
     const deniedParam = searchParams.get('denied');
     if (deniedParam === '1') {
@@ -125,7 +140,8 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     }
   }, [searchParams]);
 
-  // REDIRECIONAR PARA LOGIN SE NAO ESTIVER AUTENTICADO
+  // se a hidratacao terminou e nao tem token, manda pro login.
+  // esperamos authloading pra nao redirecionar antes da hora.
   useEffect(() => {
     if (!authLoading) {
       if (!token) {
@@ -134,10 +150,12 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     }
   }, [token, authLoading, router]);
 
+  // so dispara o loader de dados quando o usuario esta autenticado.
   const isUserAuthenticated = Boolean(token);
   useDataLoader(isUserAuthenticated);
 
-  // ATUALIZAR DADOS PERIODICAMENTE
+  // atualizacao periodica dos dados (a cada 5 min) enquanto houver
+  // sessao. serve pra manter estoque e lotes frescos sem refresh manual.
   useEffect(() => {
     if (!token) {
       return;
@@ -151,13 +169,15 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     };
   }, [token]);
 
-  // FUNCAO PARA SAIR DO SISTEMA
+  // logout: limpa a sessao e manda pro login.
   const handleLogout = () => {
     logout();
     router.replace('/login');
   };
 
-  // VERIFICANDO SE DEVE EXIBIR TELA DE CARREGAMENTO
+  // durante a hidratacao, ou sem token ainda no primeiro render
+  // do client, mostramos a tela de "verificando sessao" em vez do
+  // shell completo. evita piscar conteudo nao autenticado.
   let shouldShowLoading = false;
   if (authLoading) {
     shouldShowLoading = true;
@@ -176,7 +196,8 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     );
   }
 
-  // DEFININDO O TITULO DO CABECALHO
+  // titulo do cabecalho. prioridade: prop pagetitle, senao o label
+  // do modulo ativo, senao dashboard.
   let headerTitle = 'Dashboard';
   if (pageTitle) {
     headerTitle = pageTitle;
@@ -190,7 +211,8 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     headerTitle = 'Dashboard';
   }
 
-  // PREPARANDO DADOS DO USUARIO PARA RENDERIZACAO
+  // dados do usuario preparados pra renderizacao (nome, inicial, email,
+  // papel). tudo com fallback seguro pra nao quebrar o dropdown.
   let userName = 'Usuário';
   if (user) {
     if (user.name) {
@@ -240,7 +262,8 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     userRoleProp = undefined;
   }
 
-  // CLASSES DA BARRA LATERAL
+  // classes da sidebar. em telas grandes ela fica estatica; em mobile
+  // ela desliza por cima e o translate controla a abertura.
   let sidebarClasses = 'fixed lg:static inset-y-0 left-0 z-50 w-64 glass-sidebar text-slate-300 flex flex-col shrink-0 transform transition-transform duration-300 ease-out ';
   if (sidebarOpen) {
     sidebarClasses = sidebarClasses + 'translate-x-0';
@@ -248,7 +271,8 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     sidebarClasses = sidebarClasses + '-translate-x-full lg:translate-x-0';
   }
 
-  // OVERLAY MOBILE
+  // overlay escurecido por tras da sidebar em mobile. clicar nele
+  // fecha a sidebar.
   let mobileOverlay: ReactNode = null;
   if (sidebarOpen) {
     mobileOverlay = (
@@ -261,7 +285,7 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     );
   }
 
-  // ALTERNAR TEMA
+  // alterna entre claro e escuro.
   const handleToggleTheme = () => {
     if (theme === 'dark') {
       setTheme('light');
@@ -270,6 +294,8 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     }
   };
 
+  // conteudo mostrado quando o usuario esta autenticado mas a rota
+  // nao e permitida pro papel dele. tem cta pra voltar ao dashboard.
   const restrictedContent = (
     <div className="min-h-[60vh] flex items-center justify-center p-4">
       <div className="max-w-md w-full rounded-2xl border border-rose-200 bg-rose-50/40 p-6 text-center shadow-sm dark:border-rose-900/50 dark:bg-rose-950/20">
@@ -290,6 +316,7 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
     </div>
   );
 
+  // icone e label do toggle de tema. depende do tema atual.
   let themeIcon = <Moon className="w-4 h-4" />;
   let themeLabel = 'Tema Escuro';
   if (theme === 'dark') {
@@ -302,15 +329,15 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
 
   return (
     <div className="h-screen overflow-hidden bg-slate-50 dark:bg-slate-900 flex">
-      {/* O <Toaster> global fica em app/layout.tsx (visibleToasts={1}).
-          Nao montar outro aqui: duplicaria cada toast renderizado. */}
+      {/* o <Toaster> global fica em app/layout.tsx (visibleToasts={1}).
+          nao montar outro aqui: duplicaria cada toast renderizado. */}
 
-      {/* OVERLAY PARA MOBILE */}
+      {/* overlay escurecido em mobile, so quando a sidebar esta aberta */}
       {mobileOverlay}
 
-      {/* ==================== BARRA LATERAL ==================== */}
+      {/* barra lateral */}
       <aside className={sidebarClasses}>
-        {/* LOGO */}
+        {/* logo e titulo. o botao x so aparece em mobile */}
         <div className="h-1 bg-linear-to-r from-emerald-500 via-teal-400 to-emerald-600" />
         <div className="p-5 flex items-center justify-between gap-3 border-b border-slate-800">
           <Link href="/dashboard" className="flex items-center gap-3">
@@ -332,10 +359,13 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
           </button>
         </div>
 
-        {/* LINKS DE NAVEGACAO */}
+        {/* links de navegacao. a lista vem de getvisiblemodules, que
+            ja filtra pelo papel/permissoes. aqui so resolvemos qual
+            esta ativo pela url. */}
         <ScrollArea className="flex-1 min-h-0 p-3 pb-6 space-y-1 relative">
           {visibleModules.map((mod) => {
             const Icon = mod.icon;
+            // resolve o href a partir do path do modulo, ou do id.
             let href = `/${mod.id}`;
             if (mod.path) {
               href = mod.path;
@@ -343,6 +373,10 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
               href = `/${mod.id}`;
             }
 
+            // resolve se o link esta ativo. tem varios casos especiais
+            // por causa de rotas com subcaminho, aliases e modulos que
+            // compartilham prefixo (appointments, users, inventory,
+            // calendar, scales, settings/profile).
             let isActive = false;
             if (pathname === href) {
               isActive = true;
@@ -389,11 +423,11 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
         <div className="pb-6 mb-2" />
       </aside>
 
-      {/* ==================== CONTEUDO PRINCIPAL ==================== */}
+      {/* conteudo principal: cabecalho + area da pagina */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* CABECALHO COM BREADCRUMBS */}
+        {/* cabecalho com breadcrumb a esquerda e perfil a direita */}
         <header className="w-full flex items-center justify-between px-6 py-4 gap-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
-          {/* NAVEGACAO / BREADCRUMB FIXADO A ESQUERDA */}
+          {/* breadcrumb: inicio > titulo da tela atual */}
           <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={() => {
@@ -415,7 +449,8 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
             </nav>
           </div>
 
-          {/* BLOCO DE PERFIL DO USUARIO FIXADO A DIREITA */}
+          {/* dropdown de perfil: nome, papel, email, atalhos pra perfil
+              e configuracoes, toggle de tema e logout */}
           <div className="flex items-center gap-3 shrink-0">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -476,7 +511,8 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
           </div>
         </header>
 
-        {/* CONTEUDO DA PAGINA */}
+        {/* area da pagina. se a rota nao e autorizada pro papel,
+            mostramos o restrictedcontent em vez do children. */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="w-full max-w-7xl mx-auto">
             {isRouteAuthorized ? children : restrictedContent}
@@ -487,7 +523,9 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
   );
 }
 
-// COMPONENTE PRINCIPAL APP SHELL
+// componente principal do appshell. so envolve o appshellinner num
+// suspense, porque o inner usa usesearchparams (pra ler o ?denied)
+// e isso exige um suspense boundary no next 13+.
 export function AppShell(props: AppShellProps) {
   return (
     <Suspense fallback={<div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-slate-400">Carregando...</div>}>

@@ -21,12 +21,21 @@ import { api } from '@/lib/api';
 import { downloadCSV } from '@/lib/constants';
 import { StandardCalendar } from '@/components/shared/standard-calendar';
 
+// pagina de visao geral da agenda. e a aba 'agenda' do modulo de
+// calendario: mostra um calendario mensal com todos os agendamentos,
+// permite clicar num dia pra ver slots disponiveis e consultas
+// marcadas, e dispara acoes de confirmar/concluir/cancelar.
+// e a versao mais 'visual' do modulo, complementando a listagem
+// crua da appointmentspage.
 export function AppointmentsOverviewPage() {
   const { appointments, scheduleSlots } = usePharmacyStore();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => {
     return s.user;
   });
+
+  // determina se o usuario logado e paciente. muda o escopo dos
+  // dados mostrados e as acoes disponiveis.
   let isPatient = false;
   if (user) {
     if (user.role === 'PACIENTE') {
@@ -38,6 +47,8 @@ export function AppointmentsOverviewPage() {
     isPatient = false;
   }
 
+  // estado do calendario: mes/ano em exibicao, dia selecionado
+  // (abre o modal de detalhe) e dialogs de detalhe/cancelamento/comprovante.
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
@@ -47,10 +58,15 @@ export function AppointmentsOverviewPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [receipt, setReceipt] = useState<any>(null);
 
+  // carrega os slots de escala uma vez, porque o modal de dia
+  // usa isso pra mostrar horarios disponiveis.
   useEffect(() => {
     fetchScheduleSlotsData();
   }, []);
 
+  // agrupa todos os agendamentos por dia (chave y-m-d) pra achar
+  // rapidamente o que tem em cada dia. a chave segue o mesmo padrao
+  // usado na renderizacao do dia selecionado.
   const appointmentsByDay = (() => {
     const map: Record<string, Appointment[]> = {};
     appointments.forEach((app) => {
@@ -67,6 +83,8 @@ export function AppointmentsOverviewPage() {
     return map;
   })();
 
+  // versao filtrada do mapa acima, so com os agendamentos do proprio
+  // paciente. usada quando o usuario logado e paciente.
   let patientAppointmentsByDay: Record<string, Appointment[]> = {};
   if (isPatient) {
     const map: Record<string, Appointment[]> = {};
@@ -91,9 +109,14 @@ export function AppointmentsOverviewPage() {
     patientAppointmentsByDay = map;
   }
 
+  // converte os agendamentos pro formato de eventos que o
+  // standardcalendar espera. a cor do evento muda conforme o status:
+  // laranja pra pendente, azul pra confirmado, vermelho pra cancelado
+  // e verde pro resto (concluido).
   const calendarEvents = (() => {
     const list: any[] = [];
     appointments.forEach((app) => {
+      // paciente so ve os proprios eventos no calendario.
       if (isPatient) {
         if (user) {
           if (app.patientId !== user.patientId) {
@@ -149,6 +172,8 @@ export function AppointmentsOverviewPage() {
     return list;
   })();
 
+  // lista os agendamentos visiveis no contexto atual (paciente so os
+  // dele; equipe ve tudo). usada pra exportacao csv.
   const visibleAppointments = appointments.filter((app) => {
     if (!isPatient) {
       return true;
@@ -159,6 +184,8 @@ export function AppointmentsOverviewPage() {
     return app.patientId === user.patientId;
   });
 
+  // exporta em csv os agendamentos visiveis. hoje o botao nao esta
+  // limitado por papel, mas o escopo do dado ja respeita ispatient.
   const handleExportCSV = () => {
     const header = ['Paciente', 'CPF', 'Data Agendada', 'Horário', 'Status', 'Medicamento(s)', 'Observações'];
     const rows = visibleAppointments.map((app) => {
@@ -224,11 +251,15 @@ export function AppointmentsOverviewPage() {
     toast.success('Agendamentos exportados com sucesso!');
   };
 
+  // resolve a data (yyyy-mm-dd) do dia selecionado, baseada no
+  // viewyear/viewmonth atuais. usada pra filtrar slots do dia.
   let dateStr = '';
   if (selectedDay) {
     dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, '0')}-${String(selectedDay).padStart(2, '0')}`;
   }
 
+  // slots ativos naquele dia. a comparacao e so pela parte da data
+  // (slice 0,10) porque o slot guarda data com hora.
   let daySlots: typeof scheduleSlots = [];
   if (selectedDay) {
     daySlots = scheduleSlots.filter((s) => {
@@ -246,11 +277,15 @@ export function AppointmentsOverviewPage() {
     });
   }
 
+  // chave do mapa de agendamentos do dia (y-m-d sem zero-pad). o
+  // padrao bate com o do appointmentsbyday (nao usa padStart aqui).
   let dayKey = '';
   if (selectedDay) {
     dayKey = `${viewYear}-${viewMonth + 1}-${selectedDay}`;
   }
 
+  // resolve os agendamentos do dia selecionado. paciente ve so os
+  // dele (via patientappointmentsbyday); equipe ve todos.
   let dayApps: Appointment[] = [];
   if (selectedDay) {
     if (dayKey) {
@@ -270,6 +305,9 @@ export function AppointmentsOverviewPage() {
     }
   }
 
+  // dispara o evento customizado que troca o modulocalendario pra
+  // aba 'agendamentos'. opcionalmente passa detalhe (data, hora,
+  // slotid) pra pre-preencher o formulario de criacao.
   const handleGoToAppointments = (slot?: { date: string; timeSlot: string; id: number }) => {
     let detail: { date?: string; time?: string; slotId?: number } = {};
     if (slot) {
@@ -279,6 +317,7 @@ export function AppointmentsOverviewPage() {
     setSelectedDay(null);
   };
 
+  // clicar num dia do calendario abre o modal daquele dia.
   const handleDateClick = (info: { dateStr: string }) => {
     if (info) {
       if (info.dateStr) {
@@ -295,6 +334,8 @@ export function AppointmentsOverviewPage() {
     }
   };
 
+  // clicar num evento do calendario tambem abre o modal do dia
+  // correspondente.
   const handleEventClick = (info: { event: { startStr: string } }) => {
     if (info) {
       if (info.event) {
@@ -316,7 +357,7 @@ export function AppointmentsOverviewPage() {
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto page-enter">
-      {/* Standardized PageHeader */}
+      {/* cabecalho com acoes de exportar csv e novo agendamento */}
       <PageHeader
         title="Agenda Geral de Atendimentos"
         description="Calendário mensal de dispensações e acompanhamento das vagas disponíveis."
@@ -342,6 +383,7 @@ export function AppointmentsOverviewPage() {
         }
       />
 
+      {/* legenda de cores do calendario */}
       <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs dark:border-slate-700 dark:bg-slate-800" aria-label="Legenda de status">
         <span className="font-semibold text-slate-600 dark:text-slate-300">Legenda:</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-orange-500" />Pendente</span>
@@ -350,7 +392,8 @@ export function AppointmentsOverviewPage() {
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-600" />Cancelado</span>
       </div>
 
-      {/* Calendar Card */}
+      {/* card com o calendario padrao. os callbacks tratam clique em
+          dia e clique em evento, ambos abrindo o modal do dia. */}
       <Card className="rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 sm:p-5 bg-white dark:bg-slate-800">
         <StandardCalendar
           events={calendarEvents}
@@ -359,7 +402,8 @@ export function AppointmentsOverviewPage() {
         />
       </Card>
 
-      {/* Day Click Dialog */}
+      {/* modal do dia selecionado: lista slots disponiveis e os
+          agendamentos marcados, com acoes contextuais. */}
       <Dialog open={selectedDay !== null} onOpenChange={() => setSelectedDay(null)}>
         <DialogContent className="rounded-2xl max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -370,6 +414,9 @@ export function AppointmentsOverviewPage() {
             <DialogDescription>Horários disponíveis e agendamentos deste dia</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {/* secao de slots disponiveis. mostra pra equipe sempre,
+                e pro paciente so quando ele nao tem agendamento no dia
+                (pra ele ver a possibilidade de marcar). */}
             {(() => {
               let showSlotsSection = false;
               if (!isPatient) {
@@ -391,6 +438,8 @@ export function AppointmentsOverviewPage() {
                         return (
                           <div className="space-y-1.5">
                             {daySlots.map((slot) => {
+                              // calcula vagas livres a partir do count
+                              // de agendamentos ativos e da capacidade.
                               let countAppointments = 0;
                               if (slot._count) {
                                 if (slot._count.appointments) {
@@ -421,6 +470,8 @@ export function AppointmentsOverviewPage() {
                                   <Badge variant="outline" className="text-[10px] bg-white text-emerald-700 border-emerald-200">
                                     {freeSlots} vagas livres
                                   </Badge>
+                                  {/* botao de agendar so aparece quando
+                                      ainda tem vaga. */}
                                   {(() => {
                                     if (freeSlots > 0) {
                                       return <Button onClick={() => handleGoToAppointments(slot)} size="xs">Agendar</Button>;
@@ -440,6 +491,8 @@ export function AppointmentsOverviewPage() {
               return null;
             })()}
 
+            {/* secao de agendamentos do dia, com acoes contextuais
+                por status (visualizar, confirmar, concluir, cancelar). */}
             {(() => {
               if (dayApps.length > 0) {
                 let sectionTitle = 'Agendamentos Marcados';
@@ -457,6 +510,8 @@ export function AppointmentsOverviewPage() {
                     </h4>
                     <div className="space-y-2">
                       {dayApps.map((app) => {
+                        // resolve estilo/label do status. aceita tanto
+                        // string quanto objeto de config.
                         const statusStyle = APPOINTMENT_STATUS_STYLES[app.status];
                         let statusCfg = {
                           label: app.status,
@@ -516,6 +571,7 @@ export function AppointmentsOverviewPage() {
                             </div>
                             <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
                               <Button variant="ghost" size="sm" title="Visualizar" onClick={() => setSelectedAppointment(app)}><Eye className="h-4 w-4" /></Button>
+                              {/* confirmar: so pra equipe, so quando pending */}
                               {(() => {
                                 if (!isPatient) {
                                   if (app.status === 'PENDING') {
@@ -539,9 +595,12 @@ export function AppointmentsOverviewPage() {
                                 }
                                 return null;
                               })()}
+                              {/* concluir: efetiva atendimento e dispensa
+                                  via fefo. so pra equipe, quando
+                                  pending ou confirmed. */}
                               {(() => {
                                 if (!isPatient) {
-                                  // Concluir e a acao FINAL: efetiva o atendimento e a dispensacao.
+                                  // concluir e a acao final: efetiva o atendimento e a dispensacao.
                                   let canComplete = false;
                                   if (app.status === 'PENDING') {
                                     canComplete = true;
@@ -556,11 +615,17 @@ export function AppointmentsOverviewPage() {
                                         title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
                                         onClick={async () => {
                                           try {
+                                            // aqui chamamos o cliente http
+                                            // (/lib/api.ts) pra concluir. a
+                                            // resposta traz os lotes
+                                            // consumidos e vira o comprovante.
                                             const withdrawal = await api.completeAppointment(app.id);
                                             setReceipt(withdrawal);
                                             toast.success('Atendimento concluído e dispensado.');
                                             fetchScheduleSlotsData();
                                             fetchAllData();
+                                            // invalida as queries afetadas
+                                            // pra refletir a baixa no fefo.
                                             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
                                             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
                                             queryClient.invalidateQueries({ queryKey: ['batches'] });
@@ -585,6 +650,9 @@ export function AppointmentsOverviewPage() {
                                 }
                                 return null;
                               })()}
+                              {/* cancelar: paciente tambem pode (a
+                                  autorizacao real fica no backend),
+                                  desde que nao esteja ja cancelado. */}
                               {(() => {
                                 if (app.status !== 'CANCELLED') {
                                   return (
@@ -623,6 +691,8 @@ export function AppointmentsOverviewPage() {
         </DialogContent>
       </Dialog>
 
+      {/* modal de detalhe do agendamento selecionado, com acoes de
+          confirmar/concluir pra equipe. */}
       <Dialog open={selectedAppointment !== null} onOpenChange={(open) => { if (!open) setSelectedAppointment(null); }}>
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader><DialogTitle>Detalhes do Agendamento</DialogTitle><DialogDescription>Informações do atendimento selecionado.</DialogDescription></DialogHeader>
@@ -638,7 +708,8 @@ export function AppointmentsOverviewPage() {
               if (selectedAppointment.scheduledTime) {
                 timeStr = selectedAppointment.scheduledTime;
               }
-              // Allow completion for non-patient roles regardless of date/time
+              // permite conclusao pra papeis nao-paciente independente
+              // de data/hora.
               return (
                 <div className="space-y-4">
                   <div className="space-y-2 text-sm">
@@ -668,6 +739,9 @@ export function AppointmentsOverviewPage() {
                                 title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
                                 onClick={async () => {
                                   try {
+                                    // chama o cliente http (/lib/api.ts)
+                                    // pra confirmar e depois invalida as
+                                    // queries afetadas.
                                     await api.confirmAppointment(selectedAppointment.id);
                                     toast.success('Agendamento confirmado.');
                                     setSelectedAppointment(null);
@@ -697,6 +771,9 @@ export function AppointmentsOverviewPage() {
                                 title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
                                 onClick={async () => {
                                   try {
+                                    // chama o cliente http (/lib/api.ts)
+                                    // pra concluir. dispara fefo no backend
+                                    // e o retorno vira comprovante.
                                     const withdrawal = await api.completeAppointment(selectedAppointment.id);
                                     setReceipt(withdrawal);
                                     setSelectedAppointment(null);
@@ -737,6 +814,7 @@ export function AppointmentsOverviewPage() {
         </DialogContent>
       </Dialog>
 
+      {/* modal de cancelamento: exige motivo antes de liberar a vaga. */}
       <Dialog open={cancelTarget !== null} onOpenChange={(open) => { if (!open) setCancelTarget(null); }}>
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader><DialogTitle>Cancelar Agendamento</DialogTitle><DialogDescription>O motivo é obrigatório para liberar a vaga.</DialogDescription></DialogHeader>
@@ -745,6 +823,7 @@ export function AppointmentsOverviewPage() {
         </DialogContent>
       </Dialog>
 
+      {/* modal de comprovante de retirada, exibido apos conclusao. */}
       <Dialog open={receipt !== null} onOpenChange={(open) => { if (!open) setReceipt(null); }}>
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader><DialogTitle>Comprovante de Retirada</DialogTitle><DialogDescription>Baixa FEFO concluída para o atendimento.</DialogDescription></DialogHeader>

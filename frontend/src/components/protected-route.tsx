@@ -1,19 +1,24 @@
 'use client';
 
-// IMPORTS DO REACT
+// imports do react
 import { ReactNode, useEffect } from 'react';
 
-// IMPORTS DE BIBLIOTECAS
+// imports de bibliotecas
 import { useRouter, usePathname } from 'next/navigation';
 import { ShieldAlert, ArrowLeft } from 'lucide-react';
 
-// IMPORTS LOCAIS
+// imports locais
 import { useAuthStore } from '@/lib/auth-store';
 import { hasRouteAccess } from '@/config/rbac';
 import type { AppRole } from '@/types';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 
+// props do wrapper de protecao de rota. da pra restringir de tres
+// formas (em ordem de prioridade):
+// - allowedroles: lista explicita de papeis aceitos
+// - routekey: chave canonica da rota (consultada no config/rbac)
+// - pathname: fallback que usa a url atual
 interface ProtectedRouteProps {
   children: ReactNode;
   allowedRoles?: (AppRole | string)[];
@@ -21,25 +26,35 @@ interface ProtectedRouteProps {
   fallback?: ReactNode;
 }
 
+// wrapper de protecao de rota. encapsula a autorizacao de acesso
+// em tres checagens: autenticacao (tem token?), hidratacao da
+// sessao (loading) e autorizacao (papel/rota permitida).
+// se faltar autenticacao, redireciona pro /login com um parametro
+// ?redirect= pra voltar depois. se estiver autenticado mas sem
+// acesso, mostra a tela "acesso nao autorizado" (ou o fallback
+// customizado, se foi passado).
 export function ProtectedRoute({
   children,
   allowedRoles,
   routeKey,
   fallback,
 }: ProtectedRouteProps) {
-  // HOOKS DE NAVEGACAO E ROTEAMENTO
+  // hooks de navegacao e roteamento.
   const router = useRouter();
   const pathname = usePathname();
 
-  // OBTENDO ESTADO DE AUTENTICACAO
+  // estado da sessao na store de auth (user, token, loading da
+  // hidratacao e a funcao de hidratar).
   const { user, token, loading, hydrate } = useAuthStore();
 
-  // HIDRATANDO ESTADO DE AUTENTICACAO
+  // hidrata a store uma vez ao montar. isso le token/user do
+  // storage e popula o estado.
   useEffect(() => {
     hydrate();
   }, [hydrate]);
 
-  // REDIRECIONANDO SE NAO ESTIVER AUTENTICADO
+  // se a hidratacao terminou e nao ha token, redireciona pro login.
+  // o redirect preserva a rota atual na query pra voltar depois.
   useEffect(() => {
     if (!loading) {
       if (!token) {
@@ -58,7 +73,9 @@ export function ProtectedRoute({
     }
   }, [loading, token, pathname, router]);
 
-  // EXIBINDO SPINNER ENQUANTO CARREGA
+  // enquanto a hidratacao nao terminou, mostra um spinner. evita
+  // piscar a tela "acesso negado" num usuario que so esta sendo
+  // carregado do storage.
   if (loading) {
     return (
       <div className="min-h-[50vh] flex flex-col items-center justify-center text-slate-500 dark:text-slate-400">
@@ -68,21 +85,25 @@ export function ProtectedRoute({
     );
   }
 
-  // VERIFICANDO SE EXISTE TOKEN
+  // sem token, nao renderiza nada (o useeffect ja esta redirecionando).
   if (!token) {
     return null;
   }
 
-  // VERIFICANDO SE EXISTE USUARIO
+  // sem user, tambem nao renderiza (estado intermediario).
   if (!user) {
     return null;
   }
 
-  // AVALIANDO PERMISSOES DO USUARIO
+  // avaliacao da autorizacao. a prioridade e:
+  // 1) allowedroles (quando passado e nao vazio)
+  // 2) routekey (consultado no config/rbac)
+  // 3) pathname (fallback com a url atual)
   let isAuthorized = true;
 
   if (allowedRoles) {
     if (allowedRoles.length > 0) {
+      // normaliza tudo em maiusculo pra comparacao ser case-insensitive.
       const upperAllowed = allowedRoles.map((r) => r.toUpperCase());
       const userRoleUpper = user.role.toUpperCase();
       isAuthorized = upperAllowed.includes(userRoleUpper);
@@ -97,7 +118,8 @@ export function ProtectedRoute({
     isAuthorized = hasRouteAccess(user.role, pathname);
   }
 
-  // SE NAO ESTIVER AUTORIZADO
+  // se nao estiver autorizado, mostra o fallback (quando passado)
+  // ou a tela padrao de "acesso nao autorizado" com cta pro dashboard.
   if (!isAuthorized) {
     if (fallback) {
       return <>{fallback}</>;
@@ -134,5 +156,6 @@ export function ProtectedRoute({
     );
   }
 
+  // autorizado: renderiza o conteudo protegido.
   return <>{children}</>;
 }

@@ -3,6 +3,9 @@
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Pill, Users, AlertTriangle, Calendar } from 'lucide-react';
 
+// props do bloco de cards de resumo do dashboard. o componente e
+// burro de proposito: so recebe os quatro numeros ja calculados
+// e renderiza os cards, sem saber de onde vieram.
 interface StatsProps {
   totalMedicines: number;
   totalPatients: number;
@@ -10,6 +13,10 @@ interface StatsProps {
   pendingAppointments: number;
 }
 
+// cards de metrica do dashboard. cada um mostra um numero com icone
+// e cor por tema (medicamento em verde, paciente em azul, estoque
+// critico em ambar e agendamento em indigo), so pra dar leitura rapida.
+// o datatestid em cada card ajuda os testes a pegarem o valor certo.
 export function DashboardStats({
   totalMedicines,
   totalPatients,

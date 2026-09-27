@@ -9,6 +9,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+// pagina de cadastro publico de paciente. cuida do formulario,
+// da mascara de cpf e telefone, da validacao minima no cliente e
+// do submit pra api. ao sucesso, o paciente ja sai autenticado
+// (a api devolve token no cadastro).
 export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
   const [form, setForm] = useState({ name: '', email: '', password: '', cpf: '', phone: '', birthDate: '', address: '' });
   const [error, setError] = useState('');
@@ -16,14 +20,18 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
   const [showPassword, setShowPassword] = useState(false);
   const setAuth = useAuthStore((s) => s.setAuth);
 
+  // handler generico dos campos. aplica mascara de cpf e telefone
+  // enquanto o usuario digita; pros outros campos, so repassa o valor.
   const handleChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
+    // mascara de cpf: so digitos, corta em 11 e formata 000.000.000-00.
     if (field === 'cpf') {
       value = value.replace(/\D/g, '').slice(0, 11);
       value = value.replace(/(\d{3})(\d)/, '$1.$2');
       value = value.replace(/(\d{3})(\d)/, '$1.$2');
       value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
     }
+    // mascara de telefone: so digitos, corta em 11 e formata (00) 00000-0000.
     if (field === 'phone') {
       value = value.replace(/\D/g, '').slice(0, 11);
       value = value.replace(/^(\d{2})(\d)/, '($1) $2');
@@ -32,11 +40,16 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
     setForm({ ...form, [field]: value });
   };
 
+  // submit do cadastro. valida cpf (11 digitos e nao repetido) e
+  // telefone (10 ou 11 digitos) antes de chamar a api. o resto da
+  // validacao (email, nome, senha) ja vem do zod no backend.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
+    // valida cpf: precisa ter 11 digitos e nao pode ser tudo igual
+    // (ex: 11111111111).
     const digitsOnly = (v: string) => v.replace(/\D/g, '');
     const cpfDigits = digitsOnly(form.cpf);
     let isCpfInvalid = false;
@@ -52,6 +65,8 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
       return;
     }
 
+    // valida telefone quando veio preenchido: 10 ou 11 digitos
+    // (com ddd).
     const phoneDigits = digitsOnly(form.phone);
     if (phoneDigits) {
       let isPhoneInvalid = false;
@@ -69,6 +84,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
     }
 
     try {
+      // opcionais viram undefined quando vazios, pra nao sujar o payload.
       let phoneVal: string | undefined = undefined;
       if (form.phone) {
         phoneVal = form.phone;
@@ -84,6 +100,9 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
         addressVal = form.address;
       }
 
+      // aqui chamamos o cliente http (/lib/api) pra criar o usuario
+      // e o cadastro de paciente numa transacao no backend. a
+      // resposta ja vem com token, entao o paciente sai logado.
       const result = await api.register({
         name: form.name,
         email: form.email,
@@ -96,6 +115,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
       setAuth(result.token, result.user);
       toast.success('Cadastro realizado com sucesso!');
     } catch (err: unknown) {
+      // o erro da api e exibido no bloco de erro do formulario.
       const error = err as { error?: string };
       let errorMsg = 'Erro ao realizar cadastro.';
       if (error) {
@@ -111,18 +131,19 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 px-4 py-10 relative overflow-hidden">
-      {/* Animated mesh background blobs */}
+      {/* blobs decorativos de fundo (mesh) */}
       <div className="mesh-blob mesh-blob-1" style={{ top: '-5%', right: '-10%' }} />
       <div className="mesh-blob mesh-blob-2" style={{ bottom: '10%', left: '-5%' }} />
       <div className="mesh-blob mesh-blob-3" style={{ top: '40%', right: '20%' }} />
 
-      {/* Subtle grid overlay */}
+      {/* grade sutil por cima do fundo */}
       <div className="absolute inset-0 opacity-[0.03] dark:opacity-[0.05]" style={{
         backgroundImage: 'radial-gradient(circle, oklch(0.6 0.118 184.704) 1px, transparent 1px)',
         backgroundSize: '24px 24px'
       }} />
 
       <div className="w-full max-w-lg p-8 bg-white/80 dark:bg-slate-800/80 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-teal-500/5 border border-white/50 dark:border-slate-700/50 animate-fade-in-slide-up relative z-10">
+        {/* logo e titulo */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-18 h-18 rounded-2xl bg-linear-to-br from-teal-500 via-emerald-500 to-teal-600 text-white mb-4 shadow-xl shadow-teal-500/25">
             <UserPlus className="w-8 h-8" />
@@ -135,6 +156,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* bloco de erro, so aparece quando ha mensagem */}
           {(() => {
             if (error) {
               return (
@@ -147,11 +169,13 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
             return null;
           })()}
 
+          {/* nome completo */}
           <div className="space-y-1.5">
             <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nome completo</Label>
             <Input value={form.name} onChange={handleChange('name')} placeholder="Seu nome completo" required className="rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
           </div>
 
+          {/* email e cpf lado a lado */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">E-mail</Label>
@@ -163,6 +187,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
             </div>
           </div>
 
+          {/* senha com toggle de mostrar/ocultar */}
           <div className="space-y-1.5">
             <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Senha</Label>
             <div className="relative">
@@ -200,6 +225,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
             </div>
           </div>
 
+          {/* telefone e data de nascimento lado a lado */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Telefone</Label>
@@ -211,11 +237,13 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
             </div>
           </div>
 
+          {/* endereco completo */}
           <div className="space-y-1.5">
             <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Endereço</Label>
             <Input value={form.address} onChange={handleChange('address')} placeholder="Rua, número, bairro, cidade" className="rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
           </div>
 
+          {/* botao de submit com spinner durante o cadastro */}
           <Button type="submit" disabled={loading} variant="gradient" size="lg" className="w-full">
             {(() => {
               if (loading) {
@@ -231,6 +259,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
           </Button>
         </form>
 
+        {/* rodape com atalho pro login */}
         <div className="mt-6 pt-6 border-t border-slate-100 dark:border-slate-700/50 text-center text-sm text-slate-500 dark:text-slate-400">
           Já tem conta?{' '}
           <button onClick={onSwitchToLogin} className="text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 font-bold hover:underline underline-offset-2">

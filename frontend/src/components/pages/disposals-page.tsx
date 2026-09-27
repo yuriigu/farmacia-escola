@@ -19,6 +19,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 
+// pagina de descartes. lista o historico de descartes com busca,
+// permite registrar um novo (baixa de estoque) e reverter um descarte
+// ja feito (devolve o saldo ao lote). as acoes de escrita sao
+// controladas pela permissao disposals_create.
 export function DisposalsPage() {
   const { disposals, batches, loading } = usePharmacyStore();
   const canWrite = usePermission('DISPOSALS_CREATE');
@@ -30,6 +34,8 @@ export function DisposalsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [form, setForm] = useState<DisposalDraft>({ batchId: 0, quantity: 0, reason: 'EXPIRED', notes: '' });
 
+  // motivos de descarte aceitos. o value bate com o enum do backend
+  // e o label e o texto amigavel exibido na tela.
   const REASONS = [
     { value: 'EXPIRED', label: 'Vencimento' },
     { value: 'DAMAGED_PACKAGING', label: 'Embalagem Danificada' },
@@ -39,12 +45,16 @@ export function DisposalsPage() {
     { value: 'OTHER', label: 'Outros' },
   ];
 
+  // carrega a lista de lotes que o select do modal precisa. o
+  // finally garante que o loading sai mesmo se der erro.
   useEffect(() => {
     fetchBatchesData().finally(() => {
       setLoadingBatches(false);
     });
   }, [fetchBatchesData, modalOpen]);
 
+  // resolve o lote selecionado no formulario, pra calcular limite
+  // de quantidade e mostrar saldo.
   const selectedBatch = batches.find((b) => {
     if (b.id === form.batchId) {
       return true;
@@ -52,6 +62,8 @@ export function DisposalsPage() {
     return false;
   });
 
+  // flag que indica se a quantidade pedida passa do saldo do lote.
+  // trava o submit e destaca o input em vermelho.
   let overBalance = false;
   if (selectedBatch) {
     let currentQty = 0;
@@ -67,6 +79,8 @@ export function DisposalsPage() {
     overBalance = false;
   }
 
+  // filtro da lista por busca textual. cobre nome do medicamento,
+  // codigo do lote, motivo e nome de quem registrou.
   const filteredDisposals = useMemo(() => {
     return disposals.filter((d) => {
       let medName = '';
@@ -118,6 +132,7 @@ export function DisposalsPage() {
     });
   }, [disposals, searchTerm]);
 
+  // exporta em csv os descartes filtrados.
   const handleExportCSV = () => {
     const header = ['Medicamento', 'Lote', 'Quantidade', 'Motivo', 'Registrado por', 'Data', 'Revertido'];
     const rows = filteredDisposals.map((d) => {
@@ -147,6 +162,8 @@ export function DisposalsPage() {
     toast.success('Relatório exportado com sucesso!');
   };
 
+  // submit do formulario de novo descarte. valida lote, saldo e
+  // quantidade antes de chamar a api.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBatch) {
@@ -159,6 +176,8 @@ export function DisposalsPage() {
       return;
     }
     try {
+      // aqui chamamos o cliente http (/lib/api.ts) pra registrar o
+      // descarte. ele baixa o saldo do lote e grava o historico.
       await api.createDisposal(form);
       toast.success('Descarte registrado com sucesso.');
       setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
@@ -176,6 +195,9 @@ export function DisposalsPage() {
     }
   };
 
+  // reverte um descarte. atualiza a store localmente pra ui responder
+  // na hora, e em seguida busca os dados frescos da api.
+  // o objetivo e manter tanto o comprovante quanto a lista coerentes.
   const handleRevert = async (id: number) => {
     if (!revertReason.trim()) {
       toast.error('Informe a justificativa da reversão.');
@@ -184,6 +206,8 @@ export function DisposalsPage() {
     const reasonText = revertReason.trim();
     try {
       await api.revertDisposal(id, reasonText);
+      // atualizacao otimista: marca o descarte como revertido na
+      // lista local pra o usuario ver o efeito imediatamente.
       usePharmacyStore.setState((state) => {
         const updatedList = state.disposals.map((item) => {
           if (item.id === id) {
@@ -199,10 +223,11 @@ export function DisposalsPage() {
         return { disposals: updatedList };
       });
       toast.success('Descarte revertido com sucesso.');
-      // Fecha APENAS o modal de justificativa. Se o comprovante estiver
-      // aberto, ele permanece e passa a exibir o status REVERTED.
+      // fecha apenas o modal de justificativa. se o comprovante estiver
+      // aberto, ele permanece e passa a exibir o status revertido.
       setReverting(null);
       setRevertReason('');
+      // atualiza tambem o item selecionado (comprovante), se for o caso.
       setSelectedDisposal((current) => {
         if (current) {
           if (current.id === id) {
@@ -216,12 +241,15 @@ export function DisposalsPage() {
         }
         return current;
       });
+      // busca os dados frescos da api pra confirmar as mudancas de
+      // saldo que a reversao causou no lote.
       try {
         const freshDisposals = await api.getDisposals();
         usePharmacyStore.setState({ disposals: freshDisposals });
         const freshBatches = await api.getBatches();
         usePharmacyStore.setState({ batches: freshBatches });
       } catch {
+        // se a atualizacao falhar, o update otimista ja mostrou o efeito.
       }
       fetchAllData();
     } catch (err: unknown) {
@@ -236,6 +264,7 @@ export function DisposalsPage() {
     }
   };
 
+  // colunas da tabela de descartes.
   const columns: Column<Disposal>[] = [
     {
       header: 'Medicamento / Lote',
@@ -268,6 +297,8 @@ export function DisposalsPage() {
     {
       header: 'Motivo',
       cell: (d) => (
+        // mostra o label amigavel do motivo, com fallback pro valor
+        // cru caso nao bata com nenhum dos aceitos.
         <span className="text-xs text-slate-700 dark:text-slate-300 font-medium">
           {(() => {
             const selectedReason = REASONS.find((reasonItem) => reasonItem.value === d.reason);
@@ -293,6 +324,7 @@ export function DisposalsPage() {
       header: 'Data',
       width: '140px',
       cell: (d) => {
+        // data formatada em pt-br com travessao quando ausente.
         let dateText = '—';
         if (d.createdAt) {
           const date = new Date(d.createdAt);
@@ -310,6 +342,8 @@ export function DisposalsPage() {
       header: 'Status',
       width: '120px',
       cell: (d) => {
+        // badge de descartado/revertido. rose pro descartado, cinza
+        // pro revertido.
         let badgeClass = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400 text-[10px]';
         let badgeText = 'Descartado';
         if (d.status === 'REVERTED') {
@@ -335,6 +369,8 @@ export function DisposalsPage() {
       width: '100px',
       align: 'right',
       cell: (d) => {
+        // botao de reverter so aparece pra quem tem permissao de
+        // escrita e enquanto o descarte ainda nao foi revertido.
         if (canWrite) {
           if (d.status !== 'REVERTED') {
             return (
@@ -365,7 +401,8 @@ export function DisposalsPage() {
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto page-enter">
-      {/* Standardized PageHeader */}
+      {/* cabecalho com acoes de exportar e novo descarte, ambas
+          liberadas so pra quem tem disposals_create. */}
       <PageHeader
         title="Registro de Descartes"
         description="Histórico e rastreabilidade do descarte seguro de insumos e medicamentos vencidos ou avariados."
@@ -409,7 +446,7 @@ export function DisposalsPage() {
         }
       />
 
-      {/* Compact Filters Toolbar */}
+      {/* barra de busca por medicamento, lote ou motivo */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -420,6 +457,7 @@ export function DisposalsPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
           />
+          {/* botao de limpar busca */}
           {(() => {
             if (searchTerm.length > 0) {
               return (
@@ -436,7 +474,7 @@ export function DisposalsPage() {
         </div>
       </div>
 
-      {/* Standardized DataTable */}
+      {/* tabela de descartes, com empty state contextual */}
       <DataTable
         columns={columns}
         data={filteredDisposals}
@@ -464,7 +502,8 @@ export function DisposalsPage() {
         onRowClick={(disposal) => setSelectedDisposal(disposal)}
       />
 
-      {/* Create Disposal Dialog */}
+      {/* modal de novo descarte. o select de lote so mostra lotes com
+          saldo positivo; o de motivo mostra os motivos aceitos. */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-120 rounded-3xl">
           <DialogHeader>
@@ -478,6 +517,8 @@ export function DisposalsPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+            {/* select de lote. so lista lotes com saldo > 0 pra nao
+                permitir descarte de lote vazio. */}
             <div>
               <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                 Lote de Origem *
@@ -523,6 +564,9 @@ export function DisposalsPage() {
               })()}
             </div>
 
+            {/* quantidade a descartar. o max e o saldo do lote; se
+                estourar, o input fica com borda vermelha e um aviso
+                aparece embaixo. */}
             <div>
               <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                 Quantidade a Descartar *
@@ -556,6 +600,7 @@ export function DisposalsPage() {
                   />
                 );
               })()}
+              {/* aviso de saldo insuficiente */}
               {(() => {
                 if (overBalance) {
                   let availQty = 0;
@@ -572,6 +617,7 @@ export function DisposalsPage() {
               })()}
             </div>
 
+            {/* motivo do descarte */}
             <div>
               <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                 Motivo do Descarte *
@@ -595,6 +641,8 @@ export function DisposalsPage() {
                 Cancelar
               </Button>
               {(() => {
+                // botao de submit bloqueado enquanto nao ha lote, o
+                // saldo estourou ou a quantidade nao e positiva.
                 let isSubmitDisabled = false;
                 if (!selectedBatch) {
                   isSubmitDisabled = true;
@@ -618,10 +666,12 @@ export function DisposalsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* comprovante de descarte. mostra os dados formatados e, quando
+          aplicavel, permite abrir o modal de reversao por cima. */}
       <Dialog
         open={selectedDisposal !== null}
         onOpenChange={(open) => {
-          // O X do comprovante fecha APENAS o comprovante.
+          // o x do comprovante fecha apenas o comprovante.
           if (!open) {
             setSelectedDisposal(null);
           }
@@ -639,6 +689,9 @@ export function DisposalsPage() {
             if (!selectedDisposal) {
               return null;
             }
+            // valores com fallback pra "nao informado". cada campo
+            // aceita variacoes da api (batchnumber/code,
+            // expirationdate/expiresat).
             let medicineName = 'Não informado';
             let batchNumber = 'Não informado';
             let expirationDate = 'Não informado';
@@ -678,6 +731,7 @@ export function DisposalsPage() {
             if (selectedDisposal.notes) {
               notes = selectedDisposal.notes;
             }
+            // traduz o motivo pro label amigavel.
             const selectedReason = REASONS.find((reasonItem) => reasonItem.value === selectedDisposal.reason);
             if (selectedReason) {
               reasonLabel = selectedReason.label;
@@ -685,6 +739,7 @@ export function DisposalsPage() {
             if (selectedDisposal.createdAt) {
               timestamp = new Date(selectedDisposal.createdAt).toLocaleString('pt-BR');
             }
+            // status muda a cor do badge (rose ou cinza).
             if (selectedDisposal.status === 'REVERTED') {
               statusLabel = 'Revertido';
               statusClass = 'bg-slate-100 text-slate-600 border-slate-300';
@@ -719,15 +774,17 @@ export function DisposalsPage() {
                     Fechar
                   </Button>
                   {(() => {
+                    // botao de reverter so aparece quando tem permissao
+                    // e o descarte ainda nao foi revertido.
                     if (canWrite) {
                       if (selectedDisposal.status !== 'REVERTED') {
                         return (
                           <Button
                             type="button"
                             onClick={() => {
-                              // Abre a justificativa POR CIMA do comprovante
-                              // (o Revert Dialog e renderizado por ultimo no JSX).
-                              // O comprovante permanece aberto por tras.
+                              // abre a justificativa por cima do comprovante
+                              // (o revert dialog e renderizado por ultimo no jsx).
+                              // o comprovante permanece aberto por tras.
                               setRevertReason('');
                               setReverting(selectedDisposal.id);
                             }}
@@ -748,13 +805,15 @@ export function DisposalsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Revert Dialog — sempre o ULTIMO no JSX: quando aberto junto com o
-          comprovante, fica deterministamente POR CIMA dele. */}
+      {/* modal de justificativa de reversao. fica sempre por ultimo
+          no jsx pra garantir que, quando aberto junto com o
+          comprovante, apareca por cima dele (a ordem de render
+          determina o empilhamento dos dialogs aqui). */}
       <Dialog
         open={reverting !== null}
         onOpenChange={(open) => {
-          // Fechar a justificativa (X/ESC/Cancelar) NAO fecha o comprovante
-          // que estiver aberto por baixo.
+          // fechar a justificativa (x/esc/cancelar) nao fecha o
+          // comprovante que estiver aberto por baixo.
           if (!open) {
             setReverting(null);
           }

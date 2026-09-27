@@ -15,10 +15,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+// pagina de configuracoes do usuario. cobre duas areas:
+// - dados de contato (email, telefone, endereco)
+// - alteracao de senha (exige senha atual)
+// o nome e o identificador (crf/crm/matricula/cpf) sao somente
+// leitura aqui, porque so admin pode alterar (fica explicito no
+// texto auxiliar de cada campo).
 export function SettingsPage() {
 
   const { user, token, setAuth } = useAuthStore();
 
+  // flag que garante que o usuario tem id valido (nem null nem
+  // undefined) antes de renderizar os cards de perfil.
   let hasValidUser = false;
   if (user) {
     if (user.id !== null) {
@@ -28,6 +36,7 @@ export function SettingsPage() {
     }
   }
 
+  // email inicial puxado do usuario. se ele nao vier, fica vazio.
   let initialEmail = '';
   if (user) {
     if (user.email) {
@@ -36,6 +45,7 @@ export function SettingsPage() {
   }
   const [email, setEmail] = useState(initialEmail);
 
+  // telefone inicial puxado do usuario.
   let initialPhone = '';
   if (user) {
     if (user.phone) {
@@ -44,10 +54,11 @@ export function SettingsPage() {
   }
   const [phone, setPhone] = useState(initialPhone);
 
+  // endereco comeca vazio (nao vem no objeto do usuario por padrao).
   const [address, setAddress] = useState('');
   const [savingProfile, setSavingProfile] = useState(false);
 
-  // Password fields
+  // campos de senha. os toggles controlam mostrar/ocultar.
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -55,6 +66,10 @@ export function SettingsPage() {
   const [showNewPw, setShowNewPw] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
+  // salva os dados de contato. atualiza o usuario e, se ele tiver
+  // patientid, tambem atualiza o cadastro de paciente vinculado
+  // (pra telefone e endereco ficarem coerentes entre as duas pontas).
+  // no fim, refaz o setauth pra refletir o email/telefone novos na store.
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -62,7 +77,9 @@ export function SettingsPage() {
 
     setSavingProfile(true);
     try {
+      // chamamos o cliente http (/lib/api) pra atualizar o usuario.
       const updatedUser = await api.updateUser(user.id, { email, phone, address });
+      // se for paciente, sincroniza o cadastro de paciente tambem.
       if (user.patientId) {
         await api.updatePatient(user.patientId, { phone, address });
       }
@@ -90,6 +107,9 @@ export function SettingsPage() {
     }
   };
 
+  // altera a senha. valida presenca dos tres campos, tamanho minimo
+  // da nova senha (6) e igualdade com a confirmacao. a senha atual
+  // e conferida pelo backend.
   const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPassword) {
@@ -115,6 +135,8 @@ export function SettingsPage() {
 
     setSavingPassword(true);
     try {
+      // chamamos o cliente http (/lib/api) pra alterar a senha. o
+      // backend exige a senha atual pra confirmar.
       await api.updateProfilePassword({
         currentPassword,
         newPassword,
@@ -141,7 +163,7 @@ export function SettingsPage() {
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto page-enter">
-      {/* Page Header */}
+      {/* cabecalho da pagina */}
       <PageHeader
         title="Configurações"
         description="Gerencie seus dados de acesso, preferências visuais e informações da conta."
@@ -150,7 +172,8 @@ export function SettingsPage() {
 
 
 
-      {/* ==================== PERFIL ==================== */}
+      {/* fallback quando nao ha usuario valido (estado intermediario
+          enquanto a store hidrata, ou sessao quebrada). */}
       {(() => {
         if (!hasValidUser) {
           return (
@@ -163,11 +186,14 @@ export function SettingsPage() {
         return null;
       })()}
 
+      {/* conteudo principal, so quando ha usuario valido */}
       {(() => {
         if (hasValidUser) {
           return (
             <div className="space-y-6">
-              {/* User Profile Header Card */}
+              {/* cabecalho do perfil: banner com gradiente + avatar
+                  sobreposto. o avatar usa a inicial do nome e a cor
+                  vem de getavatarcollor. */}
               <div className="glass-card rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700">
                 <div className="h-24 sm:h-28 bg-linear-to-r from-emerald-600 via-teal-600 to-emerald-700 relative">
                   <div
@@ -180,6 +206,7 @@ export function SettingsPage() {
                 </div>
                 <div className="px-6 pb-6 relative">
                   <div className="flex flex-col sm:flex-row sm:items-end gap-4">
+                    {/* avatar com inicial, cor derivada do nome */}
                     <div
                       className={`w-20 h-20 rounded-2xl ${(() => {
                         let avatarName = 'U';
@@ -200,6 +227,7 @@ export function SettingsPage() {
                         return 'U';
                       })()}
                     </div>
+                    {/* nome + badge de papel + email */}
                     <div className="flex-1 min-w-0 pt-1 sm:pt-0 sm:pb-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h2 className="text-xl font-bold text-slate-900 dark:text-white truncate">
@@ -234,8 +262,10 @@ export function SettingsPage() {
                 </div>
               </div>
 
+              {/* grade com dois cards lado a lado em telas grandes:
+                  contato e senha. */}
               <div className="grid gap-6 lg:grid-cols-2">
-                {/* Contact Info Card */}
+                {/* card de informacoes de contato */}
                 <Card className="rounded-2xl border border-slate-200 dark:border-slate-700">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-100">
@@ -246,6 +276,7 @@ export function SettingsPage() {
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleSaveProfile} className="space-y-4">
+                      {/* nome somente leitura: alteracao so via admin */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Nome Completo
@@ -265,6 +296,7 @@ export function SettingsPage() {
                         <p className="text-[11px] text-slate-400">O nome deve ser alterado por um administrador.</p>
                       </div>
 
+                      {/* identificador tambem somente leitura */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Identificador (CRF / CRM / Matrícula / CPF)
@@ -287,6 +319,7 @@ export function SettingsPage() {
                         <p className="text-[11px] text-slate-400">O identificador é imutável na auto-edição de perfil.</p>
                       </div>
 
+                      {/* email editavel */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           E-mail de Acesso *
@@ -301,6 +334,7 @@ export function SettingsPage() {
                         />
                       </div>
 
+                      {/* telefone editavel */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Telefone / WhatsApp
@@ -314,6 +348,7 @@ export function SettingsPage() {
                         />
                       </div>
 
+                      {/* endereco editavel */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Endereço Completo
@@ -327,6 +362,7 @@ export function SettingsPage() {
                         />
                       </div>
 
+                      {/* botao de salvar. vira spinner enquanto salva. */}
                       <Button
                         type="submit"
                         disabled={savingProfile}
@@ -345,7 +381,7 @@ export function SettingsPage() {
                   </CardContent>
                 </Card>
 
-                {/* Change Password Card */}
+                {/* card de alteracao de senha */}
                 <Card className="rounded-2xl border border-slate-200 dark:border-slate-700">
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base font-semibold flex items-center gap-2 text-slate-800 dark:text-slate-100">
@@ -356,6 +392,7 @@ export function SettingsPage() {
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleSavePassword} className="space-y-4">
+                      {/* senha atual com toggle de visibilidade */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Senha Atual *
@@ -391,6 +428,7 @@ export function SettingsPage() {
                         </div>
                       </div>
 
+                      {/* nova senha com toggle */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Nova Senha * (mínimo 6 caracteres)
@@ -427,6 +465,8 @@ export function SettingsPage() {
                         </div>
                       </div>
 
+                      {/* confirmacao da nova senha. mostra aviso quando
+                          as duas nao batem. */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Confirmar Nova Senha *
@@ -457,6 +497,8 @@ export function SettingsPage() {
                         })()}
                       </div>
 
+                      {/* botao de salvar senha. desabilitado enquanto
+                          algum campo estiver vazio ou salvando. */}
                       <Button
                         type="submit"
                         disabled={(() => {

@@ -5,12 +5,21 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { StockStatusBadge } from '@/components/shared/stock-status-badge';
 import type { Medicine, StockStatus } from '@/types';
 
+// props do card de medicamento. o onselect e opcional porque o card
+// pode ser usado so pra exibir (em listagens, grids, testes) sem
+// disparar nenhuma acao de clique.
 interface MedicineCardProps {
   medicine: Medicine;
   onSelect?: (medicine: Medicine) => void;
 }
 
+// card de medicamento. mostra nome, status de estoque, categoria,
+// dosagem, quantidade total e descricao acessivel. o status e
+// derivado da quantidade total com faixas fixas locais.
 export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
+  // deriva o status a partir da quantidade total.
+  // regra local (so pra esse card): zero e critico, menos de 20 e
+  // baixo, o resto e ok.
   const getStatus = (qty: number): StockStatus => {
     if (qty === 0) {
       return 'critical';
@@ -21,6 +30,7 @@ export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
     return 'ok';
   };
 
+  // resolve a quantidade total com fallback zero.
   let totalQty = 0;
   if (medicine.totalQuantity !== undefined) {
     if (medicine.totalQuantity !== null) {
@@ -32,6 +42,7 @@ export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
     totalQty = 0;
   }
 
+  // bloco de categoria, so renderiza se existir.
   let renderedCategory: React.ReactNode = null;
   if (medicine.category) {
     renderedCategory = (
@@ -39,6 +50,7 @@ export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
     );
   }
 
+  // bloco de dosagem, so renderiza se existir.
   let renderedDosage: React.ReactNode = null;
   if (medicine.dosage) {
     renderedDosage = (
@@ -48,6 +60,7 @@ export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
     );
   }
 
+  // bloco de descricao acessivel, so renderiza se existir.
   let renderedAccessibleDesc: React.ReactNode = null;
   if (medicine.accessibleDesc) {
     renderedAccessibleDesc = (
@@ -62,6 +75,8 @@ export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
       data-testid="medicine-card"
       className="hover:shadow-md transition-shadow cursor-pointer border border-slate-200 dark:border-slate-800"
       onClick={() => {
+        // clicar no card dispara o onselect quando ele foi passado.
+        // sem onselect, o card vira so leitura (sem efeito colateral).
         if (onSelect) {
           onSelect(medicine);
         }

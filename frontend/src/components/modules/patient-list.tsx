@@ -1,45 +1,50 @@
 'use client';
 
-// IMPORTS DO REACT
+// imports do react
 import React, { useState } from 'react';
 
-// IMPORTS DE BIBLIOTECAS
+// imports de bibliotecas
 import { Search } from 'lucide-react';
 
-// IMPORTS LOCAIS
+// imports locais
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import type { Patient } from '@/types';
 
-// INTERFACE DAS PROPRIEDADES DA LISTA DE PACIENTES
+// props da lista de pacientes. todos os callbacks sao opcionais,
+// porque o componente pode ser usado so como visualizacao (sem
+// acao de selecionar nem botao de criar) em outras telas ou testes.
 interface PatientListProps {
   patients: Patient[];
   onSelectPatient?: (patient: Patient) => void;
   onNewPatient?: () => void;
 }
 
-// COMPONENTE DA LISTA DE PACIENTES
+// lista de pacientes com busca local. o filtro roda no cliente,
+// olhando nome, cpf e cartao sus. o componente nao faz requisicao
+// nenhuma: so renderiza a lista que recebeu.
 export function PatientList({ patients, onSelectPatient, onNewPatient }: PatientListProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
-  // FILTRAGEM VERBOSA DE PACIENTES
+  // filtro de pacientes. a busca casa se o termo aparece no nome,
+  // no cpf ou no cartao sus. qualquer um dos tres ja inclui o item.
   const filteredPatients = patients.filter((p) => {
     const term = searchTerm.toLowerCase();
 
-    // VERIFICANDO NOME
+    // checa nome.
     if (p.name.toLowerCase().includes(term)) {
       return true;
     }
 
-    // VERIFICANDO CPF
+    // checa cpf.
     if (p.cpf) {
       if (p.cpf.includes(searchTerm)) {
         return true;
       }
     }
 
-    // VERIFICANDO CARTAO SUS
+    // checa cartao sus.
     if (p.susCard) {
       if (p.susCard.includes(searchTerm)) {
         return true;
@@ -49,7 +54,8 @@ export function PatientList({ patients, onSelectPatient, onNewPatient }: Patient
     return false;
   });
 
-  // BOTAO DE NOVO PACIENTE
+  // botao de novo paciente. so aparece se o callback foi passado,
+  // permitindo usar o componente em telas que nao criam paciente.
   let newPatientButton: React.ReactNode = null;
   if (onNewPatient) {
     newPatientButton = (
@@ -59,7 +65,8 @@ export function PatientList({ patients, onSelectPatient, onNewPatient }: Patient
     );
   }
 
-  // CONTEUDO DA LISTA DE PACIENTES
+  // conteudo da lista. quando nao ha resultado, mostra um empty state;
+  // senao, renderiza cada paciente com cpf, sus e telefone.
   let patientListContent: React.ReactNode = null;
   if (filteredPatients.length === 0) {
     patientListContent = (
@@ -71,7 +78,7 @@ export function PatientList({ patients, onSelectPatient, onNewPatient }: Patient
     patientListContent = (
       <div className="divide-y divide-slate-100 dark:divide-slate-800">
         {filteredPatients.map((patient) => {
-          // DETERMINANDO TEXTO DO CPF
+          // cpf com fallback quando nao veio.
           let cpfText = 'Não informado';
           if (patient.cpf) {
             cpfText = patient.cpf;
@@ -79,7 +86,7 @@ export function PatientList({ patients, onSelectPatient, onNewPatient }: Patient
             cpfText = 'Não informado';
           }
 
-          // DETERMINANDO TEXTO DO CARTAO SUS
+          // cartao sus com fallback quando nao veio.
           let susText = 'Não informado';
           if (patient.susCard) {
             susText = patient.susCard;
@@ -87,7 +94,7 @@ export function PatientList({ patients, onSelectPatient, onNewPatient }: Patient
             susText = 'Não informado';
           }
 
-          // RENDERIZANDO TELEFONE DO PACIENTE
+          // telefone so renderiza se existir.
           let phoneElement: React.ReactNode = null;
           if (patient.phone) {
             phoneElement = (
@@ -101,6 +108,8 @@ export function PatientList({ patients, onSelectPatient, onNewPatient }: Patient
               data-testid={`patient-item-${patient.id}`}
               className="py-3 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800/50 px-2 rounded-lg cursor-pointer"
               onClick={() => {
+                // clique no item dispara o onselect quando passado.
+                // sem onselect, o item fica so leitura.
                 if (onSelectPatient) {
                   onSelectPatient(patient);
                 }

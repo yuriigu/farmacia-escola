@@ -2,6 +2,17 @@ import * as React from "react"
 
 import { cn } from "@/lib/utils"
 
+// textarea reutilizavel do design system. e um wrapper fino em
+// volta do <textarea> nativo: aplica as classes base e repassa o
+// resto das props.
+// cobre os mesmos estados do input (foco com anel, erro via
+// aria-invalid, disabled com opacidade e placeholder em cor
+// apagada), so que com altura minima maior (min-h-16) e
+// dimensionamento automatico pelo field-sizing-content: o campo
+// acompanha o conteudo conforme o usuario digita, sem precisar
+// setar rows manualmente.
+// e usado em observacoes, justificativas e outros campos de texto
+// livre.
 function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
   return (
     <textarea

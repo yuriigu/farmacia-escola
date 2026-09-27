@@ -56,8 +56,11 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 
+// lista canonica de papeis aceitos. usada pra montar o select de
+// filtro e o select de criacao, alem do rotulo em portugues.
 const ROLES = ['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO', 'PACIENTE'] as const;
 
+// rotulo amigavel de cada papel, pra exibir no lugar da sigla.
 const ROLE_LABEL: Record<string, string> = {
   ADMIN: 'Administrador',
   FARMACEUTICO: 'Farmacêutico',
@@ -66,6 +69,7 @@ const ROLE_LABEL: Record<string, string> = {
   PACIENTE: 'Paciente',
 };
 
+// shape do formulario de usuario. e o que o modal edita/cria.
 interface UserFormData {
   name: string;
   email: string;
@@ -78,6 +82,9 @@ interface UserFormData {
   active: boolean;
 }
 
+// estado inicial do formulario. o papel padrao e farmaceutico porque
+// o caso mais comum de criacao e pela equipe (a fixacao pra paciente
+// acontece no handleopencreate quando o operador nao for admin).
 const initialFormData: UserFormData = {
   name: '',
   email: '',
@@ -90,10 +97,16 @@ const initialFormData: UserFormData = {
   active: true,
 };
 
+// pagina de gestao de usuarios. e a tela administrativa mais completa:
+// lista usuarios com filtros, cria/edita num modal amplo, ativa/desativa,
+// exclui com confirmacao e exporta em csv. as regras de rbac sao
+// checadas a partir do papel do operador logado, usando helpers do
+// config/rbac (canedituser, candeleteuser, getassignableroles).
 export function AdminPage() {
   const currentUser = useAuthStore((state) => state.user);
 
-  // PERFIL DO OPERADOR LOGADO (FONTE UNICA PARA AS REGRAS DE RBAC)
+  // perfil do operador logado. e a fonte unica pra todas as regras
+  // de rbac dessa tela (edicao, exclusao, papeis atribuiveis, etc).
   let currentRole: string | null = null;
   if (currentUser) {
     currentRole = currentUser.role;
@@ -104,36 +117,47 @@ export function AdminPage() {
     isCurrentAdmin = true;
   }
 
-  // FARMACEUTICO / MEDICO / ALUNO: GESTAO RESTRITA A PACIENTES.
+  // farmaceutico / medico / aluno: gestao restrita a pacientes.
+  // isso trava o filtro da lista e o select de papeis.
   let isRestrictedStaff = false;
   if (currentRole === 'FARMACEUTICO' || currentRole === 'MEDICO' || currentRole === 'ALUNO') {
     isRestrictedStaff = true;
   }
 
-  // PERFIS QUE O OPERADOR PODE ATRIBUIR (ADMIN: TODOS | EQUIPE: APENAS PACIENTE)
+  // papeis que o operador pode atribuir. admin pode todos; equipe
+  // assistencial so paciente. e o que alimenta o select de perfil
+  // no modal de criacao/edicao.
   const assignableRoles = getAssignableRoles(currentRole);
   const roleOptions = ROLES.filter((role) => assignableRoles.includes(role));
 
-  // PERMISSOES GRANULARES DE GESTAO DE USUARIOS
+  // permissoes granulares de gestao. quem nao tem nenhum papel
+  // atribuivel nao pode criar; quem nao pode excluir nao ve o botao.
   const canCreateUsers = assignableRoles.length > 0;
   const canDeleteUsers = canDeleteUser(currentRole);
 
+  // dados e mutations de usuario (via /hooks/use-users).
   const { data: users = [], isLoading } = useUsers();
   const createUserMutation = useCreateUser();
   const updateUserMutation = useUpdateUser();
   const deleteUserMutation = useDeleteUser();
 
+  // estados de filtro da lista.
   const [search, setSearch] = useState('');
   const [selectedRoleFilter, setSelectedRoleFilter] = useState<string>('ALL');
 
+  // estados do modal de criar/editar.
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form, setForm] = useState<UserFormData>(initialFormData);
   const [changePassword, setChangePassword] = useState(false);
 
+  // estados do modal de confirmacao de exclusao.
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
 
+  // resolve o label/placeholder/helper do campo documento conforme
+  // o papel selecionado. cada perfil tem um tipo de documento
+  // (cpf, crf, crm, matricula).
   const getDocInfo = (role: string) => {
     switch (role) {
       case 'PACIENTE':
@@ -150,10 +174,11 @@ export function AdminPage() {
     }
   };
 
+  // abre o modal em modo criacao, com o formulario resetado.
+  // operadores nao-admin tem o perfil fixado em paciente.
   const handleOpenCreate = () => {
     setEditingUser(null);
 
-    // OPERADORES NAO-ADMIN SO PODEM CRIAR PACIENTES: PERFIL FIXO NO FORMULARIO
     let defaultRole = 'FARMACEUTICO';
     if (!isCurrentAdmin) {
       defaultRole = 'PACIENTE';
@@ -164,14 +189,20 @@ export function AdminPage() {
     setModalOpen(true);
   };
 
+  // abre o modal em modo edicao, preenchendo o formulario com os
+  // dados do usuario. a checagem de "pode editar esse perfil?" roda
+  // antes, como defesa em profundidade.
   const handleOpenEdit = (u: User) => {
-    // DEFESA EM PROFUNDIDADE: NAO ABRIR EDICAO DE PERFIL NAO PERMITIDO
+    // defesa em profundidade: nao abrir edicao de perfil nao permitido.
     if (!canEditUser(currentRole, u.role)) {
       toast.error('Você só pode editar usuários com o perfil Paciente.');
       return;
     }
 
     setEditingUser(u);
+
+    // resolve birthdate: prioriza o campo do usuario, cai pro do
+    // paciente quando existir. tambem corta a parte do "t" do iso.
     let userBirthDate = '';
     if (u.birthDate) {
       userBirthDate = u.birthDate.split('T')[0];
@@ -181,6 +212,7 @@ export function AdminPage() {
       }
     }
 
+    // mesmo padrao de fallback pro endereco.
     let userAddress = '';
     if (u.address) {
       userAddress = u.address;
@@ -190,6 +222,8 @@ export function AdminPage() {
       }
     }
 
+    // documento: prefere o registeredoc do usuario, cai pro cpf do
+    // paciente quando nao houver.
     let userDoc = '';
     if (u.registerDoc) {
       userDoc = u.registerDoc;
@@ -199,6 +233,7 @@ export function AdminPage() {
       }
     }
 
+    // telefone: mesma ideia de fallback.
     let userPhone = '';
     if (u.phone) {
       userPhone = u.phone;
@@ -218,9 +253,10 @@ export function AdminPage() {
       userEmail = u.email;
     }
 
+    // resolve o papel a exibir. equipe assistencial ve sempre
+    // paciente, admin ve o papel real.
     let userRole = 'FARMACEUTICO';
     if (!isCurrentAdmin) {
-      // EQUIPE ASSISTENCIAL: PERFIL SEMPRE FIXO EM PACIENTE
       userRole = 'PACIENTE';
     } else if (u.role) {
       userRole = u.role;
@@ -246,6 +282,9 @@ export function AdminPage() {
     setModalOpen(true);
   };
 
+  // exporta em csv os usuarios filtrados. so admin tem esse botao
+  // (a checagem e feita no cabecalho). o rotulo do papel e traduzido
+  // e documentos/telefones caem pra "n/a" quando ausentes.
   const handleExportCSV = () => {
     const header = ['Nome', 'E-mail', 'Perfil', 'Documento', 'Telefone', 'Status'];
     const rows = filteredUsers.map((u) => {
@@ -292,6 +331,10 @@ export function AdminPage() {
     toast.success('Relatório de usuários exportado com sucesso!');
   };
 
+  // submit do formulario de criar/editar. valida os campos basicos
+  // antes de chamar a mutation certa. campos opcionais em branco
+  // viram null no update (pra limpar) e undefined no create (pra
+  // nao sujar o payload). so a senha muda quando o toggle esta ligado.
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) {
@@ -302,6 +345,7 @@ export function AdminPage() {
       toast.error('Informe o e-mail.');
       return;
     }
+    // na criacao, senha e obrigatoria e com minimo de 6.
     if (!editingUser) {
       if (!form.password) {
         toast.error('A senha deve conter no mínimo 6 caracteres.');
@@ -312,6 +356,7 @@ export function AdminPage() {
         return;
       }
     }
+    // na edicao, senha so valida quando o toggle esta ligado.
     if (editingUser) {
       if (changePassword) {
         if (form.password) {
@@ -325,6 +370,7 @@ export function AdminPage() {
 
     try {
       if (editingUser) {
+        // no update, campos em branco viram null (limpa o dado).
         let regDocVal: string | null = null;
         if (form.registerDoc.trim().length > 0) {
           regDocVal = form.registerDoc.trim();
@@ -352,6 +398,7 @@ export function AdminPage() {
           address: addrVal,
           active: form.active,
         };
+        // so manda a senha quando o toggle esta ligado e tem valor.
         if (changePassword) {
           if (form.password.trim().length > 0) {
             payload.password = form.password;
@@ -363,6 +410,7 @@ export function AdminPage() {
           data: payload,
         });
       } else {
+        // no create, campos em branco viram undefined (nao vao no payload).
         let regDocVal: string | undefined = undefined;
         if (form.registerDoc.trim().length > 0) {
           regDocVal = form.registerDoc.trim();
@@ -396,10 +444,12 @@ export function AdminPage() {
       setModalOpen(false);
       setEditingUser(null);
     } catch {
-      // Handled by hook
+      // erro tratado pelo hook (toast ja e mostrado la).
     }
   };
 
+  // ativa/desativa um usuario direto na linha da tabela. so admin
+  // ve esse botao (checado na coluna de acoes).
   const handleToggleActive = async (u: User) => {
     try {
       await updateUserMutation.mutateAsync({
@@ -407,10 +457,12 @@ export function AdminPage() {
         data: { active: !u.active },
       });
     } catch {
-      // Handled by hook
+      // erro tratado pelo hook.
     }
   };
 
+  // confirma a exclusao do usuario selecionado. usado no modal de
+  // confirmacao.
   const handleDeleteUser = async () => {
     if (!userToDelete) return;
     try {
@@ -418,17 +470,23 @@ export function AdminPage() {
       setDeleteConfirmOpen(false);
       setUserToDelete(null);
     } catch {
-      // Handled by hook
+      // erro tratado pelo hook.
     }
   };
 
+  // filtro da lista. faz tres coisas: filtra por escopo do operador
+  // (equipe assistencial so ve paciente), aplica a busca por texto
+  // e aplica o filtro de papel selecionado.
   const filteredUsers = users.filter((u) => {
+    // escopo: equipe assistencial so enxerga paciente.
     if (isRestrictedStaff) {
       if (u.role !== 'PACIENTE') {
         return false;
       }
     }
 
+    // busca por texto em cascata: nome, email, documento, telefone
+    // e endereco.
     let matchSearch = false;
     if (search.trim() === '') {
       matchSearch = true;
@@ -447,6 +505,7 @@ export function AdminPage() {
       }
     }
 
+    // filtro por papel. 'all' aceita qualquer um.
     let matchRole = false;
     if (selectedRoleFilter === 'ALL') {
       matchRole = true;
@@ -462,6 +521,7 @@ export function AdminPage() {
     return false;
   });
 
+  // contagem de usuarios ativos, usada nos cards de resumo.
   const activeCount = useMemo(() => {
     return users.filter((u) => {
       if (u.active) {
@@ -471,11 +531,15 @@ export function AdminPage() {
     }).length;
   }, [users]);
 
+  // colunas da tabela de usuarios. cobrem dados basicos, contato,
+  // papel, dados adicionais, status e acoes (editar, ativar, excluir).
   const columns: Column<User>[] = [
     {
       header: 'Usuário',
       width: '260px',
       cell: (u) => {
+        // avatar com inicial + nome + documento (com fallback pro cpf
+        // do paciente, ou texto discreto quando nao ha).
         let doc = '';
         if (u.registerDoc) {
           doc = u.registerDoc;
@@ -526,6 +590,8 @@ export function AdminPage() {
       header: 'Contato',
       width: '240px',
       cell: (u) => {
+        // email sempre, telefone so quando existir (com fallback
+        // pro telefone do paciente).
         let phone = '';
         if (u.phone) {
           phone = u.phone;
@@ -564,6 +630,9 @@ export function AdminPage() {
     {
       header: 'Dados Adicionais',
       cell: (u) => {
+        // nascimento e endereco com fallback pro paciente. o
+        // nascimento e formatado em pt-br usando utc pra nao
+        // deslocar um dia por fuso.
         let birthDate = '';
         if (u.birthDate) {
           birthDate = u.birthDate;
@@ -621,6 +690,8 @@ export function AdminPage() {
       header: 'Status',
       width: '110px',
       cell: (u) => {
+        // badge de ativo/inativo. usa emerald quando ativo, rose
+        // quando inativo.
         let badgeClass = 'bg-rose-50 text-rose-700 border-rose-200 dark:bg-rose-950/40 dark:text-rose-400';
         if (u.active) {
           badgeClass = 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400';
@@ -658,6 +729,8 @@ export function AdminPage() {
       width: '130px',
       align: 'right',
       cell: (u) => {
+        // se o operador nao pode editar esse perfil, mostra so
+        // "somente leitura" em vez de botoes.
         const canEditThis = canEditUser(currentRole, u.role);
 
         if (!canEditThis) {
@@ -666,6 +739,8 @@ export function AdminPage() {
           );
         }
 
+        // classe e titulo do toggle dependem do estado atual do
+        // usuario (ativo ou inativo).
         let toggleClass = 'text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30';
         let toggleTitle = 'Ativar usuário';
         if (u.active) {
@@ -686,7 +761,7 @@ export function AdminPage() {
             </Button>
 
             {(() => {
-              // EXCLUSAO E ATIVACAO/INATIVACAO: EXCLUSIVAMENTE ADMIN
+              // exclusao e ativacao/inativacao: exclusivamente admin.
               if (!canDeleteUsers) {
                 return null;
               }
@@ -723,8 +798,12 @@ export function AdminPage() {
     },
   ];
 
+  // informacoes do campo documento baseadas no papel atual do
+  // formulario. muda dinamicamente quando o usuario troca o papel.
   const docInfo = getDocInfo(form.role);
 
+  // flag que indica se o operador esta editando a propria conta.
+  // usada pra desabilitar papel, documento e status do proprio.
   let isSelfEditing = false;
   if (editingUser) {
     if (currentUser) {
@@ -736,7 +815,8 @@ export function AdminPage() {
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto page-enter pb-10">
-      {/* Header with quick stats */}
+      {/* cabecalho com acoes. o botao de exportar so aparece pra
+          admin; o de criar, pra quem tem papel atribuivel. */}
       <PageHeader
         title="Usuários"
         description="Gestão centralizada de contas de acesso, perfis de operadores e registros da Farmácia Escola."
@@ -745,7 +825,7 @@ export function AdminPage() {
           canCreateUsers ? (
             <div className="flex items-center gap-2">
               {(() => {
-                // EXPORTACAO EM MASSA: EXCLUSIVAMENTE ADMIN
+                // exportacao em massa: exclusivamente admin.
                 if (!isCurrentAdmin) {
                   return null;
                 }
@@ -772,7 +852,7 @@ export function AdminPage() {
         }
       />
 
-      {/* Summary Cards */}
+      {/* cards de resumo: total, ativos, admins e equipe assistencial. */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3.5">
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
           <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Total de Usuários</p>
@@ -812,7 +892,9 @@ export function AdminPage() {
         </div>
       </div>
 
-      {/* Filter and Search Bar */}
+      {/* barra de filtros: busca por texto + filtro por papel.
+          o filtro por papel fica oculto pra equipe assistencial,
+          que so ve paciente mesmo. */}
       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row gap-3 items-center justify-between shadow-xs">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" />
@@ -849,7 +931,8 @@ export function AdminPage() {
         })()}
       </div>
 
-      {/* Users Table */}
+      {/* tabela principal. a descricao do empty state muda conforme
+          houver busca/filtro aplicado ou lista realmente vazia. */}
       <DataTable
         columns={columns}
         data={filteredUsers}
@@ -878,7 +961,9 @@ export function AdminPage() {
         }
       />
 
-      {/* Comprehensive User Create / Edit Modal (LG) */}
+      {/* modal de criar/editar usuario. um dos formularios mais
+          completos da app, com varios campos condicionais que mudam
+          conforme o papel selecionado e o modo (create vs edit). */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6">
           <DialogHeader>
@@ -908,7 +993,7 @@ export function AdminPage() {
           </DialogHeader>
 
           <form onSubmit={handleSave} className="space-y-4 pt-2">
-            {/* Grid 1: Nome Completo & Email */}
+            {/* grid 1: nome completo e email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
                 <Label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -938,7 +1023,8 @@ export function AdminPage() {
               </div>
             </div>
 
-            {/* Grid 2: Tipo/Perfil & Documento */}
+            {/* grid 2: tipo/perfil e documento. ambos desabilitados
+                quando e auto-edicao ou equipe assistencial. */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
                 <Label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -948,9 +1034,11 @@ export function AdminPage() {
                   value={form.role}
                   onValueChange={(v) => setForm({ ...form, role: v })}
                   disabled={(() => {
+                    // auto-edicao: papel travado (admin nao pode se rebaixar).
                     if (isSelfEditing) {
                       return true;
                     }
+                    // equipe assistencial: papel travado em paciente.
                     if (isRestrictedStaff) {
                       return true;
                     }
@@ -970,6 +1058,7 @@ export function AdminPage() {
                     ))}
                   </SelectContent>
                 </Select>
+                {/* dica contextual do por que o select esta travado */}
                 {(() => {
                   if (isSelfEditing) {
                     return <p className="text-[10px] text-amber-500 mt-1">O próprio perfil de administrador não pode ser rebaixado.</p>;
@@ -1014,7 +1103,7 @@ export function AdminPage() {
               </div>
             </div>
 
-            {/* Grid 3: Telefone & Data de Nascimento */}
+            {/* grid 3: telefone e data de nascimento */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
                 <Label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
@@ -1041,7 +1130,7 @@ export function AdminPage() {
               </div>
             </div>
 
-            {/* Endereço Completo */}
+            {/* endereco completo */}
             <div>
               <Label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
                 Endereço Completo
@@ -1055,7 +1144,9 @@ export function AdminPage() {
               />
             </div>
 
-            {/* Password Section */}
+            {/* bloco de senha. no create e obrigatoria; no edit
+                so aparece quando o toggle de "alterar senha" esta
+                ligado. */}
             <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700 space-y-2.5">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs font-bold text-slate-800 dark:text-slate-200">
@@ -1094,6 +1185,8 @@ export function AdminPage() {
               </div>
 
               {(() => {
+                // o input de senha aparece no create ou quando o
+                // toggle de alterar senha esta ligado.
                 let showPasswordInput = false;
                 if (!editingUser) {
                   showPasswordInput = true;
@@ -1137,7 +1230,8 @@ export function AdminPage() {
               })()}
             </div>
 
-            {/* Status Switch */}
+            {/* switch de status ativo/inativo. travado em auto-edicao
+                e pra equipe assistencial. */}
             <div className="flex items-center justify-between p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-700">
               <div className="space-y-0.5">
                 <p className="text-xs font-bold text-slate-800 dark:text-slate-200">Status da Conta</p>
@@ -1178,6 +1272,8 @@ export function AdminPage() {
                 Cancelar
               </Button>
               {(() => {
+                // botao de submit. desabilita enquanto qualquer uma
+                // das mutations estiver em andamento.
                 let isSaving = false;
                 if (createUserMutation.isPending) {
                   isSaving = true;
@@ -1207,7 +1303,8 @@ export function AdminPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Confirmation Dialog (SM) */}
+      {/* modal de confirmacao de exclusao. so chega aqui via botao
+          de admin. o nome do usuario e mostrado na descricao. */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="sm:max-w-md rounded-3xl">
           <DialogHeader>
@@ -1256,4 +1353,3 @@ export function AdminPage() {
     </div>
   );
 }
-

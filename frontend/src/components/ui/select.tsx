@@ -6,24 +6,45 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+// wrapper do select do radix. mesma familia shadcn: cada parte
+// vira uma funcao fina que so repassa props pro primitivo e aplica
+// as classes do projeto.
+// o select tem uma estrutura um pouco maior que o dropdown comum:
+// alem do trigger e content, tambem tem value (o texto mostrado no
+// gatilho), group/label pra organizar os itens e os botoes de
+// scroll pra listas longas.
+// no app ele e usado em varios formularios (paciente, medicamento,
+// slot de escala, etc).
+
+// raiz do select. controla o valor selecionado e o estado aberto.
 function Select({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   return <SelectPrimitive.Root data-slot="select" {...props} />
 }
 
+// agrupamento de itens. util pra separar blocos logicos dentro da
+// lista (ex: categorias de medicamento).
 function SelectGroup({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Group>) {
   return <SelectPrimitive.Group data-slot="select-group" {...props} />
 }
 
+// value e o texto do item selecionado que aparece no gatilho
+// quando nada esta aberto. o radix resolve sozinho a partir do
+// selectitem escolhido.
 function SelectValue({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Value>) {
   return <SelectPrimitive.Value data-slot="select-value" {...props} />
 }
 
+// gatilho do select (a caixinha que o usuario clica). mostra o
+// value a esquerda e o chevron a direita. o prop size controla a
+// altura (sm=8, default=9). os estados de foco e erro seguem as
+// classes do tema, e o data-[placeholder] pinta o texto em cor
+// apagada quando o select ainda nao tem valor.
 function SelectTrigger({
   className,
   size = "default",
@@ -43,6 +64,8 @@ function SelectTrigger({
       {...props}
     >
       {children}
+      {/* icone de chevron padrao do gatilho. aschild permite que
+          ele seja o filho direto do icon do radix. */}
       <SelectPrimitive.Icon asChild>
         <ChevronDownIcon className="size-4 opacity-50" />
       </SelectPrimitive.Icon>
@@ -50,6 +73,11 @@ function SelectTrigger({
   )
 }
 
+// conteudo do select (a lista que abre). ja inclui portal
+// internamente. o prop position='popper' e o default: a lista abre
+// proxima do gatilho, com um pequeno deslocamento por lado. as
+// classes de animacao variam conforme o lado em que abre, e o
+// viewport do radix garante que a largura minima acompanhe o gatilho.
 function SelectContent({
   className,
   children,
@@ -62,6 +90,8 @@ function SelectContent({
         data-slot="select-content"
         className={cn(
           "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 relative z-50 max-h-(--radix-select-content-available-height) min-w-[8rem] origin-(--radix-select-content-transform-origin) overflow-x-hidden overflow-y-auto rounded-md border shadow-md",
+          // deslocamento por lado no modo popper. evita que a
+          // lista cole no gatilho.
           position === "popper" &&
             "data-[side=bottom]:translate-y-1 data-[side=left]:-translate-x-1 data-[side=right]:translate-x-1 data-[side=top]:-translate-y-1",
           className
@@ -69,10 +99,14 @@ function SelectContent({
         position={position}
         {...props}
       >
+        {/* setinhas que aparecem quando a lista tem mais itens do
+            que caberia na tela. */}
         <SelectScrollUpButton />
         <SelectPrimitive.Viewport
           className={cn(
             "p-1",
+            // no modo popper, o viewport acompanha a largura do
+            // gatilho automaticamente.
             position === "popper" &&
               "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
           )}
@@ -85,6 +119,8 @@ function SelectContent({
   )
 }
 
+// rotulo de secao dentro do select. nao e clicavel, serve pra
+// intitular um bloco de itens.
 function SelectLabel({
   className,
   ...props
@@ -98,6 +134,9 @@ function SelectLabel({
   )
 }
 
+// item do select. o indicador de check aparece a direita quando o
+// item esta selecionado (o radix controla pelo itemindicator).
+// itens disabled ficam sem interacao e com opacidade reduzida.
 function SelectItem({
   className,
   children,
@@ -112,6 +151,8 @@ function SelectItem({
       )}
       {...props}
     >
+      {/* indicador de check, so visivel quando o item esta
+          selecionado. */}
       <span className="absolute right-2 flex size-3.5 items-center justify-center">
         <SelectPrimitive.ItemIndicator>
           <CheckIcon className="size-4" />
@@ -122,6 +163,7 @@ function SelectItem({
   )
 }
 
+// separador visual entre blocos de itens. linha fina.
 function SelectSeparator({
   className,
   ...props
@@ -135,6 +177,8 @@ function SelectSeparator({
   )
 }
 
+// botao de rolar pra cima, mostrado quando a lista tem mais itens
+// acima do que cabe no viewport.
 function SelectScrollUpButton({
   className,
   ...props
@@ -153,6 +197,7 @@ function SelectScrollUpButton({
   )
 }
 
+// botao de rolar pra baixo, idem ao de cima.
 function SelectScrollDownButton({
   className,
   ...props
@@ -171,6 +216,8 @@ function SelectScrollDownButton({
   )
 }
 
+// exports publicos do select. quem consome monta a estrutura com
+// essas pecas (raiz + trigger com value + content com itens).
 export {
   Select,
   SelectContent,

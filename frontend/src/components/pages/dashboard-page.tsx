@@ -8,9 +8,12 @@ import {
   CalendarDays, AlertTriangle, AlertCircle, Plus,
   ShieldAlert, ChevronRight, CheckCircle
 } from 'lucide-react';
-// OTIMIZADO: recharts (~350KB) carregado sob demanda via dynamic import com
-// ssr:false — fora do bundle inicial do dashboard. Os gráficos renderizam
-// após o LCP das métricas principais.
+
+// carrega o bloco de graficos sob demanda via dynamic import com
+// ssr:false. isso tira o recharts (~350kb) do bundle inicial do
+// dashboard: as metricas de topo (numeros) aparecem primeiro, e o
+// grafico entra depois, apos o lcp. o loading mostra um skeleton
+// com a mesma grade pra nao deslocar o layout.
 const DashboardCharts = dynamic(
   () => import('@/components/modules/dashboard-charts').then((m) => m.DashboardCharts),
   {
@@ -34,8 +37,14 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+// pagina do dashboard. e a tela inicial apos o login e muda bastante
+// conforme o papel: paciente ve uma visao pessoal (proximos
+// agendamentos); equipe ve os kpis de estoque, o banner sanitario,
+// os graficos e a lista de proximos atendimentos.
 export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: string, tab?: string) => void }) {
   const user = useAuthStore((s) => s.user);
+
+  // detecta se o usuario e paciente. muda o layout inteiro da tela.
   let isPatient = false;
   if (user) {
     if (user.role === 'PACIENTE') {
@@ -43,16 +52,19 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
     }
   }
 
+  // dados do dashboard, todos via react-query em /services/queries.
   const { data: medicines = [] } = useMedicines();
   const { data: appointments = [] } = useAppointments();
-  // OTIMIZADO: contagem de bloqueados derivada de medicines[].batches (já em
-  // memória) — elimina a query GET /batches dedicada que o dashboard fazia
-  // apenas para o banner de bloqueio sanitário.
+
+  // contagem de lotes bloqueados derivada de medicines[].batches (ja
+  // em memoria). evita uma query dedicada a /batches so pro banner
+  // de bloqueio sanitario.
   const blockedBatchesCount = useMemo(
     () => medicines.reduce((sum, m) => sum + (m.batches ?? []).filter((b) => b.isBlocked).length, 0),
     [medicines]
   );
 
+  // soma das quantidades totais do catalogo. usada no card principal.
   const totalStockUnits = useMemo(() => {
     return medicines.reduce((sum, m) => {
       let qty = 0;
@@ -63,7 +75,9 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
     }, 0);
   }, [medicines]);
 
-  // Unified Taxonomy Metrics — contagens consolidadas pelo backend (GET /api/dashboard/stock-status)
+  // metricas consolidadas pelo backend (get /api/dashboard/stock-status).
+  // a api ja devolve as contagens por faixa (ok, low, critical, expired),
+  // entao nao ha calculo no cliente alem do fallback pra zero.
   const { data: stockStatusData } = useStockStatus();
   const stockTaxonomyCounts = useMemo(() => {
     return {
@@ -74,10 +88,12 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
     };
   }, [stockStatusData]);
 
+  // consultas ativas e pendentes, usadas em varios pontos da tela.
   const activeAppointments = appointments.filter((a) => a.status !== 'CANCELLED');
   const pendingAppointments = appointments.filter((a) => a.status === 'PENDING');
 
-  // Chart data for appointments
+  // monta os dados da pizza de agendamentos por status, com label
+  // e filtro dos que tem valor > 0 (pra nao renderizar fatia zerada).
   const appointmentPieData = useMemo(() => {
     const counts: Record<string, number> = {};
     appointments.forEach((a) => {
@@ -101,7 +117,8 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
       .filter((d) => d.value > 0);
   }, [appointments]);
 
-  // Upcoming appointments
+  // proximos 4 agendamentos pendentes ou confirmados, ordenados pela
+  // data agendada.
   const upcomingAppointments = appointments
     .filter((a) => {
       if (a.status === 'PENDING') {
@@ -115,10 +132,11 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
     .sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime())
     .slice(0, 4);
 
+  // visao de paciente: cards pessoais + proximos agendamentos dele.
   if (isPatient) {
     return (
       <div className="space-y-6 max-w-7xl mx-auto page-enter">
-        {/* Quick Stats Grid */}
+        {/* cards de resumo rapido do paciente */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <Card className="rounded-2xl border-slate-200 dark:border-slate-700 p-5 shadow-sm bg-white dark:bg-slate-800">
             <div className="flex items-center gap-4">
@@ -163,7 +181,8 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
           </Card>
         </div>
 
-        {/* Appointments Section */}
+        {/* card com os proximos agendamentos do paciente. se nao tiver
+            nenhum, mostra empty state com cta pra agendar. */}
         <Card className="rounded-3xl border-slate-200 dark:border-slate-700 shadow-sm">
           <CardHeader className="pb-3 flex flex-row items-center justify-between">
             <CardTitle className="text-base sm:text-lg flex items-center gap-2 text-slate-800 dark:text-slate-100">
@@ -205,6 +224,7 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
                           className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4"
                         >
                           <div className="flex items-center gap-3">
+                            {/* bloco de data com dia e mes */}
                             <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 flex flex-col items-center justify-center font-bold text-xs">
                               <span>{d.toLocaleDateString('pt-BR', { day: 'numeric' })}</span>
                               <span className="text-[9px] uppercase">{d.toLocaleDateString('pt-BR', { month: 'short' })}</span>
@@ -272,12 +292,14 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
     );
   }
 
-  // Staff Dashboard (ADMIN, FARMACEUTICO, PACIENTE, ALUNO e MEDICO)
+  // visao de equipe (admin, farmaceutico, aluno, medico e afins):
+  // kpis de estoque, banner sanitario, graficos e proximos atendimentos.
   return (
     <div className="space-y-6 max-w-7xl mx-auto page-enter">
-      {/* Unified Stock Taxonomy KPI Cards Grid */}
+      {/* kpis de estoque: total, em dia, baixo/critico e vencidos.
+          cada card e um link pra uma tela relevante. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Stock */}
+        {/* total em estoque */}
         <Link
           href="/medicines"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-300 transition-all group block"
@@ -296,7 +318,7 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
           </div>
         </Link>
 
-        {/* Em Dia */}
+        {/* estoque em dia */}
         <Link
           href="/medicines"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all group block"
@@ -315,7 +337,7 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
           </div>
         </Link>
 
-        {/* Baixo / Crítico */}
+        {/* baixo / critico somados */}
         <Link
           href="/medicines"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-amber-300 transition-all group block"
@@ -336,7 +358,7 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
           </div>
         </Link>
 
-        {/* Vencidos */}
+        {/* vencidos */}
         <Link
           href="/inventory"
           className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm hover:shadow-md hover:border-purple-300 transition-all group block"
@@ -356,9 +378,11 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
         </Link>
       </div>
 
-      {/* Sanitary Block Alert Banner */}
+      {/* banner sanitario: aparece quando ha lote bloqueado. avisa
+          que o fefo esta impedindo a dispensacao desses lotes. */}
       {(() => {
         if (blockedBatchesCount > 0) {
+          // singular/plural conforme a quantidade.
           let pluralText = 'lotes com bloqueio ativo';
           if (blockedBatchesCount === 1) {
             pluralText = 'lote com bloqueio ativo';
@@ -387,14 +411,16 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
         return null;
       })()}
 
-      {/* Charts Section — lazy: recharts fora do bundle inicial */}
+      {/* graficos. carregados via dynamic import (lazy), entao o
+          recharts so entra quando essa secao monta. */}
       <DashboardCharts
         appointmentPieData={appointmentPieData}
         stockTaxonomyCounts={stockTaxonomyCounts}
         hasMedicines={medicines.length > 0}
       />
 
-      {/* Next Appointments List */}
+      {/* card com os proximos atendimentos agendados (pendentes e
+          confirmados). em grade 2 colunas em telas medias. */}
       <Card className="rounded-3xl border-slate-200 dark:border-slate-700 shadow-sm">
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-base font-bold flex items-center gap-2 text-slate-800 dark:text-slate-100">
@@ -427,6 +453,7 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
                         className="p-3.5 bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800 flex items-center justify-between gap-3"
                       >
                         <div className="flex items-center gap-3">
+                          {/* bloco de data compacto */}
                           <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 font-bold text-xs flex flex-col items-center justify-center">
                             <span>{d.toLocaleDateString('pt-BR', { day: 'numeric' })}</span>
                             <span className="text-[8px] uppercase">{d.toLocaleDateString('pt-BR', { month: 'short' })}</span>

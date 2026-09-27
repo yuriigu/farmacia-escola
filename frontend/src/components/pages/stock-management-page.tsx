@@ -24,6 +24,8 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 
+// schema do formulario de novo lote. valida os campos obrigatorios
+// antes de mandar pra api (nome, quantidade, validade, fornecedor).
 const batchDraftSchema = z.object({
   medicineId: z.number().min(1, 'Selecione um medicamento'),
   batchNumber: z.string().min(2, 'Informe o número do lote'),
@@ -33,6 +35,11 @@ const batchDraftSchema = z.object({
   supplier: z.string().min(2, 'Informe o fornecedor/origem'),
 });
 
+// pagina de gestao de estoque de lotes. e a tela que cadastra
+// novas remessas, lista o estoque atual com filtros de status,
+// mostra o historico de movimentacoes de cada lote e oferece as
+// operacoes sensiveis: bloqueio sanitario e ajuste auditado.
+// tudo isso controlado pela permissao batches_create.
 export function StockManagementPage() {
   const { medicines, batches, appointments, disposals, loading } = usePharmacyStore();
   const canWrite = usePermission('BATCHES_CREATE');
@@ -54,21 +61,26 @@ export function StockManagementPage() {
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  // estados do dialog de bloqueio/desbloqueio sanitario.
   const [blockOpen, setBlockOpen] = useState(false);
   const [batchToBlock, setBatchToBlock] = useState<Batch | null>(null);
   const [blockReason, setBlockReason] = useState('');
   const [blockLoading, setBlockLoading] = useState(false);
 
+  // estados do dialog de ajuste auditado de estoque.
   const [adjustOpen, setAdjustOpen] = useState(false);
   const [batchToAdjust, setBatchToAdjust] = useState<Batch | null>(null);
   const [adjustNewQuantity, setAdjustNewQuantity] = useState<number>(0);
   const [adjustReason, setAdjustReason] = useState('');
   const [adjustLoading, setAdjustLoading] = useState(false);
 
+  // carrega os lotes uma vez ao montar.
   useEffect(() => {
     fetchBatchesData();
   }, []);
 
+  // deriva o status do lote a partir de bloqueio, validade e saldo.
+  // a ordem das checagens: bloqueado > vencido > esgotado > ativo.
   const getBatchStatus = (batch: Batch): StockStatus => {
     if (batch.isBlocked) {
       return 'Bloqueado';
@@ -84,6 +96,7 @@ export function StockManagementPage() {
     return 'Ativo';
   };
 
+  // filtro da lista por busca (lote ou medicamento) e por status.
   const filteredBatches = useMemo(() => {
     return batches.filter((b) => {
       let matchesSearch = false;
@@ -117,6 +130,8 @@ export function StockManagementPage() {
     });
   }, [batches, batchSearch, batchStatusFilter]);
 
+  // dispensacoes ligadas ao lote selecionado. cobre tanto o batchid
+  // direto na consulta quanto os itens que apontam pra esse lote.
   const batchDispenses = useMemo(() => {
     if (!selectedBatch) {
       return [];
@@ -142,6 +157,7 @@ export function StockManagementPage() {
     });
   }, [selectedBatch, appointments]);
 
+  // descartes ligados ao lote selecionado.
   const batchDisposals = useMemo(() => {
     if (!selectedBatch) return [];
     return disposals.filter((d) => {
@@ -154,6 +170,8 @@ export function StockManagementPage() {
     });
   }, [selectedBatch, disposals]);
 
+  // junta dispensacoes e descartes numa lista unica ordenada por data
+  // desc, formatada pro painel de historico do lote.
   const batchHistory = useMemo(() => {
     const items: { type: 'dispense' | 'disposal'; date: string; description: string; userName: string; quantity: number }[] = [];
     batchDispenses.forEach((app) => {
@@ -169,6 +187,7 @@ export function StockManagementPage() {
           userName = app.dispensedByUser.name;
         }
       }
+      // soma as quantidades dos itens que apontam pro lote.
       let totalQty = 0;
       if (app.items) {
         app.items.forEach((it) => {
@@ -177,9 +196,12 @@ export function StockManagementPage() {
           }
         });
       }
+      // fallback quando o item nao tem batchid explicito.
       if (totalQty === 0) {
         totalQty = 1;
       }
+      // data da dispensacao: prioriza dispensedat, cai pra createdat
+      // e por ultimo usa agora.
       let dispDate = app.updatedAt;
       if (app.dispensedAt) {
         dispDate = app.dispensedAt;
@@ -218,10 +240,12 @@ export function StockManagementPage() {
     return items.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [batchDispenses, batchDisposals, selectedBatch]);
 
+  // exporta em csv os lotes filtrados.
   const handleExportCSV = () => {
     const header = ['Número do Lote', 'Medicamento', 'Dosagem', 'Quantidade', 'Data de Validade', 'Status'];
     const rows = filteredBatches.map((b) => {
       const status = getBatchStatus(b);
+      // traduz o status do card pro label do csv.
       let statusLabel = 'Vencido';
       if (status === 'ok') {
         statusLabel = 'Em dia';
@@ -259,6 +283,8 @@ export function StockManagementPage() {
     toast.success('Relatório de lotes exportado com sucesso!');
   };
 
+  // submit do formulario de novo lote. valida pelo zod antes de
+  // chamar a api.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const validation = batchDraftSchema.safeParse(form);
@@ -275,6 +301,8 @@ export function StockManagementPage() {
       return;
     }
     try {
+      // chamamos o cliente http (/lib/api) pra criar o lote. o
+      // backend tambem registra a movimentacao de entrada.
       await api.createBatch(form);
       toast.success('Lote registrado com sucesso no estoque!');
       setForm({
@@ -300,6 +328,8 @@ export function StockManagementPage() {
     }
   };
 
+  // abre o dialog de bloqueio/desbloqueio, pre-preenchendo o motivo
+  // quando ja existe um (caso de desbloqueio).
   const openBlockDialog = (batch: Batch) => {
     setBatchToBlock(batch);
     let reason = '';
@@ -310,15 +340,19 @@ export function StockManagementPage() {
     setBlockOpen(true);
   };
 
+  // confirma o bloqueio/desbloqueio. o alvo e sempre o inverso do
+  // estado atual. bloqueio exige motivo; desbloqueio manda null.
   const handleBlockConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!batchToBlock) return;
+    // inverte o estado atual: se estava bloqueado, vai desbloquear.
     let targetBlocked = true;
     if (batchToBlock.isBlocked) {
       targetBlocked = false;
     } else {
       targetBlocked = true;
     }
+    // motivo so obrigatorio quando esta bloqueando.
     if (targetBlocked) {
       if (!blockReason.trim()) {
         toast.error('Informe o motivo do bloqueio sanitário.');
@@ -333,6 +367,7 @@ export function StockManagementPage() {
       } else {
         reasonToSend = null;
       }
+      // chamamos o cliente http (/lib/api) pra alternar o bloqueio.
       await api.blockBatch(batchToBlock.id, {
         isBlocked: targetBlocked,
         blockReason: reasonToSend,
@@ -361,6 +396,7 @@ export function StockManagementPage() {
     }
   };
 
+  // abre o dialog de ajuste auditado, com o saldo atual preenchido.
   const openAdjustDialog = (batch: Batch) => {
     setBatchToAdjust(batch);
     setAdjustNewQuantity(batch.currentQuantity);
@@ -368,6 +404,8 @@ export function StockManagementPage() {
     setAdjustOpen(true);
   };
 
+  // confirma o ajuste de estoque. exige justificativa, porque toda
+  // alteracao de saldo precisa ficar rastreada.
   const handleAdjustConfirm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!batchToAdjust) return;
@@ -381,6 +419,8 @@ export function StockManagementPage() {
     }
     setAdjustLoading(true);
     try {
+      // chamamos o cliente http (/lib/api) pra aplicar o ajuste
+      // auditado. a api registra a movimentacao e o log.
       await api.adjustBatch(batchToAdjust.id, {
         newQuantity: adjustNewQuantity,
         reason: adjustReason.trim(),
@@ -405,6 +445,7 @@ export function StockManagementPage() {
     }
   };
 
+  // abre o dialog de edicao, pre-preenchendo com os dados do lote.
   const openEditDialog = (batch: Batch) => {
     setSelectedBatch(batch);
     setEditForm({
@@ -415,11 +456,14 @@ export function StockManagementPage() {
     setEditOpen(true);
   };
 
+  // salva a edicao do lote. o backend so aceita numero, quantidade
+  // e validade (o resto e imutavel).
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBatch) return;
     setEditLoading(true);
     try {
+      // chamamos o cliente http (/lib/api) pra aplicar a edicao.
       await api.updateBatch(selectedBatch.id, editForm);
       toast.success('Lote atualizado com sucesso!');
       setEditOpen(false);
@@ -440,10 +484,13 @@ export function StockManagementPage() {
     }
   };
 
+  // exclui um lote. o backend bloqueia se houver movimentacoes ou
+  // descartes vinculados (integridade referencial).
   const handleDelete = async () => {
     if (!selectedBatch) return;
     setDeleteLoading(true);
     try {
+      // chamamos o cliente http (/lib/api) pra excluir.
       await api.deleteBatch(selectedBatch.id);
       toast.success('Lote excluído com sucesso!');
       setDeleteOpen(false);
@@ -464,11 +511,14 @@ export function StockManagementPage() {
     }
   };
 
+  // colunas da tabela de lotes.
   const columns: Column<Batch>[] = [
     {
       header: 'Lote',
       width: '180px',
       cell: (batch) => (
+        // numero do lote com badge de bloqueado quando aplicavel,
+        // + id interno discreto.
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
             <Boxes className="w-4 h-4" />
@@ -497,6 +547,7 @@ export function StockManagementPage() {
     {
       header: 'Medicamento',
       cell: (batch) => (
+        // nome do medicamento + dosagem embaixo.
         <div>
           <p className="font-semibold text-slate-800 dark:text-slate-200 text-xs sm:text-sm">
             {(() => {
@@ -525,6 +576,7 @@ export function StockManagementPage() {
       header: 'Validade',
       width: '130px',
       cell: (batch) => {
+        // data formatada em pt-br com travessao quando invalida.
         const exp = new Date(batch.expirationDate);
         return (
           <div className="flex items-center gap-1.5">
@@ -577,6 +629,8 @@ export function StockManagementPage() {
       width: '160px',
       align: 'right',
       cell: (batch) => (
+        // acoes por linha: sempre visualizar; bloquear/desbloquear,
+        // ajustar e excluir so pra quem tem permissao de escrita.
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <Button
             size="sm"
@@ -648,7 +702,8 @@ export function StockManagementPage() {
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto page-enter">
-      {/* Standardized PageHeader */}
+      {/* cabecalho com acoes: exportar csv e novo lote, ambas
+          limitadas a quem tem batches_create. */}
       <PageHeader
         title="Entrada e Gestão de Lotes"
         description="Cadastre novas remessas de medicamentos, acompanhe validades e audite o saldo em estoque."
@@ -681,7 +736,7 @@ export function StockManagementPage() {
         }
       />
 
-      {/* Compact Filters Toolbar */}
+      {/* barra de filtros: busca + chips de status do lote */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -692,6 +747,7 @@ export function StockManagementPage() {
             onChange={(e) => setBatchSearch(e.target.value)}
             className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
           />
+          {/* botao de limpar busca */}
           {(() => {
             if (batchSearch) {
               return (
@@ -707,7 +763,7 @@ export function StockManagementPage() {
           })()}
         </div>
 
-        {/* Status Filter Chips */}
+        {/* chips de status do lote (todos, em dia, baixo, critico, vencidos) */}
         <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto no-scrollbar">
           {[
             { id: 'all', label: 'Todos os Lotes' },
@@ -735,7 +791,7 @@ export function StockManagementPage() {
         </div>
       </div>
 
-      {/* Standardized DataTable */}
+      {/* tabela de lotes, com empty state e clique na linha */}
       <DataTable
         columns={columns}
         data={filteredBatches}
@@ -760,7 +816,7 @@ export function StockManagementPage() {
         onRowClick={(b) => setSelectedBatch(b)}
       />
 
-      {/* Create Batch Dialog (MD) */}
+      {/* modal de entrada de novo lote */}
       <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-lg rounded-3xl">
           <DialogHeader>
@@ -774,6 +830,7 @@ export function StockManagementPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+            {/* select de medicamento. lista todos os medicamentos ativos. */}
             <div>
               <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Medicamento *
@@ -805,6 +862,7 @@ export function StockManagementPage() {
               </Select>
             </div>
 
+            {/* numero do lote + quantidade recebida */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
@@ -840,6 +898,7 @@ export function StockManagementPage() {
               </div>
             </div>
 
+            {/* validade + fabricacao */}
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
@@ -872,6 +931,7 @@ export function StockManagementPage() {
               </div>
             </div>
 
+            {/* fornecedor / origem */}
             <div>
               <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Fornecedor / Origem *
@@ -897,7 +957,9 @@ export function StockManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Batch Details / History Dialog (LG) */}
+      {/* modal de detalhes do lote com historico. so abre quando
+          selectedbatch esta setado e nenhum dos outros modais do lote
+          esta aberto (evita empilhar). */}
       <Dialog
         open={(() => {
           if (selectedBatch) {
@@ -925,6 +987,7 @@ export function StockManagementPage() {
                   return '';
                 })()}
               </DialogTitle>
+              {/* botoes de editar e excluir, so pra quem tem permissao */}
               {(() => {
                 if (canWrite) {
                   return (
@@ -962,6 +1025,7 @@ export function StockManagementPage() {
             if (selectedBatch) {
               return (
                 <div className="space-y-4">
+                  {/* grade de cards com os dados do lote */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Medicamento</p>
@@ -1022,6 +1086,7 @@ export function StockManagementPage() {
                     </div>
                   </div>
 
+                  {/* banner de bloqueio sanitario, quando aplicavel */}
                   {(() => {
                     if (selectedBatch.isBlocked) {
                       return (
@@ -1046,7 +1111,7 @@ export function StockManagementPage() {
                     return null;
                   })()}
 
-                  {/* History */}
+                  {/* historico de movimentacoes do lote */}
                   <div>
                     <h4 className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">
                       Histórico de Movimentações ({batchHistory.length})
@@ -1060,6 +1125,7 @@ export function StockManagementPage() {
                       return (
                         <div className="space-y-2 max-h-48 overflow-y-auto">
                           {batchHistory.map((item, idx) => {
+                            // cor do badge muda conforme o tipo do movimento.
                             let badgeClass = 'text-amber-600 border-amber-200';
                             let badgeLabel = 'Descarte';
                             if (item.type === 'dispense') {
@@ -1098,7 +1164,7 @@ export function StockManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Batch Dialog (MD) */}
+      {/* modal de edicao do lote. numero, quantidade e validade. */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent className="rounded-2xl sm:max-w-lg">
           <DialogHeader>
@@ -1159,7 +1225,9 @@ export function StockManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Sanitary Block / Unblock Dialog */}
+      {/* modal de bloqueio/desbloqueio sanitario. o titulo, descricao
+          e botao mudam conforme o estado atual do lote. motivo so
+          obrigatorio quando esta bloqueando. */}
       <Dialog open={blockOpen} onOpenChange={setBlockOpen}>
         <DialogContent className="rounded-2xl sm:max-w-md">
           <DialogHeader>
@@ -1197,6 +1265,7 @@ export function StockManagementPage() {
           </DialogHeader>
 
           <form onSubmit={handleBlockConfirm} className="space-y-4 pt-1">
+            {/* motivo so aparece no caso de bloqueio (nao no desbloqueio) */}
             {(() => {
               if (batchToBlock) {
                 if (!batchToBlock.isBlocked) {
@@ -1252,7 +1321,8 @@ export function StockManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Audited Stock Adjustment Dialog */}
+      {/* modal de ajuste auditado de estoque. exige justificativa
+          porque a api registra a movimentacao e o log. */}
       <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
         <DialogContent className="rounded-2xl sm:max-w-md">
           <DialogHeader>
@@ -1319,7 +1389,8 @@ export function StockManagementPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete Dialog (SM) */}
+      {/* confirmacao de exclusao. o texto avisa que o backend bloqueia
+          se houver movimentacoes vinculadas. */}
       <ConfirmDialog
         open={deleteOpen}
         onOpenChange={setDeleteOpen}

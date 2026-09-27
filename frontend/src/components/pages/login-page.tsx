@@ -14,6 +14,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
+// schema do formulario de login. valida email e tamanho minimo
+// da senha (4 caracteres aqui, porque a regra forte de 6+ fica
+// no cadastro; aqui so barra o obviamente invalido antes de ir
+// pra api).
 const loginSchema = z.object({
   email: z.string().email('E-mail inválido'),
   password: z.string().min(4, 'A senha deve ter pelo menos 4 caracteres'),
@@ -21,11 +25,16 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
+// pagina de login. cuida do formulario (react-hook-form + zod),
+// da mutation de autenticacao (react-query) e da navegacao pos-login.
+// tambem oferece o atalho pra tela de cadastro, que pode vir via
+// callback (se o pai quiser controlar) ou via router.push direto.
 export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => void }) {
   const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const setAuth = useAuthStore((s) => s.setAuth);
 
+  // hook de formulario com validacao via zod.
   const {
     register,
     handleSubmit,
@@ -38,8 +47,12 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
     },
   });
 
+  // mutation de login. ao sucesso, guarda a sessao na store e
+  // redireciona pro dashboard. ao erro, mostra toast com a mensagem
+  // da api (ou uma generica, se nao vier).
   const loginMutation = useMutation({
     mutationFn: async (data: LoginFormData) => {
+      // aqui chamamos o cliente http (/services/api) pra autenticar.
       return await api.auth.login(data.email, data.password);
     },
     onSuccess: (result) => {
@@ -56,19 +69,20 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
     },
   });
 
+  // submit do formulario. dispara a mutation.
   const onSubmit = (data: LoginFormData) => {
     loginMutation.mutate(data);
   };
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 px-4 relative overflow-hidden">
-      {/* Background blobs */}
+      {/* blobs decorativos de fundo (mesh) */}
       <div className="mesh-blob mesh-blob-1" style={{ top: '-10%', left: '-5%' }} />
       <div className="mesh-blob mesh-blob-2" style={{ top: '50%', right: '-10%' }} />
       <div className="mesh-blob mesh-blob-3" style={{ bottom: '-5%', left: '30%' }} />
 
       <div className="w-full max-w-md p-8 bg-white/90 dark:bg-slate-800/90 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-emerald-500/5 border border-white/60 dark:border-slate-700/60 animate-fade-in-slide-up relative z-10">
-        {/* Logo */}
+        {/* logo e titulo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-linear-to-br from-emerald-500 via-teal-500 to-emerald-600 text-white mb-4 shadow-xl shadow-emerald-500/25">
             <Pill className="w-10 h-10" />
@@ -80,7 +94,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
           <p className="text-slate-500 dark:text-slate-400 mt-2 text-sm">Sistema de Gestão Farmacêutica Universitária</p>
         </div>
 
-        {/* Error banner */}
+        {/* banner de erro. so aparece quando a mutation falhou. */}
         {(() => {
           if (loginMutation.isError) {
             let errorMsg = 'Falha na autenticação';
@@ -99,12 +113,13 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
           return null;
         })()}
 
-        {/* Login form */}
+        {/* formulario de login */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email" className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
               E-mail
             </Label>
+            {/* classe do input muda quando ha erro de validacao */}
             {(() => {
               let emailInputClass = 'rounded-xl h-11 transition-all focus:border-emerald-500 focus:ring-emerald-500/20';
               if (errors.email) {
@@ -120,6 +135,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
                 />
               );
             })()}
+            {/* mensagem de erro do campo email */}
             {(() => {
               if (errors.email) {
                 return <p className="text-xs text-rose-500 font-medium">{errors.email.message}</p>;
@@ -134,6 +150,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
             </Label>
             <div className="relative">
               {(() => {
+                // alterna entre password e text conforme o toggle.
                 let passType = 'password';
                 if (showPassword) {
                   passType = 'text';
@@ -152,6 +169,8 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
                   />
                 );
               })()}
+              {/* botao de mostrar/ocultar senha. tabindex=-1 pra nao
+                  entrar no fluxo de tab (evita confusao). */}
               <Button
                 type="button"
                 variant="ghost"
@@ -168,6 +187,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
                 })()}
               </Button>
             </div>
+            {/* mensagem de erro do campo senha */}
             {(() => {
               if (errors.password) {
                 return <p className="text-xs text-rose-500 font-medium">{errors.password.message}</p>;
@@ -176,6 +196,8 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
             })()}
           </div>
 
+          {/* botao de submit com spinner quando a mutation esta
+              em andamento */}
           <Button
             type="submit"
             disabled={loginMutation.isPending}
@@ -200,6 +222,8 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
           </Button>
         </form>
 
+        {/* rodape com atalho pro cadastro. usa o callback quando
+            passado; senao, navega direto pra /register. */}
         <div className="mt-6 pt-5 border-t border-slate-100 dark:border-slate-700/50 text-center text-sm text-slate-500 dark:text-slate-400">
           Não tem conta de paciente?{' '}
           <button

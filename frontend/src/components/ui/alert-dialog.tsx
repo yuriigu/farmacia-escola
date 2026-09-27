@@ -6,12 +6,28 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 
+// wrapper do alert dialog do radix. essa familia de componentes
+// segue o padrao shadcn: cada parte vira uma funcao fina que so
+// repassa props pro primitivo do radix e aplica as classes do
+// projeto. assim mantemos o controle de comportamento (focus trap,
+// aria, fechamento no esc) sem reescrever nada.
+//
+// o alert dialog e pensado pra confirmacoes destrutivas ou sensiveis
+// (excluir, cancelar). a diferenca dele pro dialog comum e que o
+// usuario precisa interagir com um dos botoes, nao fecha clicando
+// fora. por isso e o componente ideal pra ConfirmDialog.
+
+// raiz do alert dialog. controla o estado aberto/fechado via
+// prop open/onopenchange. o dataslot ajuda o shadcn a estilizar
+// por parte.
 function AlertDialog({
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
 }
 
+// gatilho do alert dialog. coloca o children como elemento que
+// abre o dialog ao ser clicado.
 function AlertDialogTrigger({
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Trigger>) {
@@ -20,6 +36,8 @@ function AlertDialogTrigger({
   )
 }
 
+// portal do alert dialog. renderiza o conteudo fora da arvore
+// do dom principal, evitando problemas de overflow e z-index.
 function AlertDialogPortal({
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Portal>) {
@@ -28,6 +46,8 @@ function AlertDialogPortal({
   )
 }
 
+// overlay escuro atras do dialog. o fadein/fadeout vem das
+// classes data-[state=...] que o radix aplica.
 function AlertDialogOverlay({
   className,
   ...props
@@ -44,6 +64,9 @@ function AlertDialogOverlay({
   )
 }
 
+// conteudo do dialog. ja traz o portal e o overlay dentro, entao
+// quem consome so precisa renderizar alertdialogcontent dentro do
+// alertdialog raiz. anima com fade + zoom, e centraliza na tela.
 function AlertDialogContent({
   className,
   ...props
@@ -63,6 +86,8 @@ function AlertDialogContent({
   )
 }
 
+// cabecalho do dialog. empilha titulo e descricao, centralizando
+// em mobile e alinhando a esquerda em telas maiores.
 function AlertDialogHeader({
   className,
   ...props
@@ -76,6 +101,9 @@ function AlertDialogHeader({
   )
 }
 
+// rodape do dialog. em mobile os botoes ficam empilhados com a
+// ordem invertida (acao primeiro), e em sm+ viram uma linha com
+// alinhamento a direita.
 function AlertDialogFooter({
   className,
   ...props
@@ -92,6 +120,8 @@ function AlertDialogFooter({
   )
 }
 
+// titulo do dialog. semantico pro leitor de tela e com tipografia
+// de destaque.
 function AlertDialogTitle({
   className,
   ...props
@@ -105,6 +135,7 @@ function AlertDialogTitle({
   )
 }
 
+// descricao do dialog. texto secundario em cor apagada.
 function AlertDialogDescription({
   className,
   ...props
@@ -118,6 +149,8 @@ function AlertDialogDescription({
   )
 }
 
+// botao de acao (o "confirmar"). reaproveita o buttonvariants do
+// botao padrao pra herdar o visual consistente.
 function AlertDialogAction({
   className,
   ...props
@@ -130,6 +163,7 @@ function AlertDialogAction({
   )
 }
 
+// botao de cancelar. usa a variante outline do botao padrao.
 function AlertDialogCancel({
   className,
   ...props
@@ -142,6 +176,9 @@ function AlertDialogCancel({
   )
 }
 
+// exports publicos do alert dialog. quem consome monta a estrutura
+// com essas pecas (raiz + trigger + content com header/title/description
+// + footer com action/cancel).
 export {
   AlertDialog,
   AlertDialogPortal,

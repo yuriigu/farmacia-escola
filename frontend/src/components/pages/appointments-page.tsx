@@ -23,7 +23,8 @@ import { PageHeader } from '@/components/shared/page-header';
 import { DataTable } from '@/components/shared/data-table';
 import type { Column } from '@/types';
 
-// ==================== CPF MASK ====================
+// helper de mascara de cpf. formata enquanto o usuario digita e
+// corta em 11 digitos. o cpf limpo e derivado com stripCpf.
 function formatCPF(value: string): string {
   const digits = value.replace(/\D/g, '').slice(0, 11);
   if (digits.length <= 3) return digits;
@@ -32,17 +33,24 @@ function formatCPF(value: string): string {
   return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
 }
 
+// remove tudo que nao for digito. usado pra mandar o cpf cru pra api.
 function stripCPF(value: string): string {
   return value.replace(/\D/g, '');
 }
 
+// calcula o saldo disponivel real do medicamento. usa availablequantity
+// quando a api manda; senao deriva de fisico - reservado (nunca abaixo
+// de zero).
 function getAvailableStock(medicine: { physicalQuantity?: number; totalQuantity?: number; reservedQuantity?: number; availableQuantity?: number }): number {
   const physicalStock = medicine.physicalQuantity ?? medicine.totalQuantity ?? 0;
   const reservedStock = medicine.reservedQuantity ?? 0;
   return medicine.availableQuantity ?? Math.max(physicalStock - reservedStock, 0);
 }
 
-// ==================== DOCTOR APPOINTMENT MODAL ====================
+// modal de agendamento com foco em medico. existe porque medico tem
+// um fluxo diferente: busca paciente por cpf (com autocomplete),
+// prescreve varios medicamentos e usa slot de escala. os outros
+// papeis usam o modal padrao mais abaixo.
 function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   const { medicines, scheduleSlots } = usePharmacyStore();
   const [cpfInput, setCpfInput] = useState('');
@@ -58,6 +66,8 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
+  // limpa todos os campos do formulario. chamado no sucesso e no
+  // cancelar.
   const cleanForm = useCallback(() => {
     setCpfInput('');
     setPatientName('');
@@ -73,7 +83,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
     fetchScheduleSlotsData();
   }, []);
 
-  // Close suggestions on outside click
+  // fecha o dropdown de sugestoes ao clicar fora dele.
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (suggestionsRef.current && !suggestionsRef.current.contains(e.target as Node)) {
@@ -84,7 +94,9 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
-  // CPF autocomplete: search doctor's history
+  // autocomplete de cpf: com 3+ digitos, busca pacientes do historico
+  // via /lib/api. usa debounce de 300ms pra nao bombardear a api a
+  // cada tecla.
   const handleCpfChange = useCallback((value: string) => {
     const formatted = formatCPF(value);
     setCpfInput(formatted);
@@ -117,6 +129,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
     }
   }, []);
 
+  // clique numa sugestao preenche cpf formatado e nome do paciente.
   const selectSuggestion = (suggestion: { name: string; cpf: string }) => {
     setCpfInput(formatCPF(suggestion.cpf));
     setPatientName(suggestion.name);
@@ -124,6 +137,9 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
     setCpfSuggestions([]);
   };
 
+  // submit do agendamento medico. valida medicamentos, data, slot,
+  // cpf e nome, e checa saldo real (soma por medicamento) antes de
+  // chamar a api.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (items.some((item) => !item.medicineId || item.quantity < 1)) {
@@ -149,6 +165,8 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
       return;
     }
 
+    // soma o que foi pedido por medicamento. isso cobre o caso do
+    // mesmo medicamento aparecer em varias linhas.
     const requestedByMedicine = new Map<number, number>();
     items.forEach((item) => requestedByMedicine.set(item.medicineId, (requestedByMedicine.get(item.medicineId) ?? 0) + item.quantity));
     for (const [requestedMedicineId, requestedQuantity] of requestedByMedicine) {
@@ -169,6 +187,8 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
         toast.error('Selecione um horário disponível na escala.');
         return;
       }
+      // combina a data escolhida com o horario do slot pra montar
+      // o datetime completo.
       const dateVal = new Date(scheduledDate + 'T' + selectedSlot.timeSlot + ':00');
       const timeVal = selectedSlot.timeSlot;
 
@@ -179,6 +199,8 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
         notesVal = undefined;
       }
 
+      // aqui chamamos o cliente http (/lib/api.ts) pra criar o
+      // agendamento medico no backend.
       await api.createAppointment({
         items,
         patientName: patientName.trim(),
@@ -227,7 +249,8 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-          {/* CPF with Autocomplete */}
+          {/* cpf com autocomplete: digita 3+ digitos pra ver sugestoes
+              do historico de pacientes do medico. */}
           <div className="relative" ref={suggestionsRef}>
             <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
               CPF do Paciente
@@ -241,6 +264,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
                 maxLength={14}
                 className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
               />
+              {/* spinner enquanto busca sugestoes */}
               {(() => {
                 if (searchingCpf) {
                   return (
@@ -253,7 +277,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
               })()}
             </div>
 
-            {/* Suggestions dropdown */}
+            {/* dropdown de sugestoes de pacientes */}
             {(() => {
               if (showSuggestions) {
                 if (cpfSuggestions.length > 0) {
@@ -281,7 +305,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
             })()}
           </div>
 
-          {/* Nome do Paciente */}
+          {/* nome do paciente */}
           <div>
             <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
               Nome do Paciente
@@ -295,6 +319,9 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
             />
           </div>
 
+          {/* lista de medicamentos prescritos, com saldo em tempo real.
+              cada linha mostra o saldo disponivel e destaca em vermelho
+              se passar. */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <Label className="text-xs font-semibold text-slate-700 dark:text-slate-200">Medicamentos do atendimento</Label>
@@ -329,13 +356,15 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
                     </div>
                     {items.length > 1 && <Button type="button" variant="ghost" onClick={() => setItems((current) => current.filter((_, entryIndex) => entryIndex !== index))} size="icon" className="text-slate-400 hover:text-rose-600" aria-label="Remover medicamento">×</Button>}
                   </div>
+                  {/* saldo em tempo real: verde se ok, vermelho se estourou */}
                   {selectedMed && <div className={`text-[11px] font-medium ${isOver ? 'text-rose-600' : 'text-emerald-700'}`}>Saldo disponível: {availableStock} un.{isOver ? ` · solicitado: ${item.quantity} un.` : ''}</div>}
                 </div>
               );
             })}
           </div>
 
-          {/* Data e Horário */}
+          {/* data + slot. o select de horario filtra pelos slots da
+              data escolhida e so aceita os que ainda tem vaga. */}
           <div>
             <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
               Data e Horário (Slot)
@@ -370,7 +399,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
             </Select>
           </div>
 
-          {/* Observações */}
+          {/* observacoes livres */}
           <div>
             <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
               Observações (opcional)
@@ -404,12 +433,17 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
   );
 }
 
-// ==================== APPOINTMENTS PAGE ====================
+// pagina de agendamentos. e a tela em lista, complementar ao overview
+// do calendario. mostra consultas com filtros, permite criar/confirmar/
+// concluir/cancelar e trata tanto paciente quanto equipe (inclusive
+// medico, que tem um modal proprio).
 export function AppointmentsPage() {
   const searchParams = useSearchParams();
   const newParam = searchParams.get('new');
   const medIdParam = searchParams.get('medicineId');
 
+  // a url pode abrir o modal direto: ?new=1 (generico) ou
+  // ?medicineid=n (vindo da tela de medicamentos).
   let initialNew = false;
   if (newParam === '1') {
     initialNew = true;
@@ -437,6 +471,7 @@ export function AppointmentsPage() {
     return s.user;
   });
 
+  // detecta se o usuario e paciente (muda escopo, textos e acoes).
   let isPatient = false;
   if (user) {
     if (user.role === 'PACIENTE') {
@@ -448,6 +483,8 @@ export function AppointmentsPage() {
     isPatient = false;
   }
 
+  // detecta se o usuario e medico (usa o modal proprio dele e nao
+  // ve o modal padrao).
   let isMedico = false;
   if (user) {
     if (user.role === 'MEDICO') {
@@ -469,6 +506,8 @@ export function AppointmentsPage() {
   const [form, setForm] = useState<AppointmentDraft>(defaultForm);
   const [loadingPatients, setLoadingPatients] = useState(false);
 
+  // slots ativos na data escolhida no formulario. e o que alimenta o
+  // select de horario no modal padrao.
   const availableSlotsForDate = scheduleSlots.filter((slot) => {
     if (!slot.active) {
       return false;
@@ -482,11 +521,14 @@ export function AppointmentsPage() {
     return true;
   });
 
-  // Listen for calendar day-click event to auto-open modal
+  // carrega slots uma vez ao montar.
   useEffect(() => {
     fetchScheduleSlotsData();
   }, []);
 
+  // escuta o evento customizado do calendario (calendar:gotoappointments)
+  // pra abrir o modal com a data/slot pre-preenchidos quando o usuario
+  // clica num slot no overview.
   useEffect(() => {
     const handler = (event: Event) => {
       const customEvent = event as CustomEvent<{ date?: string; time?: string; slotId?: number }>;
@@ -508,6 +550,8 @@ export function AppointmentsPage() {
     return () => window.removeEventListener('calendar:goToAppointments', handler);
   }, []);
 
+  // quando o modal padrao abre pra equipe, garante que a lista de
+  // pacientes esteja carregada (o select precisa dela).
   useEffect(() => {
     if (isPatient) {
       return;
@@ -527,7 +571,7 @@ export function AppointmentsPage() {
           usePharmacyStore.setState({ patients: data });
         }
       } catch {
-        // ignore
+        // se der erro, segue com o que ja tem na store.
       } finally {
         if (active) {
           setLoadingPatients(false);
@@ -539,6 +583,9 @@ export function AppointmentsPage() {
     };
   }, [modalOpen, isPatient, isMedico]);
 
+  // submit do modal padrao. valida campos obrigatorios, checa
+  // estoque real do medicamento e monta o payload. paciente nao
+  // manda patientid (o backend amarra ao dono do token).
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (form.items.length === 0) {
@@ -561,6 +608,7 @@ export function AppointmentsPage() {
       return;
     }
 
+    // trava de ui: nao deixa passar do saldo real disponivel.
     const selectedMed = medicines.find((m) => m.id === form.items[0].medicineId);
     if (selectedMed) {
       let physicalStock = 0;
@@ -596,6 +644,7 @@ export function AppointmentsPage() {
     }
 
     try {
+      // monta o datetime a partir da data + hora do formulario.
       const dateVal = new Date(form.scheduledDate + 'T' + form.scheduledTime + ':00');
       let timeVal = '';
       if (form.scheduledTime) {
@@ -622,6 +671,7 @@ export function AppointmentsPage() {
         payload.patientId = form.patientId;
       }
 
+      // aqui chamamos o cliente http (/lib/api.ts) pra criar.
       await api.createAppointment(payload);
       toast.success('Agendamento criado com sucesso!');
       setForm(defaultForm);
@@ -643,6 +693,8 @@ export function AppointmentsPage() {
     }
   };
 
+  // cancela um agendamento. exige justificativa; o backend libera a
+  // reserva de estoque quando recebe cancelled.
   const handleCancelAppointment = async () => {
     if (!cancelTarget) {
       return;
@@ -662,6 +714,7 @@ export function AppointmentsPage() {
     }
   };
 
+  // exporta em csv os agendamentos filtrados.
   const handleExportCSV = () => {
     const header = ['Medicamento', 'Dosagem', 'Paciente', 'CPF', 'Data Agendada', 'Status', 'Observações'];
     const rows = filteredAppointments.map((a) => {
@@ -721,6 +774,9 @@ export function AppointmentsPage() {
     toast.success('Relatório exportado com sucesso!');
   };
 
+  // filtro da listagem. combina status e busca por texto, onde o
+  // texto cobre nome/cpf do paciente, nome/dosagem do medicamento
+  // e observacoes.
   const filteredAppointments = appointments.filter((app) => {
     let matchesStatus = false;
     if (statusFilter === 'ALL') {
@@ -789,12 +845,14 @@ export function AppointmentsPage() {
     return false;
   });
 
-  // Standardized Table Columns
+  // colunas da tabela de agendamentos.
   const columns: Column<Appointment>[] = [
     {
       header: 'Data & Horário',
       width: '180px',
       cell: (app) => {
+        // data formatada em pt-br e hora (com fallback pra hora do
+        // proprio date quando nao houver scheduledtime).
         const scheduled = new Date(app.scheduledDate);
         let dateStr = '—';
         if (Number.isNaN(scheduled.getTime())) {
@@ -841,6 +899,8 @@ export function AppointmentsPage() {
       header: 'Paciente',
       width: '200px',
       cell: (app) => {
+        // nome com fallback pro proprio usuario quando for paciente.
+        // cpf formatado com a mascara.
         let name = 'Não informado';
         if (app.patient) {
           if (app.patient.name) {
@@ -885,6 +945,8 @@ export function AppointmentsPage() {
     {
       header: 'Medicamento(s)',
       cell: (app) => {
+        // primeiro medicamento em destaque + badge com a contagem dos
+        // demais, quando existirem.
         let firstItem: AppointmentItem | undefined = undefined;
         if (app.items) {
           if (app.items.length > 0) {
@@ -950,6 +1012,7 @@ export function AppointmentsPage() {
       header: 'Status',
       width: '130px',
       cell: (app) => {
+        // badge de status com cor/label do map de constants.
         let statusClass = APPOINTMENT_STATUS_STYLES.PENDING;
         if (APPOINTMENT_STATUS_STYLES[app.status]) {
           statusClass = APPOINTMENT_STATUS_STYLES[app.status];
@@ -974,6 +1037,9 @@ export function AppointmentsPage() {
       align: 'right',
       width: '140px',
       cell: (app) => {
+        // paciente cancela os proprios (pending/confirmed); equipe
+        // (nao-medico) confirma/conclui/cancela. medico nao ve essas
+        // acoes porque ele usa o modal dele pra criar.
         let patientCanCancel = false;
         if (isPatient) {
           if (app.status === 'PENDING') {
@@ -1006,7 +1072,7 @@ export function AppointmentsPage() {
               <Eye className="w-4 h-4" />
             </Button>
 
-            {/* Patient cancel action */}
+            {/* cancelar como paciente */}
             {(() => {
               if (patientCanCancel) {
                 return (
@@ -1027,7 +1093,7 @@ export function AppointmentsPage() {
               return null;
             })()}
 
-            {/* Staff actions */}
+            {/* acoes da equipe: concluir, confirmar, cancelar */}
             {(() => {
               if (staffCanAct) {
                 return (
@@ -1051,6 +1117,7 @@ export function AppointmentsPage() {
                       <span>Concluir</span>
                     </Button>
 
+                    {/* confirmar so quando pending */}
                     {(() => {
                       if (app.status === 'PENDING') {
                         return (
@@ -1100,6 +1167,7 @@ export function AppointmentsPage() {
     },
   ];
 
+  // descricao do cabecalho muda conforme o papel do usuario.
   let headerDesc = 'Controle de agendamentos e consultas farmacêuticas da Farmácia Escola';
   if (isMedico) {
     headerDesc = 'Agendamentos e prescrições médicas de retirada';
@@ -1109,6 +1177,7 @@ export function AppointmentsPage() {
     headerDesc = 'Controle de agendamentos e consultas farmacêuticas da Farmácia Escola';
   }
 
+  // valores derivados do formulario, usados pelos selects.
   let formMedVal = '';
   if (form.items) {
     if (form.items.length > 0) {
@@ -1138,7 +1207,9 @@ export function AppointmentsPage() {
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto page-enter">
-      {/* Standardized PageHeader */}
+      {/* cabecalho com acoes contextuais: exportar (nao-paciente/nao-medico),
+          botao de abrir modal (o proprio doctorappointmentmodal pro
+          medico, ou o padrao pros demais). */}
       <PageHeader
         title="Agendamentos de Retirada"
         description={headerDesc}
@@ -1187,7 +1258,7 @@ export function AppointmentsPage() {
         }
       />
 
-      {/* Compact Filters Toolbar */}
+      {/* barra de filtros: busca + chips de status */}
       <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
         <div className="relative w-full sm:w-80">
           <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -1198,6 +1269,7 @@ export function AppointmentsPage() {
             onChange={(e) => setSearchTerm(e.target.value)}
             className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
           />
+          {/* botao de limpar busca */}
           {(() => {
             if (searchTerm.length > 0) {
               return (
@@ -1213,7 +1285,8 @@ export function AppointmentsPage() {
           })()}
         </div>
 
-        {/* Status Filter Chips */}
+        {/* chips de filtro de status, com scroll horizontal em telas
+            pequenas. */}
         <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto no-scrollbar">
           {[
             { id: 'ALL', label: 'Todos' },
@@ -1241,7 +1314,7 @@ export function AppointmentsPage() {
         </div>
       </div>
 
-      {/* Standardized DataTable */}
+      {/* tabela de agendamentos, com empty state e clique na linha */}
       <DataTable
         columns={columns}
         data={filteredAppointments}
@@ -1268,7 +1341,8 @@ export function AppointmentsPage() {
         onRowClick={(app) => setSelectedAppointment(app)}
       />
 
-      {/* Appointment Detail Dialog */}
+      {/* modal de detalhe do agendamento selecionado, com acoes de
+          status pra equipe nao-medico. */}
       <Dialog open={Boolean(selectedAppointment)} onOpenChange={() => setSelectedAppointment(null)}>
         <DialogContent className="rounded-2xl max-w-lg">
           <DialogHeader>
@@ -1282,6 +1356,7 @@ export function AppointmentsPage() {
           </DialogHeader>
           {(() => {
             if (selectedAppointment) {
+              // resolve label/cor do status do detalhe.
               let detailStatusStyle = '';
               if (APPOINTMENT_STATUS_STYLES[selectedAppointment.status]) {
                 detailStatusStyle = APPOINTMENT_STATUS_STYLES[selectedAppointment.status];
@@ -1294,14 +1369,14 @@ export function AppointmentsPage() {
 
               return (
                 <div className="space-y-4">
-                  {/* Status badge */}
+                  {/* badge de status */}
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className={detailStatusStyle}>
                       {detailStatusLabel}
                     </Badge>
                   </div>
 
-                  {/* Patient info */}
+                  {/* bloco do paciente, com avatar e cpf formatado */}
                   {(() => {
                     if (selectedAppointment.patient) {
                       let patientCpfEl: React.ReactNode = null;
@@ -1325,7 +1400,7 @@ export function AppointmentsPage() {
                     return null;
                   })()}
 
-                  {/* Medicine info */}
+                  {/* bloco dos medicamentos solicitados */}
                   {(() => {
                     if (selectedAppointment.items) {
                       if (selectedAppointment.items.length > 0) {
@@ -1376,7 +1451,7 @@ export function AppointmentsPage() {
                     return null;
                   })()}
 
-                  {/* Date & Time */}
+                  {/* data e horario, com fallback pra hora do proprio date */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
                       <div className="flex items-center gap-1.5 mb-1">
@@ -1415,7 +1490,7 @@ export function AppointmentsPage() {
                     </div>
                   </div>
 
-                  {/* Notes */}
+                  {/* observacoes, so se existirem */}
                   {(() => {
                     if (selectedAppointment.notes) {
                       return (
@@ -1440,6 +1515,7 @@ export function AppointmentsPage() {
                     >
                       Fechar
                     </Button>
+                    {/* acoes de status pra equipe nao-medico */}
                     {(() => {
                       if (!isPatient) {
                         if (!isMedico) {
@@ -1513,7 +1589,8 @@ export function AppointmentsPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Standard Appointment Modal (non-doctor) */}
+      {/* modal padrao de criacao (nao-medico). o medico usa o
+          doctorappointmentmodal la em cima. */}
       {(() => {
         if (!isMedico) {
           return (
@@ -1524,6 +1601,7 @@ export function AppointmentsPage() {
                   <DialogDescription>Cadastre uma nova consulta ou atendimento.</DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} className="space-y-4">
+                  {/* select de medicamento */}
                   <div>
                     <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Medicamento</Label>
                     <Select value={formMedVal} onValueChange={(v) => setForm({ ...form, items: [{ ...form.items[0], medicineId: Number(v) }] })}>
@@ -1541,6 +1619,8 @@ export function AppointmentsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* painel de saldo do medicamento escolhido, com alerta
+                      se a quantidade estourar o disponivel */}
                   {(() => {
                     const selectedMedId = form.items[0]?.medicineId;
                     if (selectedMedId) {
@@ -1595,10 +1675,12 @@ export function AppointmentsPage() {
                     }
                     return null;
                   })()}
+                  {/* quantidade */}
                   <div>
                     <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Quantidade</Label>
                     <Input type="number" min={1} value={formQtyVal} onChange={(e) => setForm({ ...form, items: [{ ...form.items[0], quantity: Math.max(1, Number(e.target.value)) }] })} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
                   </div>
+                  {/* select de paciente, so pra equipe */}
                   {(() => {
                     if (!isPatient) {
                       let patientPlaceholder = 'Selecione um paciente...';
@@ -1629,10 +1711,13 @@ export function AppointmentsPage() {
                     }
                     return null;
                   })()}
+                  {/* data */}
                   <div>
                     <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Data</Label>
                     <Input type="date" required value={form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledDate: e.target.value, scheduledTime: '', slotId: undefined })} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
                   </div>
+                  {/* slot: filtra pelos slots ativos da data escolhida.
+                      escolher o slot tambem seta o scheduledtime. */}
                   <div>
                     <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Horário da escala</Label>
                     <Select value={form.slotId ? String(form.slotId) : ''} onValueChange={(value) => {
@@ -1659,6 +1744,7 @@ export function AppointmentsPage() {
                         })}
                       </SelectContent>
                     </Select>
+                    {/* alerta quando nao ha nenhuma escala ativa naquele dia */}
                     {(() => {
                       if (form.scheduledDate && availableSlotsForDate.length === 0) {
                         return <p className="mt-1 text-xs text-rose-600">Não há escala ativa para esta data.</p>;
@@ -1666,6 +1752,7 @@ export function AppointmentsPage() {
                       return null;
                     })()}
                   </div>
+                  {/* observacoes */}
                   <div>
                     <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Observações (opcional)</Label>
                     <Textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Orientações..." className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
@@ -1681,6 +1768,8 @@ export function AppointmentsPage() {
         }
         return null;
       })()}
+      {/* modal de cancelamento. exige justificativa e libera a reserva
+          de estoque no backend. */}
       <Dialog open={cancelTarget !== null} onOpenChange={() => setCancelTarget(null)}>
         <DialogContent className="rounded-2xl max-w-md">
           <DialogHeader>

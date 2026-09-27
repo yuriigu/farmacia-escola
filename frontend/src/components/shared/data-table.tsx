@@ -1,17 +1,24 @@
 'use client';
 
-// IMPORTS DO REACT
+// imports do react
 import { ReactNode } from 'react';
 
-// IMPORTS DE BIBLIOTECAS
+// imports de bibliotecas
 import { Inbox } from 'lucide-react';
 
-// IMPORTS LOCAIS
+// imports locais
 import { Card, CardContent } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import type { DataTableProps } from '@/types';
 
-// COMPONENTE DA TABELA DE DADOS REUTILIZAVEL
+// tabela de dados reutilizavel. cobre tres estados:
+// - loading: mostra 5 linhas de skeleton na mesma grade das colunas
+// - vazio: mostra um empty state com icone, titulo, descricao e uma
+//   acao opcional
+// - com dados: renderiza as linhas com zebra (linha alternada),
+//   hover contextual e clique opcional na linha
+// as colunas sao definidas pelo tipo column (com header, width,
+// align, cell, accessorkey) do @/types.
 export function DataTable<T extends Record<string, any>>({
   columns,
   data,
@@ -26,7 +33,7 @@ export function DataTable<T extends Record<string, any>>({
   footer,
   keyExtractor,
 }: DataTableProps<T>) {
-  // FUNCAO PARA RETORNAR CLASSE DE ALINHAMENTO
+  // traduz o align da coluna pra classe de texto (left/center/right).
   const getAlignClass = (align?: 'left' | 'center' | 'right') => {
     if (align === 'center') {
       return 'text-center';
@@ -37,14 +44,18 @@ export function DataTable<T extends Record<string, any>>({
     return 'text-left';
   };
 
-  // RENDERIZANDO ACAO DO ESTADO VAZIO
+  // acao do empty state (botao de criar, por exemplo), embrulhada
+  // num wrapper com espaco superior.
   let renderedEmptyAction: ReactNode = null;
   if (emptyAction) {
     renderedEmptyAction = <div className="pt-2">{emptyAction}</div>;
   }
 
-  // RENDERIZANDO CORPO DA TABELA
+  // corpo da tabela. e montado por um dos tres caminhos: loading,
+  // vazio, ou com dados.
   let tableBodyContent: ReactNode = null;
+  // loading: 5 linhas falsas com skeleton em cada celula. o numero
+  // de celulas acompanha as colunas, entao a grade fica coerente.
   if (isLoading) {
     tableBodyContent = Array.from({ length: 5 }).map((_, rIdx) => {
       return (
@@ -52,7 +63,7 @@ export function DataTable<T extends Record<string, any>>({
           {columns.map((_, cIdx) => {
             return (
               <td key={cIdx} className="px-4 py-4">
-                <Skeleton className="h-4 w-full max-w-[120px]" />
+                <Skeleton className="h-4 w-full max-w-30" />
               </td>
             );
           })}
@@ -60,6 +71,8 @@ export function DataTable<T extends Record<string, any>>({
       );
     });
   } else if (data.length === 0) {
+    // vazio: linha unica ocupando todas as colunas, com icone
+    // grande, titulo, descricao e (se veio) a acao.
     tableBodyContent = (
       <tr>
         <td colSpan={columns.length} className="px-4 py-16 text-center">
@@ -81,8 +94,9 @@ export function DataTable<T extends Record<string, any>>({
       </tr>
     );
   } else {
+    // com dados: percorre os itens e renderiza cada linha.
     tableBodyContent = data.map((item, rowIdx) => {
-      // DETERMINANDO A CHAVE UNICA DA LINHA
+      // chave da linha. prioridade: keyextractor > item.id > index.
       let key: string | number = rowIdx;
       if (keyExtractor) {
         key = keyExtractor(item, rowIdx);
@@ -92,7 +106,7 @@ export function DataTable<T extends Record<string, any>>({
         key = rowIdx;
       }
 
-      // DETERMINANDO SE A LINHA E CLICAVEL
+      // flag que muda o hover quando a linha e clicavel.
       let isClickable = false;
       if (onRowClick) {
         isClickable = true;
@@ -100,7 +114,7 @@ export function DataTable<T extends Record<string, any>>({
         isClickable = false;
       }
 
-      // DEFININDO COR DE FUNDO ALTERNADA
+      // zebra: linhas impares ganham um fundo levemente diferente.
       let rowBg = 'bg-white dark:bg-slate-800';
       if (rowIdx % 2 === 1) {
         rowBg = 'bg-slate-50/40 dark:bg-slate-800/30';
@@ -108,7 +122,7 @@ export function DataTable<T extends Record<string, any>>({
         rowBg = 'bg-white dark:bg-slate-800';
       }
 
-      // DEFININDO EFEITO DE HOVER
+      // hover. quando clicavel, vira esmeralda pra indicar acao.
       let hoverClass = 'hover:bg-slate-50/70 dark:hover:bg-slate-700/40';
       if (isClickable) {
         hoverClass = 'cursor-pointer hover:bg-emerald-50/40 dark:hover:bg-emerald-950/20';
@@ -122,6 +136,8 @@ export function DataTable<T extends Record<string, any>>({
         <tr
           key={key}
           onClick={() => {
+            // clicar na linha dispara o onrowclick (quando passado)
+            // com o item e o indice.
             if (onRowClick) {
               onRowClick(item, rowIdx);
             }
@@ -129,7 +145,8 @@ export function DataTable<T extends Record<string, any>>({
           className={rowClassName}
         >
           {columns.map((col, colIdx) => {
-            // DETERMINANDO CONTEUDO DA CELULA
+            // conteudo da celula. prioridade: col.cell > col.accessorkey
+            // > null. accessorkey mostra '-' quando o valor e nulo/undefined.
             let cellContent: ReactNode = null;
             if (col.cell) {
               cellContent = col.cell(item, rowIdx);
@@ -148,7 +165,8 @@ export function DataTable<T extends Record<string, any>>({
               cellContent = null;
             }
 
-            // DETERMINANDO CLASSES DA CELULA
+            // classes da celula: padding, alinhamento e classe extra
+            // (quando o column define uma).
             let extraColClass = '';
             if (col.className) {
               extraColClass = col.className;
@@ -171,7 +189,7 @@ export function DataTable<T extends Record<string, any>>({
     });
   }
 
-  // RENDERIZANDO RODAPE DA TABELA
+  // rodape opcional, separado do corpo por uma borda.
   let renderedFooter: ReactNode = null;
   if (footer) {
     renderedFooter = (
@@ -181,17 +199,25 @@ export function DataTable<T extends Record<string, any>>({
     );
   }
 
+  // classes do card externo e da tabela interna. a minwidth garante
+  // scroll horizontal em telas apertadas (o overflow-x-auto fica no
+  // wrapper).
   const cardClassName = 'rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-sm overflow-hidden ' + className;
   const tableClassName = 'w-full text-sm text-slate-600 dark:text-slate-300 ' + minWidth;
 
   return (
     <Card className={cardClassName}>
       <CardContent className="p-0">
+        {/* wrapper que ativa o scroll horizontal quando a tabela
+            passa da largura da tela. */}
         <div className="overflow-x-auto">
           <table className={tableClassName}>
+            {/* cabecalho: barra esmeralda a esquerda, fundo neutro e
+                tipografia em caps com tracking. */}
             <thead className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 bg-slate-50/90 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-700 border-l-[3px] border-l-emerald-500">
               <tr>
                 {columns.map((col, idx) => {
+                  // classe extra do th quando a column define.
                   let extraHeaderClass = '';
                   if (col.headerClassName) {
                     extraHeaderClass = col.headerClassName;

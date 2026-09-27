@@ -20,20 +20,29 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StandardCalendar } from '@/components/shared/standard-calendar';
 
+// horarios fixos disponiveis na escala. o select do modal usa essa
+// lista pra evitar que o operador digite horario fora do padrao.
 const TIME_OPTIONS = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30', '17:00'];
 
+// pagina de escala de horarios. e a tela que configura os slots de
+// atendimento: cada slot tem data, horario, capacidade maxima e
+// farmaceutico responsavel. mostra um calendario mensal com os slots
+// e um detalhamento em grade por dia. criar/editar/excluir so pra
+// quem tem a permissao schedules_create.
 export function ScheduleSlotsPage() {
   const user = useAuthStore((s) => s.user);
   const scheduleSlots = usePharmacyStore((s) => s.scheduleSlots);
   const [pharmacists, setPharmacists] = useState<User[]>([]);
   const canWrite = usePermission('SCHEDULES_CREATE');
 
+  // estado do modal de criar/editar. o editslot indica o modo.
   const [modalOpen, setModalOpen] = useState(false);
   const [editSlot, setEditSlot] = useState<ScheduleSlot | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ date: '', timeSlot: '09:00', maxCapacity: 4, assignedToId: 0 });
 
-  // Load slots for visible month
+  // carrega a lista de farmaceuticos pro select de responsavel.
+  // so farmaceuticos aparecem, porque a escala e gerida por eles.
   useEffect(() => {
     api.getUsers().then((users) => {
       const responsibleUsers = users.filter((item) => item.role === 'FARMACEUTICO');
@@ -41,6 +50,9 @@ export function ScheduleSlotsPage() {
     }).catch(() => {});
   }, []);
 
+  // callback do calendario quando o mes visivel muda. recarrega os
+  // slots com o filtro de periodo correspondente, pra nao trazer
+  // meses que nem estao em tela.
   const handleDatesSet = (info: { startStr: string; endStr: string }) => {
     fetchScheduleSlotsData({
       startDate: info.startStr.slice(0, 10),
@@ -48,7 +60,9 @@ export function ScheduleSlotsPage() {
     }).catch(() => {});
   };
 
-  // Group slots by date
+  // agrupa os slots por data (yyyy-mm-dd) pra montar o detalhamento
+  // embaixo do calendario. cada chave e um dia, cada valor e a lista
+  // de horarios daquele dia.
   const slotsByDate = useMemo(() => {
     const map: Record<string, ScheduleSlot[]> = {};
     scheduleSlots.forEach((s) => {
@@ -59,6 +73,9 @@ export function ScheduleSlotsPage() {
     return map;
   }, [scheduleSlots]);
 
+  // converte os slots pro formato de evento do calendario.
+  // o titulo mostra quantas vagas sobraram; a cor muda quando o
+  // slot esta lotado (cinza) vs disponivel (verde).
   const calendarEvents = useMemo(() => scheduleSlots.map((slot) => {
     const booked = slot._count?.appointments ?? 0;
     const available = Math.max(slot.maxCapacity - booked, 0);
@@ -73,6 +90,8 @@ export function ScheduleSlotsPage() {
     };
   }), [scheduleSlots]);
 
+  // clique num evento do calendario. se o operador pode editar,
+  // abre o modal ja em modo edit.
   const handleCalendarEventClick = (info: EventClickArg) => {
     const slot = info.event.extendedProps.slot as ScheduleSlot | undefined;
     if (slot && canWrite) {
@@ -80,6 +99,9 @@ export function ScheduleSlotsPage() {
     }
   };
 
+  // abre o modal em modo criar. se veio uma data (do clique no dia),
+  // usa ela; senao, sugere hoje. se quem esta criando e farmaceutico,
+  // ja se sugere como responsavel.
   const handleOpenCreate = (date?: string) => {
     setEditSlot(null);
     let initialDate = new Date().toISOString().split('T')[0];
@@ -101,6 +123,7 @@ export function ScheduleSlotsPage() {
     setModalOpen(true);
   };
 
+  // abre o modal em modo editar, preenchendo com os dados do slot.
   const handleOpenEdit = (slot: ScheduleSlot) => {
     setEditSlot(slot);
     let responsibleId = 0;
@@ -116,12 +139,17 @@ export function ScheduleSlotsPage() {
     setModalOpen(true);
   };
 
+  // submit do modal. em modo edicao, so manda capacidade,
+  // responsavel e active (data/horario sao travados pra nao quebrar
+  // agendamentos). em modo criacao, manda tudo.
   const handleSave = async () => {
     if (!form.date) return;
     if (!form.timeSlot) return;
     setSaving(true);
     try {
       if (editSlot) {
+        // aqui chamamos o cliente http (/lib/axios) direto porque o
+        // endpoint usa put e so aceita um subset de campos.
         await apiClient.put(`/api/schedule-slots/${editSlot.id}`, {
           maxCapacity: form.maxCapacity,
           assignedToId: form.assignedToId,
@@ -129,6 +157,7 @@ export function ScheduleSlotsPage() {
         });
         toast.success('Horário atualizado com sucesso.');
       } else {
+        // chamamos o cliente http (/lib/api) pra criar um novo slot.
         await api.createScheduleSlot({
           date: form.date,
           timeSlot: form.timeSlot,
@@ -153,6 +182,8 @@ export function ScheduleSlotsPage() {
     }
   };
 
+  // exclui um slot. o backend rejeita se houver agendamento ativo
+  // vinculado (a trava real fica no service). aqui so chamamos a api.
   const handleDelete = async (slot: ScheduleSlot) => {
     try {
       await api.deleteScheduleSlot(slot.id);
@@ -172,7 +203,7 @@ export function ScheduleSlotsPage() {
 
   return (
     <div className="space-y-5 page-enter">
-      {/* Standardized PageHeader */}
+      {/* cabecalho com botao de novo horario (so pra quem pode criar) */}
       <PageHeader
         title="Escala de Horários de Atendimento"
         description="Configure os horários disponíveis e o limite de vagas para agendamento de dispensação."
@@ -196,12 +227,15 @@ export function ScheduleSlotsPage() {
         }
       />
 
+      {/* legenda de cores do calendario */}
       <div className="flex flex-wrap items-center gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3 text-xs dark:border-slate-700 dark:bg-slate-800" aria-label="Legenda de vagas">
         <span className="font-semibold text-slate-600 dark:text-slate-300">Legenda:</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-green-600" />Disponível</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-slate-500" />Esgotado</span>
       </div>
 
+      {/* calendario com os slots do mes. clicar num dia (se puder
+          editar) abre o modal de criacao com a data pre-preenchida. */}
       <Card className="rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 sm:p-5">
         <StandardCalendar
           events={calendarEvents}
@@ -211,7 +245,9 @@ export function ScheduleSlotsPage() {
         />
       </Card>
 
-      {/* Slots Detailed Schedule List */}
+      {/* detalhamento em grade dos slots do mes, agrupado por dia.
+          cada celula mostra vagas livres/total e permite editar ou
+          excluir (o excluir fica desabilitado se houver agendamento). */}
       {(() => {
         if (Object.keys(slotsByDate).length > 0) {
           return (
@@ -228,6 +264,7 @@ export function ScheduleSlotsPage() {
                   .map(([dateKey, slots]) => (
                     <div key={dateKey} className="rounded-xl border border-slate-100 dark:border-slate-700/80 bg-slate-50/50 dark:bg-slate-800/40 p-3">
                       <div className="flex items-center justify-between mb-2">
+                        {/* formatacao do dia da semana, dia e mes */}
                         <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">
                           {new Date(dateKey + 'T12:00:00').toLocaleDateString('pt-BR', {
                             weekday: 'long',
@@ -252,6 +289,9 @@ export function ScheduleSlotsPage() {
                           >
                             <div className="flex items-center justify-between mb-1">
                               <span className="font-bold text-slate-800 dark:text-slate-200">{slot.timeSlot}</span>
+                              {/* botoes de editar/excluir, so pra quem
+                                  pode escrever. o excluir fica
+                                  bloqueado se houver agendamento. */}
                               {(() => {
                                 if (canWrite) {
                                   return (
@@ -277,6 +317,7 @@ export function ScheduleSlotsPage() {
                                 return null;
                               })()}
                             </div>
+                            {/* contagem de vagas e badge livre/lotado */}
                             <div className="flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
                               <span>
                                 {(() => {
@@ -314,7 +355,9 @@ export function ScheduleSlotsPage() {
         return null;
       })()}
 
-      {/* Create / Edit Modal */}
+      {/* modal de criar/editar. em edicao, data e horario ficam
+          travados pra nao quebrar agendamentos; so capacidade e
+          responsavel mudam. */}
       {(() => {
         if (canWrite) {
           return (
@@ -340,6 +383,9 @@ export function ScheduleSlotsPage() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 pt-1">
+                  {/* select de farmaceutico responsavel. em edicao,
+                      fica desabilitado porque o endpoint de update
+                      nao aceita troca de responsavel por aqui. */}
                   <div>
                     <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                       Farmacêutico responsável
@@ -357,6 +403,7 @@ export function ScheduleSlotsPage() {
                       </SelectContent>
                     </Select>
                   </div>
+                  {/* data (travada em edicao) */}
                   <div>
                     <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                       Data
@@ -369,6 +416,7 @@ export function ScheduleSlotsPage() {
                       className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
                     />
                   </div>
+                  {/* horario (travado em edicao). lista fixa do time_options. */}
                   <div>
                     <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                       Horário
@@ -386,6 +434,8 @@ export function ScheduleSlotsPage() {
                       ))}
                     </select>
                   </div>
+                  {/* capacidade maxima (1 a 20). pode ser editada nos
+                      dois modos. */}
                   <div>
                     <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                       Capacidade Máxima (Vagas)

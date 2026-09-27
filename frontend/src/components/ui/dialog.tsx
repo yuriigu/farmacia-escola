@@ -6,30 +6,48 @@ import { XIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+// wrapper do dialog do radix. mesma familia de componentes do
+// alertdialog: cada parte vira uma funcao fina que so repassa
+// props pro primitivo e aplica as classes do projeto.
+// a diferenca pro alertdialog e que o dialog comum pode fechar
+// clicando fora ou apertando esc, e aceita um botao x no canto.
+// por isso ele e usado em modais de criacao/edicao/detalhe, que
+// nao exigem uma acao especifica pra fechar.
+
+// raiz do dialog. controla o estado aberto/fechado via prop
+// open/onopenchange.
 function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
   return <DialogPrimitive.Root data-slot="dialog" {...props} />
 }
 
+// gatilho do dialog. coloca o children como elemento que abre
+// o modal ao ser clicado.
 function DialogTrigger({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Trigger>) {
   return <DialogPrimitive.Trigger data-slot="dialog-trigger" {...props} />
 }
 
+// portal do dialog. renderiza o conteudo fora da arvore principal
+// do dom pra evitar problema de overflow e z-index.
 function DialogPortal({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Portal>) {
   return <DialogPrimitive.Portal data-slot="dialog-portal" {...props} />
 }
 
+// botao de fechar do dialog. util quando o consumidor quer montar
+// o proprio x em outro lugar (fora do header padrao).
 function DialogClose({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Close>) {
   return <DialogPrimitive.Close data-slot="dialog-close" {...props} />
 }
 
+// overlay escuro atras do dialog. o fadein/fadeout vem das classes
+// data-[state=...] que o radix aplica.
 function DialogOverlay({
   className,
   ...props
@@ -46,6 +64,12 @@ function DialogOverlay({
   )
 }
 
+// conteudo do dialog. ja inclui o portal e o overlay internamente,
+// entao quem consome so precisa renderizar dialogcontent dentro do
+// dialog raiz. anima com fade + zoom e centraliza na tela.
+// o prop showclosebutton controla se aparece o x no canto. por
+// padrao aparece, mas telas que querem forcar interacao pelos
+// botoes podem desligar.
 function DialogContent({
   className,
   children,
@@ -66,6 +90,8 @@ function DialogContent({
         {...props}
       >
         {children}
+        {/* botao de fechar padrao no canto superior direito.
+            o sr-only garante acessibilidade sem mostrar texto. */}
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"
@@ -80,6 +106,8 @@ function DialogContent({
   )
 }
 
+// cabecalho do dialog. empilha titulo e descricao, centralizando
+// em mobile e alinhando a esquerda em telas maiores.
 function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -90,6 +118,9 @@ function DialogHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+// rodape do dialog. em mobile os botoes ficam empilhados com a
+// ordem invertida (acao primeiro), e em sm+ viram uma linha com
+// alinhamento a direita.
 function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
@@ -103,6 +134,8 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
+// titulo do dialog. semantico pro leitor de tela e com tipografia
+// de destaque.
 function DialogTitle({
   className,
   ...props
@@ -116,6 +149,7 @@ function DialogTitle({
   )
 }
 
+// descricao do dialog. texto secundario em cor apagada.
 function DialogDescription({
   className,
   ...props
@@ -129,6 +163,9 @@ function DialogDescription({
   )
 }
 
+// exports publicos do dialog. quem consome monta a estrutura com
+// essas pecas (raiz + trigger + content com header/title/description
+// + footer).
 export {
   Dialog,
   DialogClose,

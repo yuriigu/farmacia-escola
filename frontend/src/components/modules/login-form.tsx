@@ -1,37 +1,44 @@
 'use client';
 
-// IMPORTS DO REACT
+// imports do react
 import React, { useState } from 'react';
 
-// IMPORTS LOCAIS
+// imports locais
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 
-// INTERFACE DAS PROPRIEDADES DO FORMULARIO DE LOGIN
+// props do formulario de login. o onsubmit e opcional porque o
+// componente pode ser usado so como apresentacao (sem logica) em
+// testes ou em telas que orquestram o login por fora.
 interface LoginFormProps {
   onSubmit?: (data: { email: string; password: string }) => Promise<void> | void;
   isLoading?: boolean;
 }
 
-// COMPONENTE DO FORMULARIO DE LOGIN
+// formulario de login. cuida do estado dos campos, da validacao
+// simples de "campos obrigatorios", do estado de erro e do botao
+// de submit. a logica real de autenticar fica no onsubmit, que e
+// passado pelo componente pai.
 export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
 
-  // FUNCAO PARA ENVIAR O FORMULARIO DE LOGIN
+  // submit do formulario. valida presenca de email e senha, limpa o
+  // erro anterior e chama o onsubmit. se o onsubmit lancar, captura
+  // a mensagem e mostra no bloco de erro.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    // VALIDANDO SE O EMAIL ESTA PREENCHIDO
+    // valida se o email foi preenchido.
     if (!email) {
       setError('Preencha todos os campos');
       return;
     }
 
-    // VALIDANDO SE A SENHA ESTA PREENCHIDA
+    // valida se a senha foi preenchida.
     if (!password) {
       setError('Preencha todos os campos');
       return;
@@ -42,6 +49,7 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
         await onSubmit({ email, password });
       }
     } catch (err: any) {
+      // fallback de mensagem quando o erro nao traz um texto proprio.
       let errorMessage = 'Erro ao realizar login';
       if (err) {
         if (err.message) {
@@ -56,7 +64,8 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
     }
   };
 
-  // MENSAGEM DE ERRO VISIVEL
+  // bloco de erro, renderizado acima dos campos quando ha mensagem.
+  // o role='alert' faz leitores de tela anunciarem a mensagem.
   let errorMessageBlock: React.ReactNode = null;
   if (error) {
     errorMessageBlock = (
@@ -66,7 +75,7 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
     );
   }
 
-  // TEXTO DO BOTAO DE SUBMISSAO
+  // texto do botao muda conforme o estado de carregamento.
   let buttonLabel = 'Entrar';
   if (isLoading) {
     buttonLabel = 'Entrando...';

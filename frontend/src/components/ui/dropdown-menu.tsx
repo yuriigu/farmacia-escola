@@ -6,12 +6,23 @@ import { CheckIcon, ChevronRightIcon, CircleIcon } from "lucide-react"
 
 import { cn } from "@/lib/utils"
 
+// wrapper do dropdown menu do radix. mesma familia do dialog: cada
+// parte vira uma funcao fina que so repassa props pro primitivo e
+// aplica as classes do projeto. cobre o basico (item, label,
+// separator, shortcut) e as variacoes com estado (checkbox item,
+// radio item) e submenu (sub, subtrigger, subcontent).
+// o dropdown e usado no header do appshell pro menu de perfil e em
+// varias tabelas pra acoes contextuais.
+
+// raiz do dropdown. controla o estado aberto/fechado.
 function DropdownMenu({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Root>) {
   return <DropdownMenuPrimitive.Root data-slot="dropdown-menu" {...props} />
 }
 
+// portal do dropdown. renderiza o conteudo fora da arvore principal
+// pra escapar de overflow e empilhamento z-index.
 function DropdownMenuPortal({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Portal>) {
@@ -20,6 +31,7 @@ function DropdownMenuPortal({
   )
 }
 
+// gatilho do dropdown. e o elemento que abre o menu ao ser clicado.
 function DropdownMenuTrigger({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Trigger>) {
@@ -31,6 +43,11 @@ function DropdownMenuTrigger({
   )
 }
 
+// conteudo do menu (a caixinha que aparece). ja inclui portal
+// internamente, entao o consumidor so precisa renderizar ele dentro
+// do dropdown raiz. o sideoffset controla o espacinho entre o
+// gatilho e o menu. as classes de animacao variam conforme o lado
+// em que o menu abre (top/bottom/left/right).
 function DropdownMenuContent({
   className,
   sideOffset = 4,
@@ -51,6 +68,8 @@ function DropdownMenuContent({
   )
 }
 
+// agrupamento de itens. util pra separar blocos logicos dentro do
+// menu (ex: acoes de perfil vs acoes de conta).
 function DropdownMenuGroup({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Group>) {
@@ -59,6 +78,9 @@ function DropdownMenuGroup({
   )
 }
 
+// item clicavel do menu. o prop variant=destructive ativa o visual
+// vermelho (usado em "sair", "excluir"). o inset alinha o item
+// como se tivesse um icone a esquerda, mesmo sem ter.
 function DropdownMenuItem({
   className,
   inset,
@@ -82,6 +104,8 @@ function DropdownMenuItem({
   )
 }
 
+// item com checkbox. o estado checked vem do radix e o indicador
+// (check) aparece a esquerda quando marcado.
 function DropdownMenuCheckboxItem({
   className,
   children,
@@ -98,6 +122,7 @@ function DropdownMenuCheckboxItem({
       checked={checked}
       {...props}
     >
+      {/* indicador de check, so visivel quando marcado */}
       <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator>
           <CheckIcon className="size-4" />
@@ -108,6 +133,7 @@ function DropdownMenuCheckboxItem({
   )
 }
 
+// grupo de itens tipo radio. mantem apenas um selecionado por vez.
 function DropdownMenuRadioGroup({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
@@ -119,6 +145,8 @@ function DropdownMenuRadioGroup({
   )
 }
 
+// item de radio dentro do grupo. o indicador e uma bolinha cheia
+// que aparece a esquerda quando o item esta selecionado.
 function DropdownMenuRadioItem({
   className,
   children,
@@ -133,6 +161,7 @@ function DropdownMenuRadioItem({
       )}
       {...props}
     >
+      {/* indicador de radio selecionado */}
       <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
         <DropdownMenuPrimitive.ItemIndicator>
           <CircleIcon className="size-2 fill-current" />
@@ -143,6 +172,8 @@ function DropdownMenuRadioItem({
   )
 }
 
+// rotulo de secao do menu. nao e clicavel, serve so pra intitular
+// um bloco de itens. o inset alinha como se tivesse icone a esquerda.
 function DropdownMenuLabel({
   className,
   inset,
@@ -163,6 +194,7 @@ function DropdownMenuLabel({
   )
 }
 
+// separador visual entre blocos do menu. e uma linha fina.
 function DropdownMenuSeparator({
   className,
   ...props
@@ -176,6 +208,8 @@ function DropdownMenuSeparator({
   )
 }
 
+// atalho de teclado mostrado a direita do item (ex: "ctrl+k").
+// so visual, o atalho em si precisa ser registrado pelo consumidor.
 function DropdownMenuShortcut({
   className,
   ...props
@@ -192,12 +226,15 @@ function DropdownMenuShortcut({
   )
 }
 
+// raiz de um submenu. combina com subtrigger e subcontent.
 function DropdownMenuSub({
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
   return <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" {...props} />
 }
 
+// item que abre um submenu ao interagir. mostra o chevron a
+// direita pra indicar que tem mais opcoes.
 function DropdownMenuSubTrigger({
   className,
   inset,
@@ -222,6 +259,8 @@ function DropdownMenuSubTrigger({
   )
 }
 
+// conteudo do submenu. mesma ideia do dropdownmenucontent, so que
+// ancorado no subtrigger em vez do gatilho principal.
 function DropdownMenuSubContent({
   className,
   ...props
@@ -230,7 +269,7 @@ function DropdownMenuSubContent({
     <DropdownMenuPrimitive.SubContent
       data-slot="dropdown-menu-sub-content"
       className={cn(
-        "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-[8rem] origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md border p-1 shadow-lg",
+        "bg-popover text-popover-foreground data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 min-w-32 origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md border p-1 shadow-lg",
         className
       )}
       {...props}
@@ -238,6 +277,8 @@ function DropdownMenuSubContent({
   )
 }
 
+// exports publicos do dropdown. quem consome monta a estrutura
+// com as pecas necessarias (raiz + trigger + content + itens).
 export {
   DropdownMenu,
   DropdownMenuPortal,

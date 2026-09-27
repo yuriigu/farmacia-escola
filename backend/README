@@ -39,9 +39,10 @@ Stack Tecnológica
 * Runtime: Node.js
 * Framework Web: Express.js 4.21
 * Linguagem: TypeScript 5.8
-* ORM: Prisma ORM 5.22
+* ORM: Prisma ORM 7.10 com driver adapter `@prisma/adapter-libsql`
 * Bancos de Dados:
-  - Desenvolvimento, testes e produção: SQLite (file:./prisma/dev.db)
+  - Desenvolvimento e produção: SQLite (file:./prisma/dev.db)
+  - Testes: Prisma Client mockado (sem banco real)
 * Autenticação & Criptografia: JSON Web Token (jsonwebtoken 9.0) + bcryptjs 3.0
 * Segurança & CORS: cors 2.8 + Middlewares customizados
 * Testes: Vitest 3.0 + Supertest 7.2
@@ -75,7 +76,7 @@ docker build -t farmacia-backend .
 docker run -p 3001:3001 \
   -e PORT=3001 \
   -e DATABASE_URL="file:./prisma/dev.db" \
-  -e JWT_SECRET="farmacia_escola_secret_key_desenvolvimento_2026" \
+  -e JWT_SECRET="troque-por-uma-chave-gerada-com-openssl-rand-base64-32" \
   -e FRONTEND_URL="http://localhost:3000" \
   farmacia-backend
 
@@ -83,7 +84,7 @@ Execução Local
 --------------
 
 Pré-requisitos:
-* Node.js 18 ou superior (Node.js 22 recomendado)
+* Node.js 22 ou superior (a imagem Docker usa node:22-alpine)
 * npm 9 ou superior
 
 1. Instalação das Dependências:
@@ -94,10 +95,10 @@ npm install
 
 2. Configuração do Arquivo .env:
 
-Preencha `JWT_SECRET` no arquivo backend/.env:
+Preencha `JWT_SECRET` no arquivo backend/.env com uma chave gerada por `openssl rand -base64 32`:
 
 DATABASE_URL="file:./prisma/dev.db"
-JWT_SECRET="farmacia_escola_secret_key_desenvolvimento_2026"
+JWT_SECRET="preencha-com-uma-chave-aleatoria-com-pelo-menos-32-caracteres"
 PORT=3001
 FRONTEND_URL="http://localhost:3000"
 
@@ -108,14 +109,15 @@ npm run db:push
 npm run db:seed
 
 O banco começa vazio. O comando `npm run db:seed` é obrigatório para popular o
-banco com os dados iniciais.
+banco com os dados iniciais e exibe no terminal as credenciais de demonstração de
+cada perfil (ADMIN, FARMACEUTICO, MEDICO, ALUNO e PACIENTE).
 
 4. Inicialização em Modo Desenvolvimento:
 
 npm run dev
 
 A API estará respondendo em: http://localhost:3001
-Verificação de integridade: http://localhost:3001/health
+Todas as rotas da aplicação são servidas sob o prefixo /api.
 
 5. Build e Execução em Produção:
 
@@ -135,14 +137,14 @@ Scripts Disponíveis
 -------------------
 
 * npm run dev — nodemon --watch src --exec ts-node src/index.ts (Inicia o servidor com hot-reload ativo)
-* npm run build — tsc && prisma generate (Compila o TypeScript e gera o Prisma Client)
+* npm run build — prisma generate && tsc (Gera o Prisma Client e compila o TypeScript)
 * npm run start — node dist/index.js (Inicia a aplicação compilada em produção)
 * npm test — vitest run (Executa a suíte de testes automatizados)
 * npm run test:watch — vitest (Executa testes em modo observador contínuo)
 * npm run db:push — prisma db push (Sincroniza o schema diretamente com o banco)
 * npm run db:generate — prisma generate (Atualiza as tipagens do Prisma Client)
 * npm run db:migrate — prisma migrate dev (Gera e aplica migrações relacionais)
-* npm run db:seed — npx ts-node src/seed/Seed.ts (Carrega o conjunto de dados iniciais)
+* npm run db:seed — npx ts-node src/seed/seed.ts (Carrega o conjunto de dados iniciais)
 
 Testes Automatizados
 --------------------
@@ -185,17 +187,16 @@ Modelo de Dados
 
 O esquema relacional é composto pelas seguintes entidades principais:
 
-* User: Operadores, farmacêuticos, médicos, alunos e pacientes (id, name, email, password, role, registerDoc, active)
-* Patient: Dados cadastrais dos pacientes da comunidade (id, name, cpf, birthDate, phone, address, userId)
-* Medicine: Catálogo de medicamentos disponíveis (id, name, activeIngredient, dosage, unit, form, category, isControlled, accessibleDesc)
-* StockBatch: Lotes físicos e controle de saldo (id, batchNumber, quantity, initialQuantity, expiryDate, medicineId)
-* Withdrawal: Registro de dispensação de medicamentos (id, patientId, dispensedById, prescriptionDoc, createdAt)
-* WithdrawalItem: Itens dispensados em cada atendimento (id, withdrawalId, medicineId, batchId, quantity)
-* Disposal: Registro de descarte motivado de medicamentos (id, medicineId, batchId, quantity, reason, registeredById, isReverted)
-* ScheduleSlot: Faixas de horários para agendamento (id, date, startTime, endTime, maxCapacity, pharmacistId)
-* Appointment: Solicitações de atendimento e retirada (id, patientId, slotId, status, notes)
-* AppointmentItem: Medicamentos solicitados no agendamento (id, appointmentId, medicineId, quantity)
-* ActivityLog: Trilha de auditoria das operações do sistema (id, userId, action, entity, entityId, details, ipAddress, createdAt)
+* User: Operadores, farmacêuticos, médicos, alunos e pacientes (id, name, email, password, role, registerDoc, phone, active, permissions)
+* Patient: Dados cadastrais dos pacientes da comunidade (id, name, cpf, birthDate, phone, address, userId, deletedAt)
+* Medicine: Catálogo de medicamentos disponíveis (id, name, activeIngredient, dosage, dosageValue, dosageUnit, minQuantity, category, accessibleDesc, deletedAt)
+* StockBatch: Lotes físicos e controle de saldo (id, batchNumber, currentQuantity, expirationDate, manufacturingDate, supplier, isBlocked, blockReason, medicineId)
+* StockMovement: Extrato de movimentações do lote (id, batchId, type, quantity, notes, userId, createdAt)
+* Disposal: Registro de descarte motivado de medicamentos (id, batchId, userId, quantity, reason, notes, status, revertReason, reverted)
+* ScheduleSlot: Faixas de horários para agendamento (id, date, timeSlot, maxCapacity, active, assignedToId)
+* Appointment: Solicitações de atendimento e retirada (id, patientId, scheduledDate, scheduledTime, slotId, status, notes, batchId, dispensedByUserId, dispensedAt)
+* AppointmentItem: Medicamentos solicitados no agendamento (id, appointmentId, medicineId, batchId, quantity)
+* ActivityLog: Trilha de auditoria das operações do sistema (id, userId, action, entity, entityId, details, createdAt)
 
 Referência Completa de Endpoints
 --------------------------------
@@ -218,7 +219,9 @@ Referência Completa de Endpoints
 * GET    /api/batches — Lista lotes de estoque (filtro opcional ?medicineId=X).
 * GET    /api/batches/:id — Detalhes do lote físico e saldo disponível.
 * POST   /api/batches — Entrada de novo lote (ADMIN, FARMACEUTICO, ALUNO).
-* PUT    /api/batches/:id — Atualização de quantidade ou validade (ADMIN, FARMACEUTICO, ALUNO).
+* PUT    /api/batches/:id — Atualização cadastral do lote, sem alterar quantidade (ADMIN, FARMACEUTICO, ALUNO).
+* POST   /api/batches/:id/adjustments — Ajuste auditado de quantidade no estoque (ADMIN, FARMACEUTICO).
+* PATCH  /api/batches/:id/block — Bloqueio/desbloqueio sanitário do lote (ADMIN, FARMACEUTICO).
 * DELETE /api/batches/:id — Exclusão de lote (ADMIN, FARMACEUTICO).
 
 4. Grade de Horários:
@@ -237,15 +240,15 @@ Referência Completa de Endpoints
 * DELETE /api/appointments/:id — Cancela o agendamento.
 
 6. Dispensações (Retiradas):
-* GET    /api/withdrawals — Histórico consolidado de dispensações realizadas.
-* GET    /api/withdrawals/:id — Detalhes da dispensação e lotes utilizados.
-* POST   /api/withdrawals — Realiza dispensação com baixa atômica no lote (ADMIN, FARMACEUTICO, ALUNO).
-* DELETE /api/withdrawals/:id — Cancela dispensação com estorno ao lote (ADMIN, FARMACEUTICO).
+* POST   /api/appointments/:id/dispense — Realiza a dispensação com baixa atômica no lote (ADMIN, FARMACEUTICO, ALUNO).
+* POST   /api/appointments/:id/revert-dispense — Estorna a dispensação devolvendo o saldo ao lote (ADMIN, FARMACEUTICO).
+O histórico de retiradas é consultado pelos agendamentos dispensados, via GET /api/appointments.
 
 7. Descartes Motivados:
 * GET    /api/disposals — Lista descartes registrados (ADMIN, FARMACEUTICO, ALUNO).
 * GET    /api/disposals/:id — Detalhes e justificativa do descarte.
 * POST   /api/disposals — Registra descarte com baixa no estoque (ADMIN, FARMACEUTICO, ALUNO).
+* PUT    /api/disposals/:id — Atualiza o registro do descarte (ADMIN, FARMACEUTICO).
 * POST   /api/disposals/:id/revert — Reverte descarte com devolução ao lote (ADMIN, FARMACEUTICO).
 
 8. Pacientes:
@@ -256,16 +259,17 @@ Referência Completa de Endpoints
 * DELETE /api/patients/:id — Remoção de paciente (ADMIN, FARMACEUTICO).
 
 9. Gestão de Usuários:
-* GET    /api/users — Lista todos os usuários e operadores (ADMIN).
-* GET    /api/users/:id — Detalhes da conta (ADMIN).
-* POST   /api/users — Criação de operador com perfil específico (ADMIN).
-* PUT    /api/users/:id — Atualização cadastral de usuário (ADMIN).
+* GET    /api/users — Lista usuários: ADMIN vê todos; FARMACEUTICO, MEDICO e ALUNO veem apenas pacientes.
+* GET    /api/users/:id — Detalhes da conta: ADMIN vê qualquer usuário; os demais papéis apenas a própria conta.
+* POST   /api/users — Criação de operador (ADMIN, FARMACEUTICO, MEDICO, ALUNO; a equipe assistencial cadastra apenas PACIENTE).
+* PUT    /api/users/:id — Atualização cadastral (ADMIN edita qualquer conta; a equipe assistencial edita pacientes; o usuário edita a si mesmo).
 * DELETE /api/users/:id — Remoção de usuário (ADMIN).
 * PATCH  /api/users/:id/toggle-active — Ativação ou desativação de conta (ADMIN).
 
 10. Auditoria & Diagnóstico:
 * GET /api/activity-logs — Trilha de auditoria paginada de eventos (ADMIN).
-* GET /health — Verificação de saúde, status e uptime da API.
+* GET /api/activity-logs/:id — Detalhes de um evento da trilha de auditoria (ADMIN).
+* GET /api/dashboard/stock-status — Panorama agregado de estoque para o painel (requer MEDICINES_READ).
 
 Regras de Negócio e Segurança
 -----------------------------

@@ -68,7 +68,7 @@ Backend:
 * Node.js
 * Express.js 4
 * TypeScript 5
-* Prisma ORM 5.22
+* Prisma ORM 7.10
 * SQLite
 * JWT
 * Bcrypt.js
@@ -98,11 +98,13 @@ criar os dados iniciais:
 
 docker compose exec backend npx ts-node src/seed/seed.ts
 
+O seed cria um usuário para cada perfil (ADMIN, FARMACEUTICO, MEDICO, ALUNO e
+PACIENTE) e exibe as credenciais de demonstração no terminal ao final da execução.
+
 A aplicação estará disponível em:
 
 * Frontend: http://localhost:3000
 * API: http://localhost:3001
-* Verificação de integridade da API: http://localhost:3001/health
 
 Para acompanhar os logs dos serviços:
 
@@ -170,8 +172,8 @@ Documentação
 
 Para instruções detalhadas de instalação, configuração, endpoints e arquitetura do sistema, consulte as documentações específicas:
 
-* Documentação do Backend
-* Documentação do Frontend
+* [Documentação do Backend](backend/README)
+* [Documentação do Frontend](frontend/README)
 
 Autor
 -----

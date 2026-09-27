@@ -1,7 +1,12 @@
 @import "tailwindcss";
 
+/* habilita o modo dark via classe (.dark no html/body).
+   o tailwind so aplica as variantes dark quando esse ancestral existe. */
 @custom-variant dark (&:is(.dark *));
 
+/* mapeia as variaveis css do tema pros tokens do tailwind.
+   assim classes como bg-primary, text-foreground, border-border etc
+   funcionam sem precisar de config extra no tailwind. */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -42,6 +47,8 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* tema claro (padrao). os valores em oklch ficam aqui e o @theme
+   inline la em cima so os expoe pro tailwind. */
 :root {
   --radius: 0.625rem;
   --background: oklch(1 0 0);
@@ -50,7 +57,8 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  /* PRIMARIA = IDENTIDADE ESMERALDA DO SISTEMA (antes neutra - forçava override emerald inline em todos os CTAs) */
+  /* primaria = identidade esmeralda do sistema. antes era neutra,
+     o que forcava override emerald inline em todos os ctas. */
   --primary: oklch(0.596 0.145 163.2);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
@@ -78,6 +86,8 @@
   --sidebar-ring: oklch(0.708 0 0);
 }
 
+/* tema escuro. sobrescreve as variaveis acima quando a classe .dark
+   esta presente. mantem o cta esmeralda tambem no dark. */
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
@@ -85,7 +95,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  /* PRIMARIA NO TEMA ESCURO = ESMERALDA 500 (mantem o CTA esmeralda em ambos os temas) */
+  /* primaria no tema escuro = esmeralda 500 (mantem o cta esmeralda
+     em ambos os temas). */
   --primary: oklch(0.696 0.17 162.5);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.269 0 0);
@@ -113,6 +124,7 @@
   --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* aplica tokens basicos globalmente: borda default e outline do ring. */
 @layer base {
   * {
     @apply border-border outline-ring/50;
@@ -122,7 +134,8 @@
   }
 }
 
-/* ==================== KEYFRAME ANIMATIONS ==================== */
+/* keyframe animations. cada um tem um proposito especifico de ui,
+   usado em classes utilitarias abaixo. */
 
 @keyframes fadeInSlideUp {
   from {
@@ -207,11 +220,15 @@
   50% { box-shadow: 0 0 20px rgba(16, 185, 129, 0.4); }
 }
 
+/* classes utilitarias que aplicam os keyframes acima.
+   cada uma encapsula uma animacao usada em varias telas. */
 .animate-fade-in-slide-up { animation: fadeInSlideUp 0.5s ease-out; }
 .animate-fade-in { animation: fadeIn 0.3s ease-out; }
 .animate-fade-in-scale { animation: fadeInScale 0.35s cubic-bezier(0.16, 1, 0.3, 1); }
 
-/* ==================== GLASSMORPHISM UTILITIES ==================== */
+/* efeitos de vidro (glassmorphism) com blur e saturate.
+   versoes separadas pra tema claro e escuro, e uma especifica
+   pra sidebar que tem fundo mais escuro em ambos os temas. */
 
 .glass {
   background: oklch(1 0 0 / 70%);
@@ -248,7 +265,8 @@
   border-right: 1px solid oklch(1 0 0 / 5%);
 }
 
-/* Global thin scrollbar */
+/* scrollbar fina, aplicada globalmente. track transparente,
+   thumb translucida com hover mais visivel. */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb {
@@ -259,7 +277,7 @@
   background-color: oklch(0.75 0 0 / 45%);
 }
 
-/* ==================== GRADIENT TEXT ==================== */
+/* texto com gradiente esmeralda. usado em titulos de destaque. */
 
 .gradient-text-emerald {
   background: linear-gradient(135deg, oklch(0.696 0.17 162), oklch(0.6 0.118 184.704));
@@ -268,7 +286,8 @@
   background-clip: text;
 }
 
-/* ==================== PAGE TRANSITION ANIMATION ==================== */
+/* animacao de entrada de pagina. aplicada no wrapper principal
+   das telas pra dar a sensacao de transicao. */
 
 .page-enter {
   animation: pageEnter 0.35s cubic-bezier(0.16, 1, 0.3, 1) both;
@@ -285,6 +304,7 @@
   }
 }
 
+/* utilitario de clamp de 1 linha. mostra ... quando o texto passa. */
 .line-clamp-1 {
   display: -webkit-box;
   -webkit-line-clamp: 1;
@@ -292,11 +312,14 @@
   overflow: hidden;
 }
 
+/* pulso de "ao vivo", usado em indicadores de status. */
 @keyframes livePulse {
   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 oklch(0.696 0.17 162 / 0.4); }
   50% { opacity: 0.8; box-shadow: 0 0 0 6px oklch(0.696 0.17 162 / 0); }
 }
 
+/* toggle de configuracoes no estado ativo: fundo esmeralda e bolinha
+   deslocada pro lado. */
 .settings-toggle.active {
   background: oklch(0.696 0.17 162);
 }
@@ -305,6 +328,7 @@
   transform: translateX(20px);
 }
 
+/* animacao de entrada do painel de detalhes (desliza da direita). */
 @keyframes detailSlideIn {
   from {
     opacity: 0;
@@ -316,11 +340,13 @@
   }
 }
 
+/* passagem de brilho, usada em efeito de loading. */
 @keyframes shinePass {
   to { transform: translateX(100%); }
 }
 
-/* ==================== FOCUS RING FOR KEYBOARD NAVIGATION ==================== */
+/* foco visivel pra navegacao por teclado. mantem acessibilidade sem
+   depender do outline padrao do browser. */
 
 *:focus-visible {
   outline: 2px solid oklch(0.696 0.17 162);
@@ -328,7 +354,9 @@
   border-radius: 4px;
 }
 
-/* ==================== SMOOTH TRANSITIONS ==================== */
+/* transicoes suaves de cor. o global e curto pra nao pesar em hover
+   de listas. o especifico pra elementos interativos e mais amplo
+   (all em 200ms) pra cobrir transform junto. */
 
 * {
   transition-property: background-color, border-color, color, box-shadow;
@@ -341,28 +369,26 @@ button, a, input, select, textarea, [role="button"] {
   transition-duration: 200ms;
 }
 
-/* ==================== NUMBER COUNTER ANIMATION ==================== */
+/* keyframes abaixo sao animacoes pontuais usadas em componentes
+   especificos. alguns nao tem classe utilitaria aqui, mas sao
+   acionados direto pelo nome via style ou tailwind. */
 
 @keyframes count-up {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ==================== RIPPLE EFFECT FOR BUTTONS ==================== */
-
 @keyframes ripple {
   to { transform: scale(4); opacity: 0; }
 }
-
-/* ==================== SMOOTH PAGE SECTION REVEAL ==================== */
 
 @keyframes section-reveal {
   from { opacity: 0; transform: translateY(16px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
-/* ==================== ANIMATED MESH BACKGROUND ==================== */
-
+/* fundo com blobs animados. sao as bolhas desfocadas usadas em
+   telas de login/landing. cada uma se move num padrao diferente. */
 @keyframes mesh-move {
   0%, 100% { transform: translate(0, 0) rotate(0deg) scale(1); }
   25% { transform: translate(30px, -50px) rotate(90deg) scale(1.1); }
@@ -409,7 +435,8 @@ button, a, input, select, textarea, [role="button"] {
 
 .dark .mesh-blob { opacity: 0.15; }
 
-/* ==================== SIDEBAR ACTIVE INDICATOR ==================== */
+/* item ativo da sidebar: fundo esmeralda leve, com uma barrinha
+   a esquerda que pulsa suavemente. */
 
 .sidebar-item-active {
   position: relative;
@@ -439,7 +466,8 @@ button, a, input, select, textarea, [role="button"] {
   to { box-shadow: 0 0 16px oklch(0.696 0.17 162 / 0.5); }
 }
 
-/* ==================== COMMAND PALETTE ==================== */
+/* command palette (atalho de busca global). entrada com leve scale
+   e hover com fundo esmeralda. */
 
 @keyframes cmdPaletteIn {
   from {
@@ -463,19 +491,16 @@ button, a, input, select, textarea, [role="button"] {
   background: oklch(0.696 0.17 162 / 12%);
 }
 
+/* animacoes diversas usadas por componentes de header, badges e dialogos. */
 @keyframes headerBarPulse {
   from { opacity: 0.3; }
   to { opacity: 0.8; }
 }
 
-/* ==================== ENHANCED BADGE ANIMATIONS ==================== */
-
 @keyframes badge-pulse {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.05); }
 }
-
-/* ==================== ENHANCED DIALOG STYLES ==================== */
 
 @keyframes dialogOverlayIn {
   from { opacity: 0; }
@@ -487,7 +512,7 @@ button, a, input, select, textarea, [role="button"] {
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-/* ==================== MOBILE OPTIMIZATION ==================== */
+/* ajustes pra mobile: blobs menores e menos visiveis. */
 
 @media (max-width: 640px) {
   .mesh-blob { filter: blur(40px); opacity: 0.25; }
@@ -496,30 +521,31 @@ button, a, input, select, textarea, [role="button"] {
   .mesh-blob-3 { width: 150px; height: 150px; }
 }
 
-/* ==================== PRINT STYLES ==================== */
+/* regras de impressao. esconde navegacao/animacoes e simplifica
+   cards e tabelas pra caber bem em papel. */
 
 @media print {
   .no-print { display: none !important; }
   body { background: white !important; }
 
-  /* Hide non-essential elements */
+  /* esconde elementos nao essenciais (sidebar, header, etc). */
   .glass-sidebar, aside,
   header, .notification-panel,
   button[onclick*="setSidebarOpen"],
   .btn-gradient-emerald,
   footer { display: none !important; }
 
-  /* Ensure content fills page */
+  /* main ocupa a pagina inteira. */
   main { padding: 0 !important; margin: 0 !important; }
 
-  /* Clean card styling */
+  /* cards com borda simples, sem sombra, sem quebrar no meio. */
   .glass-card, .card {
     border: 1px solid #ddd !important;
     box-shadow: none !important;
     break-inside: avoid;
   }
 
-  /* Table styling */
+  /* tabelas com fonte de impressao e cabecalho marcado. */
   table {
     font-size: 10pt !important;
     border-collapse: collapse !important;
@@ -529,14 +555,15 @@ button, a, input, select, textarea, [role="button"] {
     border-bottom: 2px solid #333 !important;
   }
 
-  /* Remove animations */
+  /* desliga animacoes e transicoes em impressao. */
   * { animation: none !important; transition: none !important; }
 
-  /* Dark mode reset for print */
+  /* forca tema claro no papel, mesmo se o app estiver em dark. */
   .dark { color: #000 !important; background: #fff !important; }
   .dark * { color: inherit !important; background: transparent !important; border-color: #ccc !important; }
 }
 
+/* mais animacoes pontuais usadas por componentes especificos. */
 @keyframes counterFadeIn {
   from { opacity: 0; transform: translateY(8px); }
   to { opacity: 1; transform: translateY(0); }
@@ -578,7 +605,7 @@ button, a, input, select, textarea, [role="button"] {
   100% { transform: scale(1); opacity: 1; }
 }
 
-/* ESCONDE SCROLLBAR EM BARRAS HORIZONTAIS (usado pela TabBar) */
+/* esconde scrollbar em barras horizontais (usado pela tabbar). */
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
@@ -587,7 +614,8 @@ button, a, input, select, textarea, [role="button"] {
   scrollbar-width: none;
 }
 
-/* Ajuste de margem para o botao de acao / dev tools no canto inferior esquerdo */
+/* ajuste de posicao do botao de dev tools do next, no canto
+   inferior esquerdo, pra nao sobrepor conteudo. */
 nextjs-portal,
 [data-nextjs-dev-tools-button],
 [data-next-badge],
@@ -597,7 +625,9 @@ button[aria-label="Next.js Dev Tools"] {
   margin-left: 0.75rem !important;
 }
 
-/* FullCalendar - Tema Claro e Escuro */
+/* fullcalendar - tema claro e escuro.
+   sobrescreve as variaveis do fullcalendar pra casar com a
+   identidade visual do sistema, em ambos os temas. */
 .fc {
   --fc-border-color: #e2e8f0;
   --fc-page-bg-color: transparent;
@@ -732,6 +762,7 @@ button[aria-label="Next.js Dev Tools"] {
   font-weight: 800 !important;
 }
 
+/* destaca o dia de hoje com uma borda verde esmeralda no calendario. */
 .standard-calendar .fc-day-today {
   box-shadow: inset 0 0 0 2px #10b981;
 }
@@ -783,6 +814,7 @@ button[aria-label="Next.js Dev Tools"] {
   cursor: pointer;
 }
 
+/* no calendario padrao, os eventos ficam com formato de pilula. */
 .standard-calendar .fc-daygrid-event {
   border-radius: 999px !important;
   padding: 0.2rem 0.45rem !important;

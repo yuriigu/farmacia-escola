@@ -31,9 +31,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { computeStockStatus } from '@/lib/stock';
 import type { Medicine, Batch } from '@/types';
 
+// unidades de dosagem aceitas no formulario. o schema zod logo abaixo
+// usa essa mesma lista pra garantir consistencia entre ui e validacao.
 export const DOSAGE_UNITS = ['MG', 'ML', 'G', 'MCG', 'UI'] as const;
 export type DosageUnit = typeof DOSAGE_UNITS[number];
 
+// schema do formulario de novo medicamento. alem dos campos basicos,
+// trata a dosagem numerica: aceita numero ou string numerica e
+// transforma em number. a unidade padrao e mg.
 const newMedicineSchema = z.object({
   name: z.string().min(2, 'Nome do medicamento é obrigatório'),
   activeIngredient: z.string().optional(),
@@ -49,12 +54,16 @@ const newMedicineSchema = z.object({
 type NewMedicineFormInput = z.input<typeof newMedicineSchema>;
 type NewMedicineFormData = z.output<typeof newMedicineSchema>;
 
+// tela do catalogo de medicamentos. lista o catalogo com saldo fisico,
+// reservado e disponivel real, permite criar medicamento (admin e
+// farmaceutico) e agendar retirada (com trava anti-overbooking).
+// a mesma tela serve pra paciente e equipe, mudando textos e permissoes.
 export default function MedicinesPage() {
   const user = useAuthStore((s) => {
     return s.user;
   });
 
-  // DETERMINANDO SE E PACIENTE
+  // determina se o usuario e paciente (muda textos e trava de paciente).
   let isPatient = false;
   if (user) {
     if (user.role === 'PACIENTE') {
@@ -66,7 +75,7 @@ export default function MedicinesPage() {
     isPatient = false;
   }
 
-  // DETERMINANDO SE PODE CRIAR MEDICAMENTO
+  // quem pode cadastrar medicamento: admin e farmaceutico.
   let canCreateMedicine = false;
   if (user) {
     if (user.role === 'ADMIN') {
@@ -80,6 +89,8 @@ export default function MedicinesPage() {
     canCreateMedicine = false;
   }
 
+  // papel normalizado pra comparacao. usado pra decidir se mostra
+  // o botao de exportar csv.
   let normalizedRole = '';
   if (user) {
     if (user.role) {
@@ -87,6 +98,7 @@ export default function MedicinesPage() {
     }
   }
 
+  // exportar csv so pra admin e farmaceutico.
   let canExport = false;
   if (normalizedRole === 'ADMIN') {
     canExport = true;
@@ -98,6 +110,8 @@ export default function MedicinesPage() {
     }
   }
 
+  // dados do catalogo e da lista de pacientes (essa ultima alimenta
+  // o select de paciente no modal de agendamento, quando for equipe).
   const { data: rawMedicines, isLoading } = useMedicines();
   let medicines: Medicine[] = [];
   if (rawMedicines) {
@@ -114,18 +128,23 @@ export default function MedicinesPage() {
     patients = [];
   }
 
+  // mutations de criar medicamento e criar agendamento.
   const createMedicineMutation = useCreateMedicine();
   const createAppointmentMutation = useCreateAppointment();
 
+  // estados de filtro da listagem.
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [stockFilter, setStockFilter] = useState<string>('all');
 
-  // Modals state
+  // estados dos modais. cada um tem um proposito: criar medicamento,
+  // ver detalhes, agendar retirada.
   const [isCreateMedicineOpen, setIsCreateMedicineOpen] = useState(false);
   const [selectedMedicineForDetails, setSelectedMedicineForDetails] = useState<Medicine | null>(null);
   const [selectedMedicineForAppointment, setSelectedMedicineForAppointment] = useState<Medicine | null>(null);
 
+  // quando o modal de detalhes esta aberto, buscamos os lotes daquele
+  // medicamento via /services/queries pra mostrar a lista atualizada.
   let selectedMedDetailsId: number | undefined = undefined;
   if (selectedMedicineForDetails) {
     selectedMedDetailsId = selectedMedicineForDetails.id;
@@ -134,13 +153,14 @@ export default function MedicinesPage() {
   }
   const { data: queriedBatches } = useBatches(selectedMedDetailsId);
 
-  // Appointment Form State
+  // estados do formulario de agendamento.
   const [appointmentDate, setAppointmentDate] = useState('');
   const [appointmentTime, setAppointmentTime] = useState('09:00');
   const [appointmentQuantity, setAppointmentQuantity] = useState(1);
   const [appointmentNotes, setAppointmentNotes] = useState('');
   const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>(undefined);
 
+  // hook de formulario do medicamento (react-hook-form + zod).
   const {
     register,
     handleSubmit,
@@ -158,6 +178,9 @@ export default function MedicinesPage() {
     },
   });
 
+  // submit do cadastro de medicamento. monta a dosagem no formato
+  // "valor unidade", normaliza os textos opcionais (trim ou undefined)
+  // e chama a mutation.
   const onSubmitMedicine = (data: NewMedicineFormData) => {
     let formattedDosage: string | undefined = undefined;
     if (data.dosageValue !== undefined) {
@@ -166,6 +189,7 @@ export default function MedicinesPage() {
       }
     }
 
+    // textos em branco viram undefined pra nao sujar o payload.
     let activeIngredientVal: string | undefined = undefined;
     if (data.activeIngredient) {
       if (data.activeIngredient.trim().length > 0) {
@@ -180,6 +204,8 @@ export default function MedicinesPage() {
       }
     }
 
+    // chama a mutation de criar medicamento (/services/queries ->
+    // /api/medicines no backend).
     createMedicineMutation.mutate(
       {
         name: data.name.trim(),
@@ -213,6 +239,9 @@ export default function MedicinesPage() {
     );
   };
 
+  // abre o modal de agendamento pro medicamento clicado, resetando
+  // data pra amanha, hora 09:00 e quantidade 1. pra equipe, ja sugere
+  // o primeiro paciente da lista.
   const handleOpenAppointmentModal = (med: Medicine) => {
     setSelectedMedicineForAppointment(med);
     setAppointmentQuantity(1);
@@ -228,6 +257,10 @@ export default function MedicinesPage() {
     }
   };
 
+  // submit do agendamento. e aqui que mora a trava anti-overbooking
+  // da ui: antes de chamar a mutation, calcula o saldo real
+  // (fisico - reservado) e bloqueia se a quantidade pedida passar.
+  // o backend tambem valida, mas isso evita um round-trip desnecessario.
   const handleCreateAppointment = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedMedicineForAppointment) {
@@ -246,7 +279,10 @@ export default function MedicinesPage() {
       }
     }
 
-    // Regra de Reserva de Estoque no Agendamento (Anti-Overbooking)
+    // regra de reserva de estoque no agendamento (anti-overbooking).
+    // calcula fisico, reservado e disponivel real a partir do que a
+    // api mandou. se a api nao mandou availablequantity, deriva de
+    // fisico - reservado (nunca abaixo de zero).
     let physicalStock = 0;
     if (selectedMedicineForAppointment.physicalQuantity !== null && selectedMedicineForAppointment.physicalQuantity !== undefined) {
       physicalStock = selectedMedicineForAppointment.physicalQuantity;
@@ -274,6 +310,7 @@ export default function MedicinesPage() {
       }
     }
 
+    // trava de ui: se estourar o saldo real, nem chega na api.
     if (appointmentQuantity > realAvailableStock) {
       toast.error(
         'Estoque insuficiente: A quantidade solicitada (' +
@@ -287,6 +324,7 @@ export default function MedicinesPage() {
       return;
     }
 
+    // paciente nao manda patientid (o backend amarra ao dono do token).
     let targetPatientId: number | undefined = undefined;
     if (!isPatient) {
       targetPatientId = selectedPatientId;
@@ -301,6 +339,7 @@ export default function MedicinesPage() {
       notesVal = undefined;
     }
 
+    // chama a mutation de criar agendamento.
     createAppointmentMutation.mutate(
       {
         scheduledDate: appointmentDate,
@@ -337,9 +376,12 @@ export default function MedicinesPage() {
     );
   };
 
-  // Filter medicines
+  // filtro da listagem. combina busca por texto, categoria e status
+  // de estoque. o status pode vir da api ou ser calculado no cliente
+  // via computestockstatus (fallback quando a api nao manda).
   const filteredMedicines = useMemo(() => {
     return medicines.filter((med) => {
+      // busca por nome, principio ativo ou dosagem, em cascata.
       const term = searchTerm.toLowerCase();
 
       let matchesSearch = false;
@@ -367,6 +409,7 @@ export default function MedicinesPage() {
         matchesSearch = false;
       }
 
+      // filtro de categoria.
       let matchesCategory = false;
       if (selectedCategory === 'all') {
         matchesCategory = true;
@@ -376,6 +419,7 @@ export default function MedicinesPage() {
         matchesCategory = false;
       }
 
+      // resolve o saldo fisico do medicamento (fallback totalquantity).
       let medPhysicalQty = 0;
       if (med.physicalQuantity !== null && med.physicalQuantity !== undefined) {
         medPhysicalQty = med.physicalQuantity;
@@ -385,6 +429,7 @@ export default function MedicinesPage() {
         medPhysicalQty = 0;
       }
 
+      // status vem da api, senao calcula no cliente.
       let status = med.status;
       if (!status) {
         status = computeStockStatus({
@@ -393,6 +438,9 @@ export default function MedicinesPage() {
         });
       }
 
+      // filtro de status de estoque. aceita tanto as chaves novas
+      // (in_stock, critical_expiration, etc) quanto as antigas
+      // (ok, low, critical, expired) por compatibilidade.
       let matchesStock = false;
       if (stockFilter === 'all') {
         matchesStock = true;
@@ -435,9 +483,11 @@ export default function MedicinesPage() {
     });
   }, [medicines, searchTerm, selectedCategory, stockFilter]);
 
+  // exporta csv dos medicamentos filtrados. so a equipe ve o botao.
   const handleExportCSV = () => {
     const header = ['Nome', 'Princípio Ativo', 'Dosagem', 'Categoria', 'Saldo Físico', 'Saldo Reservado', 'Disponível Real', 'Status'];
     const rows = filteredMedicines.map((m) => {
+      // resolve fisico, reservado e disponivel real com fallback.
       let physical = 0;
       if (m.physicalQuantity !== null && m.physicalQuantity !== undefined) {
         physical = m.physicalQuantity;
@@ -470,6 +520,7 @@ export default function MedicinesPage() {
         statusStr = computeStockStatus({ totalQuantity: physical });
       }
 
+      // campos opcionais viram travessao no csv quando ausentes.
       let ingredient = '—';
       if (m.activeIngredient) {
         ingredient = m.activeIngredient;
@@ -506,11 +557,13 @@ export default function MedicinesPage() {
     toast.success('Catálogo exportado com sucesso!');
   };
 
+  // colunas da tabela de medicamentos.
   const columns: Column<Medicine>[] = [
     {
       header: 'Medicamento',
       width: '240px',
       cell: (med) => {
+        // nome + dosagem, com icone.
         let dosageElement: React.ReactNode = null;
         if (med.dosage) {
           dosageElement = (
@@ -543,6 +596,7 @@ export default function MedicinesPage() {
     {
       header: 'Princípio Ativo',
       cell: (med) => {
+        // principio ativo com travessao quando ausente.
         let ingredient = '—';
         if (med.activeIngredient) {
           ingredient = med.activeIngredient;
@@ -581,6 +635,7 @@ export default function MedicinesPage() {
       header: 'Reservado',
       width: '100px',
       cell: (med) => {
+        // reservado ganha destaque amarelo quando > 0.
         let reserved = 0;
         if (med.reservedQuantity !== null && med.reservedQuantity !== undefined) {
           reserved = med.reservedQuantity;
@@ -607,6 +662,8 @@ export default function MedicinesPage() {
       header: 'Disponível Real',
       width: '120px',
       cell: (med) => {
+        // disponivel real = fisico - reservado (ou availablequantity).
+        // destaque verde quando positivo, vermelho quando zero.
         let physical = 0;
         if (med.physicalQuantity !== null && med.physicalQuantity !== undefined) {
           physical = med.physicalQuantity;
@@ -653,6 +710,7 @@ export default function MedicinesPage() {
       header: 'Status',
       width: '140px',
       cell: (med) => {
+        // status vem da api ou calculado no cliente como fallback.
         let physical = 0;
         if (med.physicalQuantity !== null && med.physicalQuantity !== undefined) {
           physical = med.physicalQuantity;
@@ -674,6 +732,9 @@ export default function MedicinesPage() {
       width: '180px',
       align: 'right',
       cell: (med) => {
+        // resolve o estado do medicamento pra decidir se o botao de
+        // agendar fica habilitado. fica desabilitado se sem saldo,
+        // vencido ou bloqueado.
         let physical = 0;
         if (med.physicalQuantity !== null && med.physicalQuantity !== undefined) {
           physical = med.physicalQuantity;
@@ -757,6 +818,7 @@ export default function MedicinesPage() {
   return (
     <AppShell>
       <div className="space-y-6">
+        {/* cabecalho com acoes (exportar csv e novo medicamento) */}
         <PageHeader
           title="Catálogo de Medicamentos"
           description="Consulte estoque físico, reservas em tempo real e agende dispensações na Farmácia Escola Universitária."
@@ -789,10 +851,10 @@ export default function MedicinesPage() {
           }
         />
 
-        {/* Filter Controls Bar */}
+        {/* barra de filtros: busca + status + categoria */}
         <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs">
           <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-            {/* Search Input */}
+            {/* busca por texto */}
             <div className="relative sm:col-span-6">
               <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <Input
@@ -801,6 +863,7 @@ export default function MedicinesPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
               />
+              {/* botao de limpar busca, aparece so quando tem texto */}
               {(() => {
                 if (searchTerm) {
                   return (
@@ -816,7 +879,7 @@ export default function MedicinesPage() {
               })()}
             </div>
 
-            {/* Taxonomy Stock Status Filter */}
+            {/* filtro por status de estoque */}
             <div className="sm:col-span-3">
               <select
                 value={stockFilter}
@@ -831,7 +894,7 @@ export default function MedicinesPage() {
               </select>
             </div>
 
-            {/* Category Select */}
+            {/* filtro por categoria */}
             <div className="sm:col-span-3">
               <select
                 value={selectedCategory}
@@ -848,7 +911,7 @@ export default function MedicinesPage() {
           </div>
         </div>
 
-        {/* Standard DataTable */}
+        {/* tabela do catalogo, com empty state e clique na linha */}
         {(() => {
           let emptyActionElement: React.ReactNode = undefined;
           if (canCreateMedicine) {
@@ -883,7 +946,9 @@ export default function MedicinesPage() {
           );
         })()}
 
-        {/* ==================== MEDICINE DETAILS MODAL (LG) ==================== */}
+        {/* modal de detalhes do medicamento (lg). mostra painel de
+            saldo, orientacoes ao paciente, lista de lotes e botao
+            de agendar quando disponivel. */}
         <Dialog
           open={selectedMedicineForDetails !== null}
           onOpenChange={(open) => {
@@ -895,6 +960,8 @@ export default function MedicinesPage() {
           <DialogContent className="sm:max-w-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
             {selectedMedicineForDetails && (() => {
               const med = selectedMedicineForDetails;
+
+              // resolve o painel de saldos (fisico, reservado, real).
               let physicalQty = 0;
               if (med.physicalQuantity !== null && med.physicalQuantity !== undefined) {
                 physicalQty = med.physicalQuantity;
@@ -922,6 +989,7 @@ export default function MedicinesPage() {
                 }
               }
 
+              // flag pra decidir se mostra o botao de agendar.
               let isAvail = false;
               if (realAvailQty > 0) {
                 isAvail = true;
@@ -941,6 +1009,8 @@ export default function MedicinesPage() {
                 activeIngredientText = 'Não informado';
               }
 
+              // bloco de orientacoes ao paciente. cai pra um texto
+              // de "nenhuma instrucao" quando vazio.
               let accessibleDescElement: React.ReactNode = null;
               if (med.accessibleDesc) {
                 accessibleDescElement = (
@@ -956,6 +1026,7 @@ export default function MedicinesPage() {
                 );
               }
 
+              // botao de agendar so aparece quando tem saldo real.
               let scheduleButton: React.ReactNode = null;
               if (isAvail) {
                 scheduleButton = (
@@ -997,7 +1068,7 @@ export default function MedicinesPage() {
                     })()}
                   </DialogHeader>
 
-                  {/* Informações Básicas e Painel de Reserva */}
+                  {/* painel de saldos: fisico, reservado, disponivel real */}
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs">
                     <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
                       <span className="text-slate-400 block font-semibold text-[10px] uppercase tracking-wider">Saldo Físico</span>
@@ -1026,7 +1097,7 @@ export default function MedicinesPage() {
                     </span>
                   </div>
 
-                  {/* Orientações ao Paciente */}
+                  {/* orientacoes e instrucoes ao paciente */}
                   <div className="space-y-2">
                     <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
                       <HeartPulse className="w-4 h-4 text-emerald-600" />
@@ -1042,7 +1113,8 @@ export default function MedicinesPage() {
                     </div>
                   </div>
 
-                  {/* Lotes Registrados */}
+                  {/* lista de lotes do medicamento. usa queriedbatches
+                      quando disponivel, senao cai pra med.batches. */}
                   {(() => {
                     let displayBatches: Batch[] = [];
                     if (queriedBatches) {
@@ -1082,6 +1154,7 @@ export default function MedicinesPage() {
                           return (
                             <div className="space-y-1.5 max-h-48 overflow-y-auto">
                               {displayBatches.map((batch) => {
+                                // formata validade e detecta se esta vencido.
                                 let expStr = '—';
                                 if (batch.expirationDate) {
                                   expStr = new Date(batch.expirationDate).toLocaleDateString('pt-BR');
@@ -1106,6 +1179,8 @@ export default function MedicinesPage() {
                                         <span className="font-mono font-bold text-slate-800 dark:text-slate-100">
                                           {batch.batchNumber}
                                         </span>
+                                        {/* badge de bloqueio tem prioridade
+                                            sobre o de vencido. */}
                                         {(() => {
                                           if (batch.isBlocked) {
                                             return (
@@ -1146,7 +1221,7 @@ export default function MedicinesPage() {
                     );
                   })()}
 
-                  {/* Footer Ações */}
+                  {/* footer do modal de detalhes com botao de agendar (se disponivel) */}
                   <DialogFooter className="pt-2 gap-2 sm:gap-0">
                     <Button
                       type="button"
@@ -1166,7 +1241,9 @@ export default function MedicinesPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ==================== CREATE APPOINTMENT MODAL (MD) ==================== */}
+        {/* modal de agendar retirada (md). inclui painel de
+            auditoria de disponibilidade e trava anti-overbooking
+            em tempo real conforme a quantidade muda. */}
         <Dialog
           open={selectedMedicineForAppointment !== null}
           onOpenChange={(open) => {
@@ -1182,6 +1259,7 @@ export default function MedicinesPage() {
                 Agendar Retirada de Medicamento
               </DialogTitle>
               <DialogDescription>
+                {/* subtitulo mostra medicamento + dosagem, quando o modal esta aberto */}
                 {(() => {
                   if (selectedMedicineForAppointment) {
                     let dosageStr = '';
@@ -1199,6 +1277,8 @@ export default function MedicinesPage() {
             </DialogHeader>
 
             {selectedMedicineForAppointment && (() => {
+              // resolve os saldos pra o painel de auditoria e a trava
+              // anti-overbooking em tempo real.
               let physicalStock = 0;
               if (selectedMedicineForAppointment.physicalQuantity !== null && selectedMedicineForAppointment.physicalQuantity !== undefined) {
                 physicalStock = selectedMedicineForAppointment.physicalQuantity;
@@ -1226,11 +1306,13 @@ export default function MedicinesPage() {
                 }
               }
 
+              // flag que reage a medida que o usuario digita a quantidade.
+              // usada pra bloquear o submit e mostrar o alerta vermelho.
               const isOverbooking = appointmentQuantity > realAvailableStock;
 
               return (
                 <form onSubmit={handleCreateAppointment} className="space-y-4 py-2">
-                  {/* Painel de Reserva e Anti-Overbooking */}
+                  {/* painel de auditoria de disponibilidade */}
                   <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
                     <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span>Auditoria de Disponibilidade:</span>
@@ -1251,6 +1333,8 @@ export default function MedicinesPage() {
                       </div>
                     </div>
 
+                    {/* alerta vermelho quando a quantidade passa do
+                        saldo real (anti-overbooking em tempo real) */}
                     {(() => {
                       if (isOverbooking) {
                         return (
@@ -1267,7 +1351,7 @@ export default function MedicinesPage() {
                     })()}
                   </div>
 
-                  {/* Paciente (se staff) */}
+                  {/* select de paciente, so pra equipe */}
                   {(() => {
                     if (!isPatient) {
                       return (
@@ -1314,7 +1398,7 @@ export default function MedicinesPage() {
                     return null;
                   })()}
 
-                  {/* Data & Horário */}
+                  {/* data e horario sugerido */}
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-1.5">
                       <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -1345,7 +1429,7 @@ export default function MedicinesPage() {
                     </div>
                   </div>
 
-                  {/* Quantidade */}
+                  {/* quantidade, com limite maximo exibido */}
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between">
                       <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -1366,7 +1450,7 @@ export default function MedicinesPage() {
                     />
                   </div>
 
-                  {/* Observações */}
+                  {/* observacoes livres */}
                   <div className="space-y-1.5">
                     <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
                       Observações / Prescrição
@@ -1393,6 +1477,9 @@ export default function MedicinesPage() {
                     >
                       Cancelar
                     </Button>
+                    {/* botao desabilitado enquanto estiver salvando,
+                        enquanto houver overbooking, ou se nao houver
+                        saldo real. */}
                     <Button
                       type="submit"
                       disabled={(() => {
@@ -1423,7 +1510,8 @@ export default function MedicinesPage() {
           </DialogContent>
         </Dialog>
 
-        {/* ==================== CREATE MEDICINE MODAL (MD) COM DOSAGEM ESTRUTURADA ==================== */}
+        {/* modal de cadastro de medicamento (md), com dosagem
+            estruturada (valor + unidade) validada pelo zod. */}
         <Dialog
           open={isCreateMedicineOpen}
           onOpenChange={(open) => {
@@ -1442,6 +1530,7 @@ export default function MedicinesPage() {
             </DialogHeader>
 
             <form onSubmit={handleSubmit(onSubmitMedicine)} className="space-y-4 py-2">
+              {/* nome do medicamento */}
               <div className="space-y-1.5">
                 <Label htmlFor="name" className="text-xs font-bold text-slate-600 dark:text-slate-300">
                   Nome do Medicamento *
@@ -1462,7 +1551,7 @@ export default function MedicinesPage() {
                 })()}
               </div>
 
-              {/* Formulário de Dosagem Estruturada: Input Numérico + Select de Unidade */}
+              {/* dosagem estruturada: input numerico + select de unidade */}
               <div className="grid grid-cols-3 gap-3">
                 <div className="col-span-2 space-y-1.5">
                   <Label htmlFor="dosageValue" className="text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -1505,6 +1594,7 @@ export default function MedicinesPage() {
                 </div>
               </div>
 
+              {/* principio ativo e categoria */}
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label htmlFor="activeIngredient" className="text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -1527,6 +1617,8 @@ export default function MedicinesPage() {
                     {...register('category')}
                     className="w-full h-10 px-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                   >
+                    {/* remove a opcao 'all' que existe no catalogo mas
+                        nao faz sentido como categoria de um medicamento */}
                     {MEDICINE_CATEGORIES.filter((c) => {
                       if (c.id !== 'all') {
                         return true;
@@ -1542,6 +1634,7 @@ export default function MedicinesPage() {
                 </div>
               </div>
 
+              {/* descricao acessivel ao paciente */}
               <div className="space-y-1.5">
                 <Label htmlFor="accessibleDesc" className="text-xs font-bold text-slate-600 dark:text-slate-300">
                   Descrição Acessível / Instruções

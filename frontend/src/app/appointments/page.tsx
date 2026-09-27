@@ -45,13 +45,21 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Appointment, AppointmentItem, AppointmentItemDraft } from '@/types';
 
+// tela de agendamentos (consultas). e a tela mais complexa do sistema:
+// lista consultas com filtros, cria agendamento, mostra detalhes,
+// permite cancelar, confirmar e concluir (que dispara a dispensacao
+// via fefo no backend).
+// a mesma tela serve pra paciente e pra equipe, so que com regras
+// diferentes de visualizacao e acao. por isso tem bastante checagem
+// de papel (ispatient / isstaff) e de propriedade do agendamento.
 function AppointmentsContent() {
   const searchParams = useSearchParams();
   const user = useAuthStore((s) => {
     return s.user;
   });
 
-  // DETERMINANDO SE E PACIENTE
+  // determina se o usuario logado e paciente. usado pra mudar textos,
+  // esconder filtros administrativos e restringir acoes.
   let isPatient = false;
   if (user) {
     if (user.role === 'PACIENTE') {
@@ -63,7 +71,9 @@ function AppointmentsContent() {
     isPatient = false;
   }
 
-  // DETERMINANDO SE E STAFF
+  // determina se o usuario e da equipe (admin, farmaceutico ou aluno).
+  // quem tem isstaff pode confirmar, concluir, exportar csv e criar
+  // agendamento pra qualquer paciente.
   let isStaff = false;
   if (user) {
     if (user.role === 'ADMIN') {
@@ -79,15 +89,21 @@ function AppointmentsContent() {
     isStaff = false;
   }
 
+  // hooks de dados (react-query) que batem na api via /services/queries.
+  // appointments e o principal; medicines e patients alimentam o
+  // formulario de criacao.
   const { data: appointments = [], isLoading, refetch } = useAppointments();
   const { data: medicines = [] } = useMedicines();
   const { data: patients = [] } = usePatients();
   const { scheduleSlots } = usePharmacyStore();
 
+  // mutations expostas por /services/queries.
+  // cancel e update-status sao as duas acoes principais da tela.
   const cancelAppointmentMutation = useCancelAppointment();
   const updateStatusMutation = useUpdateAppointmentStatus();
   const createAppointmentMutation = useCreateAppointment();
 
+  // estados de ui da tela. alguns sao de filtro, outros de modais.
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [appointmentToCancel, setAppointmentToCancel] = useState<number | null>(null);
@@ -95,7 +111,9 @@ function AppointmentsContent() {
   const [selectedAppointmentForDetails, setSelectedAppointmentForDetails] = useState<Appointment | null>(null);
   const [receipt, setReceipt] = useState<any>(null);
 
-  // Create Appointment Dialog State
+  // estado do modal de criacao. dois parametros de query podem abrir
+  // ele direto: ?new=1 (botao generico) ou ?medicineid=n (vindo da tela
+  // de medicamentos, pra ja vir com o medicamento preenchido).
   const newParam = searchParams.get('new');
   const medIdParam = searchParams.get('medicineId');
 
@@ -119,6 +137,7 @@ function AppointmentsContent() {
   const [items, setItems] = useState<AppointmentItemDraft[]>([{ medicineId: initialMedId || 0, quantity: 1 }]);
   const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>(undefined);
   const [patientSearch, setPatientSearch] = useState('');
+  // por padrao, sugere amanha como data do agendamento.
   const [appointmentDate, setAppointmentDate] = useState(() => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -127,12 +146,19 @@ function AppointmentsContent() {
   const [slotId, setSlotId] = useState<number | undefined>(undefined);
   const [notes, setNotes] = useState('');
 
+  // slots disponiveis na data escolhida. o filtro por data e o que
+  // faz o select de horario so mostrar escala coerente.
   const availableSlots = scheduleSlots.filter((slot) => slot.active && slot.date.slice(0, 10) === appointmentDate);
+  // sugestoes de paciente pra autocomplete. exige 2+ caracteres pra
+  // evitar listar todo mundo a cada tecla.
   const patientSuggestions = patients.filter((patient) => {
     const term = patientSearch.trim().toLowerCase();
     return term.length >= 2 && (patient.name.toLowerCase().includes(term) || patient.cpf.includes(patientSearch.replace(/\D/g, '')));
   }).slice(0, 6);
 
+  // helper que devolve o saldo real disponivel do medicamento.
+  // usa availablequantity quando o backend manda, senao calcula
+  // fisico - reservado.
   const realAvailable = (medicineId: number) => {
     const medicine = medicines.find((item) => item.id === medicineId);
     if (!medicine) return 0;
@@ -141,7 +167,8 @@ function AppointmentsContent() {
     return Math.max(0, physical - (medicine.reservedQuantity ?? 0));
   };
 
-  // Reset form when modal opens
+  // abre o modal de criacao resetando o formulario. a ideia e nao
+  // herdar lixo de uma abertura anterior (data, notas, itens, paciente).
   const handleOpenCreateModal = () => {
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
@@ -149,6 +176,7 @@ function AppointmentsContent() {
     setSlotId(undefined);
     setItems([{ medicineId: initialMedId || medicines[0]?.id || 0, quantity: 1 }]);
     setNotes('');
+    // pra equipe, ja sugere o primeiro paciente da lista como padrao.
     if (!isPatient && patients.length > 0 && !selectedPatientId) {
       setSelectedPatientId(patients[0].id);
     }
@@ -156,6 +184,9 @@ function AppointmentsContent() {
     setIsCreateDialogOpen(true);
   };
 
+  // valida e envia o formulario de criacao. e aqui que a gente barra
+  // itens vazios, data/slot faltando, paciente faltando e quantidade
+  // acima do saldo real. so depois disso chama a mutation.
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (items.length === 0 || items.some((item) => !item.medicineId || item.quantity < 1)) {
@@ -175,12 +206,17 @@ function AppointmentsContent() {
       return;
     }
 
+    // trava de ui: se a quantidade pedida passa do saldo real, nem
+    // chega na api. o backend tambem valida, mas isso evita um round
+    // trip desnecessario.
     const invalidStock = items.find((item) => item.quantity > realAvailable(item.medicineId));
     if (invalidStock) {
       toast.error('A quantidade solicitada excede o estoque disponível real.');
       return;
     }
 
+    // paciente nao manda patientid (o backend amarra ao dono do token).
+    // equipe manda o selecionado no formulario.
     let targetPatientId: number | undefined = undefined;
     if (!isPatient) {
       targetPatientId = selectedPatientId;
@@ -188,6 +224,7 @@ function AppointmentsContent() {
       targetPatientId = undefined;
     }
 
+    // observacoes em branco viram undefined pra nao sujar o payload.
     let notesVal: string | undefined = undefined;
     if (notes.trim().length > 0) {
       notesVal = notes.trim();
@@ -195,6 +232,8 @@ function AppointmentsContent() {
       notesVal = undefined;
     }
 
+    // aqui chamamos a mutation de criar agendamento (/services/queries),
+    // que por sua vez bate em /api/appointments no backend.
     createAppointmentMutation.mutate(
       {
         scheduledDate: appointmentDate,
@@ -227,9 +266,11 @@ function AppointmentsContent() {
     );
   };
 
-  // Filter appointments
+  // filtro da listagem. status + texto livre, onde texto livre cobre
+  // nome, cpf do paciente, nome de medicamento e observacoes.
   const filteredAppointments = useMemo(() => {
     return appointments.filter((app) => {
+      // status: all aceita tudo, senao compara direto.
       let matchesStatus = false;
       if (statusFilter === 'ALL') {
         matchesStatus = true;
@@ -239,6 +280,7 @@ function AppointmentsContent() {
         matchesStatus = false;
       }
 
+      // busca por texto. roda em cascata: paciente -> items -> notes.
       const term = searchTerm.toLowerCase();
       let matchesSearch = false;
       if (app.patient) {
@@ -279,6 +321,9 @@ function AppointmentsContent() {
     });
   }, [appointments, statusFilter, searchTerm]);
 
+  // confirma o cancelamento. exige motivo e chama a mutation de
+  // cancelamento (/services/queries -> /api/appointments/:id/status
+  // com canceled + justificativa).
   const handleConfirmCancel = () => {
     if (!cancelReason.trim()) {
       toast.error('O motivo do cancelamento é obrigatório.');
@@ -308,10 +353,14 @@ function AppointmentsContent() {
     }
   };
 
+  // carrega os slots de escala uma vez ao montar. a store guarda
+  // os slots pra o select de horario no modal de criacao.
   useEffect(() => {
     fetchScheduleSlotsData();
   }, []);
 
+  // definicao das colunas da tabela. cada coluna resolve o dado
+  // certo do agendamento (data, paciente, medicamento, status, acoes).
   const columns: Column<Appointment>[] = [
     {
       header: 'Data & Horário',
@@ -358,6 +407,8 @@ function AppointmentsContent() {
       header: 'Paciente',
       width: '200px',
       cell: (app) => {
+        // nome do paciente com fallback pro usuario logado quando
+        // for paciente e o agendamento nao trouxe o objeto patient.
         let name = 'Não informado';
         if (app.patient) {
           if (app.patient.name) {
@@ -397,6 +448,8 @@ function AppointmentsContent() {
     {
       header: 'Medicamento(s)',
       cell: (app) => {
+        // mostra o primeiro medicamento e, se houver mais de um,
+        // exibe um badge com a contagem dos demais.
         let firstItem: AppointmentItem | undefined = undefined;
         if (app.items) {
           if (app.items.length > 0) {
@@ -462,6 +515,8 @@ function AppointmentsContent() {
       header: 'Status',
       width: '130px',
       cell: (app) => {
+        // badge colorido de acordo com o status. a cor vem do map
+        // de estilos, e o label vem do map de labels (ambos em constants).
         let statusStyle = APPOINTMENT_STATUS_STYLES.PENDING;
         if (APPOINTMENT_STATUS_STYLES[app.status]) {
           statusStyle = APPOINTMENT_STATUS_STYLES[app.status];
@@ -487,8 +542,10 @@ function AppointmentsContent() {
       align: 'right',
       width: '150px',
       cell: (app) => {
-        // Strict IDOR & RBAC validation:
-        // A patient can only cancel appointments that belong to their own patient profile.
+        // validacao estrita de idor + rbac:
+        // paciente so pode cancelar agendamentos que pertencem ao
+        // proprio perfil. a checagem bate o patientid direto e tambem
+        // o patient.id (compatibilidade com formatos diferentes da api).
         let isOwner = true;
         if (isPatient) {
           if (user) {
@@ -514,6 +571,9 @@ function AppointmentsContent() {
           isOwner = true;
         }
 
+        // canact e a permissao efetiva: staff age em tudo, paciente
+        // so nos proprios. depois disso, o status tambem filtra:
+        // so pending e confirmed podem ser cancelados.
         let canCancel = false;
         let userCanAct = false;
         if (isStaff) {
@@ -544,7 +604,7 @@ function AppointmentsContent() {
               <Eye className="w-4 h-4" />
             </Button>
 
-            {/* Staff status updates */}
+            {/* acoes exclusivas da equipe: confirmar e concluir */}
             {(() => {
               if (isStaff) {
                 if (app.status === 'PENDING') {
@@ -568,8 +628,9 @@ function AppointmentsContent() {
 
             {(() => {
               if (isStaff) {
-                // Concluir e a acao FINAL: efetiva o atendimento e realiza a dispensacao.
-                // So fica disponivel enquanto o agendamento ainda esta em andamento.
+                // concluir e a acao final: efetiva o atendimento e
+                // realiza a dispensacao. so fica disponivel enquanto
+                // o agendamento ainda esta em andamento.
                 let canComplete = false;
                 if (app.status === 'PENDING') {
                   canComplete = true;
@@ -583,6 +644,8 @@ function AppointmentsContent() {
                       variant="ghost"
                       onClick={() => updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' }, {
                         onSuccess: (withdrawal) => {
+                          // a resposta da dispensacao vira o comprovante
+                          // exibido no modal de retirada.
                           setReceipt(withdrawal);
                           refetch();
                         },
@@ -600,7 +663,7 @@ function AppointmentsContent() {
               return null;
             })()}
 
-            {/* Cancel action (strictly isolated to owner or staff) */}
+            {/* cancelamento: so pra dono ou equipe */}
             {canCancel && (
               <Button
                 size="sm"
@@ -619,6 +682,7 @@ function AppointmentsContent() {
     },
   ];
 
+  // exporta em csv os agendamentos filtrados. so a equipe ve o botao.
   const handleExportCSV = () => {
     const header = ['Paciente', 'CPF', 'Data Agendada', 'Horário', 'Status', 'Medicamento(s)', 'Observações'];
     const rows = filteredAppointments.map((app) => {
@@ -636,6 +700,8 @@ function AppointmentsContent() {
     toast.success('Agendamentos exportados com sucesso!');
   };
 
+  // textos mudam conforme o papel: paciente ve uma descricao mais
+  // pessoal, equipe ve a descricao de gestao.
   let pageDesc = 'Gerenciamento completo das solicitações e atendimentos da Farmácia Escola.';
   if (isPatient) {
     pageDesc = 'Acompanhe o status e as datas das suas consultas e retiradas agendadas.';
@@ -653,13 +719,14 @@ function AppointmentsContent() {
   return (
     <AppShell activeModuleId="appointments" pageTitle="Agendamentos de Retirada">
       <div className="space-y-5 max-w-7xl mx-auto page-enter">
-        {/* Standard PageHeader */}
+        {/* cabecalho da pagina com acoes (exportar, atualizar, novo) */}
         <PageHeader
           title="Agendamentos de Retirada"
           description={pageDesc}
           icon={Calendar}
           actions={
             <div className="flex items-center gap-2">
+              {/* exportar csv so pra equipe */}
               {(() => {
                 if (!isPatient) {
                   return (
@@ -695,7 +762,7 @@ function AppointmentsContent() {
           }
         />
 
-        {/* Compact Filters */}
+        {/* filtros compactos: busca por texto + chips de status */}
         <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
           <div className="relative w-full sm:w-80">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
@@ -706,6 +773,7 @@ function AppointmentsContent() {
               onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-9 h-9 text-xs rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700"
             />
+            {/* botao de limpar busca, aparece so quando tem texto */}
             {(() => {
               if (searchTerm.length > 0) {
                 return (
@@ -721,7 +789,7 @@ function AppointmentsContent() {
             })()}
           </div>
 
-          {/* Status Filter Chips */}
+          {/* chips de filtro de status, com rolagem horizontal em telas pequenas */}
           <div className="flex items-center gap-1 overflow-x-auto w-full sm:w-auto no-scrollbar">
             {[
               { id: 'ALL', label: 'Todos' },
@@ -749,7 +817,7 @@ function AppointmentsContent() {
           </div>
         </div>
 
-        {/* Standard DataTable */}
+        {/* tabela de agendamentos, com empty state e clique na linha */}
         <DataTable
           columns={columns}
           data={filteredAppointments}
@@ -769,7 +837,7 @@ function AppointmentsContent() {
           onRowClick={(app) => setSelectedAppointmentForDetails(app)}
         />
 
-        {/* ==================== CREATE APPOINTMENT MODAL ==================== */}
+        {/* modal de criacao de agendamento */}
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogContent className="sm:max-w-125 rounded-3xl">
             <DialogHeader>
@@ -783,7 +851,7 @@ function AppointmentsContent() {
             </DialogHeader>
 
             <form onSubmit={handleCreateSubmit} className="space-y-4 py-2">
-              {/* Patient Selector for Staff */}
+              {/* seletor de paciente so pra equipe, com autocomplete */}
               {(() => {
                 if (!isPatient) {
                   return (
@@ -794,6 +862,7 @@ function AppointmentsContent() {
                       </Label>
                       <div className="relative">
                         <Input value={patientSearch || patients.find((patient) => patient.id === selectedPatientId)?.name || ''} onChange={(event) => { setPatientSearch(event.target.value); setSelectedPatientId(undefined); }} placeholder="Buscar por nome ou CPF" className="rounded-xl text-xs" />
+                        {/* dropdown de sugestoes aparece quando tem 2+ caracteres */}
                         {patientSuggestions.length > 0 && <div className="absolute z-20 mt-1 w-full rounded-xl border bg-white p-1 shadow-lg dark:bg-slate-800">{patientSuggestions.map((patient) => <button type="button" key={patient.id} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-emerald-50" onClick={() => { setSelectedPatientId(patient.id); setPatientSearch(patient.name); }}>{patient.name} - {patient.cpf}</button>)}</div>}
                       </div>
                     </div>
@@ -802,7 +871,8 @@ function AppointmentsContent() {
                 return null;
               })()}
 
-              {/* Medicine list */}
+              {/* lista de medicamentos do agendamento, com quantidade e
+                  saldo real disponivel por linha. pode adicionar mais. */}
               <div className="space-y-2">
                 <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                   <Pill className="w-3.5 h-3.5 text-emerald-600" />
@@ -839,7 +909,8 @@ function AppointmentsContent() {
                 </Button>
               </div>
 
-              {/* Data and scale slot */}
+              {/* data e slot de escala. o select de horario depende da
+                  data escolhida e so lista slots daquele dia. */}
               <div className="space-y-2">
                 <div className="space-y-1.5">
                   <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -862,6 +933,8 @@ function AppointmentsContent() {
                       <SelectValue placeholder={appointmentDate ? 'Selecione um horário' : 'Escolha a data primeiro'} />
                     </SelectTrigger>
                     <SelectContent>
+                      {/* cada item mostra horario, vagas livres e farmaceutico responsavel.
+                          lotes cheios ficam desabilitados. */}
                       {availableSlots.map((slot) => {
                         const booked = slot._count?.appointments ?? 0;
                         const free = Math.max(0, slot.maxCapacity - booked);
@@ -873,7 +946,7 @@ function AppointmentsContent() {
                 </div>
               </div>
 
-              {/* Observações */}
+              {/* observacoes livres */}
               <div className="space-y-1.5">
                 <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
                   Observações
@@ -914,7 +987,7 @@ function AppointmentsContent() {
           </DialogContent>
         </Dialog>
 
-        {/* ==================== DETAILS MODAL ==================== */}
+        {/* modal de detalhes do agendamento, com acoes de status pra equipe */}
         <Dialog
           open={selectedAppointmentForDetails !== null}
           onOpenChange={(open) => {
@@ -1022,7 +1095,7 @@ function AppointmentsContent() {
                       </div>
                     </div>
 
-                    {/* Itens */}
+                    {/* lista de medicamentos solicitados no agendamento */}
                     <div className="space-y-1.5">
                       <h4 className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider">
                         Medicamento(s) Solicitados
@@ -1065,7 +1138,7 @@ function AppointmentsContent() {
                       })()}
                     </div>
 
-                    {/* Observações */}
+                    {/* observacoes do agendamento, se existirem */}
                     {(() => {
                       if (app.notes) {
                         return (
@@ -1088,9 +1161,10 @@ function AppointmentsContent() {
                     >
                       Fechar
                     </Button>
+                    {/* acoes de status pra equipe dentro do modal de detalhes */}
                     {(() => {
                       if (isStaff) {
-                        // PENDING -> CONFIRMED (validacao) e PENDING/CONFIRMED -> COMPLETED (dispensacao)
+                        // pending -> confirmed (validacao) e pending/confirmed -> completed (dispensacao)
                         let canConfirm = false;
                         let canComplete = false;
                         if (app.status === 'PENDING') {
@@ -1128,6 +1202,7 @@ function AppointmentsContent() {
                                 onClick={() => {
                                   updateStatusMutation.mutate({ id: app.id, status: 'COMPLETED' }, {
                                     onSuccess: (withdrawal) => {
+                                      // guarda o comprovante de retirada pra exibir no modal
                                       setReceipt(withdrawal);
                                       setSelectedAppointmentForDetails(null);
                                       refetch();
@@ -1154,7 +1229,7 @@ function AppointmentsContent() {
           </DialogContent>
         </Dialog>
 
-        {/* Cancel Confirmation Dialog */}
+        {/* modal de confirmacao de cancelamento, com textarea obrigatorio do motivo */}
         <AlertDialog open={appointmentToCancel !== null} onOpenChange={() => setAppointmentToCancel(null)}>
           <AlertDialogContent className="rounded-2xl max-w-md">
             <AlertDialogHeader>
@@ -1185,6 +1260,7 @@ function AppointmentsContent() {
           </AlertDialogContent>
         </AlertDialog>
 
+        {/* modal de comprovante de retirada, exibido apos conclusao com fefo */}
         <Dialog open={receipt !== null} onOpenChange={(open) => { if (!open) setReceipt(null); }}>
           <DialogContent className="rounded-2xl max-w-md">
             <DialogHeader>
@@ -1205,6 +1281,8 @@ function AppointmentsContent() {
   );
 }
 
+// wrapper com suspense porque o componente usa usesearchparams, que
+// exige estar dentro de um suspense boundary no next 13+.
 export default function AppointmentsPage() {
   return (
     <Suspense

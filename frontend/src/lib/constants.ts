@@ -5,7 +5,10 @@ import {
 import { hasRouteAccess } from '@/config/rbac';
 import type { ModuleId, ModuleConfig } from '@/types';
 
-// ==================== PERMISSION KEYS ====================
+// chaves de permissao usadas pelo client. batem com os recursos
+// que o config/rbac e o server-side usam pra decidir acesso.
+// sempre que uma tela nova precisar de permissao propria, ela
+// entra aqui e no checkpermission abaixo.
 export const PERMISSION_KEYS = {
   inventory: 'inventory',
   patients: 'patients',
@@ -20,11 +23,17 @@ export const PERMISSION_KEYS = {
 
 export type PermissionKey = keyof typeof PERMISSION_KEYS;
 
-// Default permissions for ALUNO (matches spec: full access to inventory tabs)
+// permissoes default de aluno (conforme spec: acesso a todas as
+// abas de estoque). o comentario fica aqui porque o mapa de fato
+// vive no checkpermission logo abaixo.
 
-/**
- * Check frontend permission for current user
- */
+// checagem de permissao no client. espelha parte do rbac do
+// backend (mas simplificado), usada pra esconder/mostrar ui:
+// - admin: tudo
+// - farmaceutico e aluno: tudo menos "users"
+// - medico: inventory, appointments, appointmentsoverview e patients
+// - paciente: inventory, appointments e appointmentsoverview
+// qualquer outro papel cai em false.
 export function checkPermission(
   role: string,
   permissions: Record<string, boolean> | undefined | null,
@@ -70,17 +79,15 @@ export function checkPermission(
   return false;
 }
 
-// ==================== CLIENT-SIDE WRITE CHECK ====================
-/**
- * Client-side canWrite — mirrors server-side canWrite in role-guard.ts.
- * Determines whether the current user can perform write (create/update/delete)
- * operations on a given entity. Uses the in-memory permissions from auth-store.
- *
- * - ADMIN: write everything.
- * - FARMACEUTICO / ALUNO: write everything except 'users'.
- * - MEDICO: write 'appointments' and 'patients'.
- * - PACIENTE: write ONLY 'appointments' (own appointments).
- */
+// checagem de escrita no client. espelha o canwrite do backend
+// (role-guard.ts). decide se o usuario pode executar operacoes de
+// escrita (create/update/delete) numa entidade.
+// - admin: escreve em tudo
+// - farmaceutico e aluno: tudo menos "users"
+// - medico: appointments e patients
+// - paciente: so appointments (as proprias)
+// a ui usa isso pra esconder botoes e desabilitar acoes que o
+// backend recusaria de qualquer forma.
 export function canWriteClient(
   role: string | undefined | null,
   permissions: Record<string, boolean> | undefined | null,
@@ -129,7 +136,7 @@ export function canWriteClient(
   return false;
 }
 
-// ==================== ROLE BADGES & PALETTE ====================
+// rotulos amigaveis dos papeis (usados pelo rolebadge).
 export const ROLE_LABELS: Record<string, string> = {
   ADMIN: 'Administrador',
   FARMACEUTICO: 'Farmacêutico',
@@ -138,6 +145,8 @@ export const ROLE_LABELS: Record<string, string> = {
   PACIENTE: 'Paciente',
 };
 
+// paleta de cores por papel (usada pelo rolebadge). cada papel
+// tem uma cor propria pra diferenciar rapido na tela.
 export const ROLE_COLORS: Record<string, string> = {
   ADMIN: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800',
   FARMACEUTICO: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800',
@@ -146,9 +155,10 @@ export const ROLE_COLORS: Record<string, string> = {
   PACIENTE: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/40 dark:text-teal-300 dark:border-teal-800',
 };
 
-// ==================== MODULE & TAB SYSTEM ====================
-// (ModuleId, TabId, ModuleTab e ModuleConfig centralizados em src/types/rbac.ts)
-
+// catalogo de modulos do sistema. cada modulo vira um item na
+// sidebar, com icone, rota e regras proprias de acesso.
+// os tipos moduled, tabid, moduletab e moduleconfig ficam
+// centralizados em src/types/rbac.ts.
 export const MODULES: ModuleConfig[] = [
   {
     id: 'dashboard',
@@ -173,6 +183,7 @@ export const MODULES: ModuleConfig[] = [
     label: 'Lotes',
     path: '/inventory',
     icon: Boxes,
+    // paciente e medico nao acessam gestao de lotes.
     forbiddenRoles: ['PACIENTE', 'MEDICO'],
     tabs: [],
     defaultTab: '',
@@ -183,6 +194,7 @@ export const MODULES: ModuleConfig[] = [
     label: 'Descartes',
     path: '/disposals',
     icon: Trash2,
+    // idem: descarte e area da equipe, nao paciente/medico.
     forbiddenRoles: ['PACIENTE', 'MEDICO'],
     tabs: [],
     defaultTab: '',
@@ -212,6 +224,7 @@ export const MODULES: ModuleConfig[] = [
     label: 'Escala',
     path: '/scales',
     icon: Clock,
+    // escala e configuracao de agenda, nao acesso de medico/paciente.
     forbiddenRoles: ['MEDICO', 'PACIENTE'],
     tabs: [],
     defaultTab: '',
@@ -222,6 +235,7 @@ export const MODULES: ModuleConfig[] = [
     label: 'Usuários',
     path: '/users',
     icon: Users,
+    // paciente nao ve gestao de usuarios.
     forbiddenRoles: ['PACIENTE'],
     tabs: [],
     defaultTab: '',
@@ -238,7 +252,12 @@ export const MODULES: ModuleConfig[] = [
   },
 ];
 
-/** Get visible modules for a given role */
+// resolve os modulos visiveis pra um papel. cada modulo passa por
+// tres checagens, em ordem:
+// 1) hasrouteaccess do config/rbac (o papel tem acesso a essa rota?)
+// 2) forbiddenroles (se o papel estiver na lista, nega)
+// 3) permissao customizada (se o modulo exige, checa via checkpermission)
+// o resultado e a lista que a sidebar usa pra montar os links.
 export function getVisibleModules(role: string, permissions?: Record<string, boolean> | null): ModuleConfig[] {
   const normalizedRole = role.toUpperCase();
   return MODULES.filter((mod) => {
@@ -261,15 +280,18 @@ export function getVisibleModules(role: string, permissions?: Record<string, boo
   });
 }
 
-/** Find module config by id */
+// busca a config de um modulo pelo id. usada pelo appshell pra
+// resolver titulo, icone e path da rota atual.
 export function getModuleById(id: ModuleId): ModuleConfig | undefined {
   return MODULES.find((m) => m.id === id);
 }
 
-// ==================== CHART CONFIG ====================
+// paleta usada nos graficos do dashboard. cicla quando ha mais
+// fatias/barras do que cores.
 export const CHART_COLORS = ['#10b981', '#14b8a6', '#f59e0b', '#f43f5e', '#8b5cf6', '#06b6d4', '#f97316', '#84cc16'];
 
-// ==================== STATUS STYLES ====================
+// estilos de badge por status de agendamento. casa com o label
+// correspondente no apointment_status_labels abaixo.
 export const APPOINTMENT_STATUS_STYLES: Record<string, string> = {
   CONFIRMED: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   PENDING: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -277,6 +299,7 @@ export const APPOINTMENT_STATUS_STYLES: Record<string, string> = {
   CANCELLED: 'bg-rose-50 text-rose-700 border-rose-200',
 };
 
+// rotulos amigaveis dos status de agendamento.
 export const APPOINTMENT_STATUS_LABELS: Record<string, string> = {
   CONFIRMED: 'Confirmado',
   PENDING: 'Pendente',
@@ -284,10 +307,12 @@ export const APPOINTMENT_STATUS_LABELS: Record<string, string> = {
   CANCELLED: 'Cancelado',
 };
 
-// ==================== AVATAR COLORS ====================
+// paleta usada pra gerar a cor do avatar a partir do nome.
+// o getavatarcollor faz o hash do nome e escolhe uma daqui.
 export const AVATAR_COLORS = ['bg-emerald-500', 'bg-teal-500', 'bg-amber-500', 'bg-rose-500', 'bg-purple-500', 'bg-sky-500', 'bg-orange-500', 'bg-lime-500'];
 
-// ==================== MEDICINE CATEGORIES ====================
+// categorias de medicamento. a primeira (all) e usada so como
+// filtro (nao como categoria real de um medicamento).
 export const MEDICINE_CATEGORIES = [
   { id: 'all', label: 'Todas', color: 'bg-slate-100 text-slate-600' },
   { id: 'analgesico', label: 'Analgésico', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' },
@@ -300,6 +325,8 @@ export const MEDICINE_CATEGORIES = [
   { id: 'outro', label: 'Outro', color: 'bg-slate-50 text-slate-500 border-slate-200' },
 ] as const;
 
+// mapa de chave -> rotulo amigavel da categoria. usado pelo
+// categorybadge pra exibir o nome certo na tela.
 export const MEDICINE_CATEGORY_LABELS: Record<string, string> = {
   'analgesico': 'Analgésico',
   'anti-inflamatorio': 'Anti-inflamatório',
@@ -311,6 +338,8 @@ export const MEDICINE_CATEGORY_LABELS: Record<string, string> = {
   'outro': 'Outro',
 };
 
+// mapa de chave -> classes de cor da categoria. usado pelo
+// categorybadge pra pintar o badge de acordo com a categoria.
 export const MEDICINE_CATEGORY_COLORS: Record<string, string> = {
   'analgesico': 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
   'anti-inflamatorio': 'bg-sky-50 text-sky-700 dark:bg-sky-900/30 dark:text-sky-400',
@@ -322,12 +351,19 @@ export const MEDICINE_CATEGORY_COLORS: Record<string, string> = {
   'outro': 'bg-slate-50 text-slate-500 dark:bg-slate-800/50 dark:text-slate-400',
 };
 
+// escolhe uma cor de avatar de forma deterministica a partir do
+// nome. o hash simples garante que o mesmo nome sempre caia na
+// mesma cor (evita "piscar" cores diferentes entre renders).
 export function getAvatarColor(name: string): string {
   let hash = 0;
   for (let i = 0; i < name.length; i++) { hash = name.charCodeAt(i) + ((hash << 5) - hash); }
   return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
 }
 
+// baixa um csv a partir de uma matriz de linhas. cada celula e
+// envolvida em aspas e as aspas internas sao escapadas (norma do
+// csv). o prefixo bom (\ufeff) faz o excel abrir em utf-8 sem
+// virar caracteres estranhos.
 export function downloadCSV(filename: string, rows: string[][]) {
   const csvContent = rows.map((r) => r.map((c) => '"' + String(c).replace(/"/g, '""') + '"').join(',')).join('\n');
   const blob = new Blob(['\uFEFF' + csvContent], { type: 'text/csv;charset=utf-8;' });

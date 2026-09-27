@@ -1,8 +1,10 @@
-// IMPORTS DE BIBLIOTECAS
+// imports de bibliotecas
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 import Cookies from 'js-cookie';
 
-// DEFINICAO DA URL BASE DA API
+// url base da api. vem da env publica do next (next_public_api_url).
+// quando nao configurada, fica string vazia e as chamadas viram
+// relativas (util em dev com proxy ou no mesmo host).
 let API_BASE_URL = '';
 if (process.env.NEXT_PUBLIC_API_URL) {
   API_BASE_URL = process.env.NEXT_PUBLIC_API_URL;
@@ -10,7 +12,9 @@ if (process.env.NEXT_PUBLIC_API_URL) {
   API_BASE_URL = '';
 }
 
-// CRIACAO DA INSTANCIA DO CLIENTE AXIOS
+// instancia do axios usada em todo o app. define content-type
+// json e um timeout de 15s. os interceptors abaixo cuidam de
+// injetar o token e de normalizar erros.
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -19,11 +23,17 @@ export const apiClient = axios.create({
   timeout: 15000,
 });
 
-// INTERCEPTOR DE REQUISICAO PARA ADICIONAR TOKEN JWT
+// interceptor de requisicao. antes de cada chamada, resolve o
+// token (prioriza cookie, cai pro localstorage como fallback) e
+// injeta o header authorization no formato bearer.
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    // tenta o token do cookie primeiro.
     let token = Cookies.get('auth_token');
     if (!token) {
+      // se nao tiver no cookie e estiver no browser, tenta o
+      // localstorage. cobre o caso do cookie ter expirado mas a
+      // sessao ainda estar viva no client.
       if (typeof window !== 'undefined') {
         const localToken = localStorage.getItem('token');
         if (localToken) {
@@ -47,19 +57,27 @@ apiClient.interceptors.request.use(
   }
 );
 
-// INTERCEPTOR DE RESPOSTA PARA TRATAR ERROS E STATUS 401
+// interceptor de resposta. faz duas coisas:
+// 1) trata 401 global: limpa cookies/localstorage pra forcar
+//    re-login. com uma excecao: nas rotas /login e /register,
+//    nao mexe em nada (senao limparia a sessao no proprio fluxo
+//    de autenticacao).
+// 2) normaliza a mensagem de erro pra ser consumida em qualquer
+//    lugar (err.message) sem depender do formato do axios.
 apiClient.interceptors.response.use(
   (response) => {
     return response;
   },
   (error: AxiosError<{ error?: string; message?: string }>) => {
-    // VERIFICANDO SE OCORREU ERRO DE STATUS 401
+    // tratamento de 401. so limpa a sessao se nao estiver nas
+    // telas publicas de auth (login/register).
     if (error) {
       if (error.response) {
-        // NOTA: Toasts de permissão NÃO são exibidos globalmente aqui.
-        // O tratamento de 403/401 deve ser feito nos componentes individuais
-        // para evitar spam durante carregamento de dados em background.
-        // Toasts só devem aparecer após AÇÃO DIRETA do usuário.
+        // nota: toasts de permissao nao sao exibidos globalmente
+        // aqui. o tratamento de 401/403 fica nos componentes
+        // individuais pra evitar spam durante carregamentos em
+        // background. toasts so devem aparecer apos acao direta
+        // do usuario.
 
         if (error.response.status === 401) {
           if (typeof window !== 'undefined') {
@@ -67,6 +85,7 @@ apiClient.interceptors.response.use(
             const isRegister = window.location.pathname.startsWith('/register');
             if (!isLogin) {
               if (!isRegister) {
+                // limpa tudo da sessao pra forcar relogin.
                 Cookies.remove('auth_token', { path: '/' });
                 Cookies.remove('user_role', { path: '/' });
                 Cookies.remove('user_info', { path: '/' });
@@ -79,7 +98,13 @@ apiClient.interceptors.response.use(
       }
     }
 
-    // EXTRAINDO A MENSAGEM DE ERRO COM FALLBACK VERBOSO
+    // extrai a melhor mensagem de erro possivel, na ordem:
+    // 1) response.data.error (mensagem de negocio da api)
+    // 2) response.data.message
+    // 3) error.message (rede/axios)
+    // 4) fallback generico
+    // o objetivo e que quem consumir so precise ler err.message,
+    // independente da origem do erro.
     let errorMessage = 'Erro ao processar requisição';
     if (error) {
       if (error.response) {

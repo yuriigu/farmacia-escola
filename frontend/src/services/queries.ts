@@ -1,14 +1,18 @@
-// IMPORTS DO REACT E BIBLIOTECAS
+// imports do react e bibliotecas
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast-handler';
 
-// IMPORTS LOCAIS
+// imports locais
 import { api } from './api';
 import type { StockStatusSummary, AppointmentStatus } from '@/types';
 
 
 
-// CHAVES DAS CONSULTAS DO REACT QUERY
+// chaves de consulta centralizadas do react-query. ficam todas
+// aqui pra facilitar a invalidacao (mutations invalidam a mesma
+// chave que os hooks de leitura usam) e evitar typo em string.
+// algumas aceitam parametro (ex: batches(medicineid) e patients(search))
+// pra cada conjunto de filtro ter seu proprio cache.
 export const QUERY_KEYS = {
   medicines: ['medicines'] as const,
   medicine: (id: number) => ['medicines', id] as const,
@@ -25,10 +29,10 @@ export const QUERY_KEYS = {
 };
 
 
-// ==================== MEDICINES ====================
+// medicines
 
-// HOOK PARA LISTAR MEDICAMENTOS
-// staleTime local de 5min: catálogo muda pouco; evita refetch a cada montagem.
+// lista o catalogo de medicamentos. staletime de 5 min porque o
+// catalogo muda pouco e evita refetch a cada montagem de tela.
 export function useMedicines() {
   return useQuery({
     queryKey: QUERY_KEYS.medicines,
@@ -39,7 +43,9 @@ export function useMedicines() {
   });
 }
 
-// HOOK PARA BUSCAR MEDICAMENTO POR ID
+// busca um medicamento por id. so dispara quando o id e um numero
+// valido (> 0), por causa do enabled. util pra modais que abrem
+// com id opcional.
 export function useMedicine(id: number | null | undefined) {
   let medicineId = 0;
   if (id) {
@@ -68,7 +74,8 @@ export function useMedicine(id: number | null | undefined) {
   });
 }
 
-// HOOK PARA CRIAR MEDICAMENTO
+// cria medicamento. invalida a lista no sucesso. erros vem do
+// apiclient ja normalizados (err.message tem a mensagem certa).
 export function useCreateMedicine() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -89,9 +96,9 @@ export function useCreateMedicine() {
   });
 }
 
-// ==================== BATCHES (ESTOQUE) ====================
+// batches (estoque)
 
-// HOOK PARA LISTAR LOTES
+// lista os lotes, com filtro opcional por medicamento.
 export function useBatches(medicineId?: number) {
   return useQuery({
     queryKey: QUERY_KEYS.batches(medicineId),
@@ -101,8 +108,9 @@ export function useBatches(medicineId?: number) {
   });
 }
 
-// HOOK PARA O PANORAMA DE ESTOQUE CONSOLIDADO PELO BACKEND
-// staleTime 5min: agregado barato no backend mas chamado em todo dashboard.
+// panorama do estoque consolidado pelo backend (get /api/dashboard/stock-status).
+// staletime de 5 min porque e um agregado barato no backend mas
+// usado em toda tela de dashboard.
 export function useStockStatus() {
   return useQuery({
     queryKey: QUERY_KEYS.stockStatus,
@@ -114,7 +122,8 @@ export function useStockStatus() {
 }
 
 
-// HOOK PARA CRIAR LOTE
+// cria lote. invalida tanto a lista de lotes quanto a de
+// medicamentos, porque o saldo do catalogo muda junto.
 export function useCreateBatch() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -136,7 +145,8 @@ export function useCreateBatch() {
   });
 }
 
-// HOOK PARA REMOVER LOTE
+// remove lote. mesma invalidacao dupla (batches + medicines),
+// pelo mesmo motivo do create.
 export function useDeleteBatch() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -158,10 +168,11 @@ export function useDeleteBatch() {
   });
 }
 
-// ==================== APPOINTMENTS ====================
+// appointments
 
-// HOOK PARA LISTAR AGENDAMENTOS
-// staleTime curto (60s): muda com frequência, mas sem refetch em cada remount.
+// lista os agendamentos. staletime mais curto (60s) porque isso
+// muda com frequencia, mas com refetchonmount desligado no provider
+// a tela nao refaz a chamada so por remontar.
 export function useAppointments() {
   return useQuery({
     queryKey: QUERY_KEYS.appointments,
@@ -172,7 +183,8 @@ export function useAppointments() {
   });
 }
 
-// HOOK PARA BUSCAR AGENDAMENTO POR ID
+// busca agendamento por id. so dispara quando o id e um numero
+// valido (> 0).
 export function useAppointment(id: number | null | undefined) {
   let appointmentId = 0;
   if (id) {
@@ -201,7 +213,7 @@ export function useAppointment(id: number | null | undefined) {
   });
 }
 
-// HOOK PARA CRIAR AGENDAMENTO
+// cria agendamento. invalida a lista de agendamentos no sucesso.
 export function useCreateAppointment() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -222,7 +234,8 @@ export function useCreateAppointment() {
   });
 }
 
-// HOOK PARA ATUALIZAR STATUS DE AGENDAMENTO
+// atualiza o status do agendamento (pending, confirmed, completed,
+// cancelled). aceita notes opcional pra casos como cancelamento.
 export function useUpdateAppointmentStatus() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -253,7 +266,8 @@ export function useUpdateAppointmentStatus() {
   });
 }
 
-// HOOK PARA CANCELAR AGENDAMENTO
+// cancela um agendamento. usa o endpoint de status com cancelled
+// + justificativa (o backend exige motivo).
 export function useCancelAppointment() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -274,11 +288,11 @@ export function useCancelAppointment() {
   });
 }
 
-// ==================== PATIENTS ====================
+// patients
 
-// HOOK PARA LISTAR PACIENTES
-// OTIMIZADO: placeholderData keepPreviousData + staleTime evitam refetch
-// visual a cada keystroke do autocomplete de CPF (dispara a cada 3 dígitos).
+// lista pacientes. o placeholderdata keep-previous junto do
+// staletime de 2 min evita o "piscar" da lista a cada keystroke
+// do autocomplete de cpf (que dispara a cada 3 digitos).
 export function usePatients(search?: string) {
   return useQuery({
     queryKey: QUERY_KEYS.patients(search),
@@ -290,7 +304,8 @@ export function usePatients(search?: string) {
   });
 }
 
-// HOOK PARA BUSCAR PACIENTE POR ID
+// busca paciente por id. so dispara quando o id e um numero
+// valido (> 0).
 export function usePatient(id: number | null | undefined) {
   let patientId = 0;
   if (id) {

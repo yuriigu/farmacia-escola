@@ -3,10 +3,21 @@
 import { ReactNode, useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
+// provider do react-query. fica no topo do app (dentro do themeprovider)
+// e passa o queryclient pra toda a arvore. o client e criado uma unica
+// vez via usestate (inicializacao lazy), evitando recriar cache a cada
+// render.
+//
+// as opcoes default foram ajustadas pra reduzir rajadas de requisicoes:
+// - staletime 5min: dado e considerado fresco por 5 min, entao navegar
+//   entre abas nao dispara refetch.
+// - gctime 15min: cache inativo fica em memoria por 15 min antes de
+//   ser descartado.
+// - refetchonwindowfocus/onmount/onreconnect desligados: sem isso, o
+//   appshell remontava ao trocar de aba e refazia get /medicines,
+//   /appointments e /patients a cada navegacao.
+// - retry 1: uma tentativa extra em caso de falha, sem exagerar.
 export function QueryProvider({ children }: { children: ReactNode }) {
-  // OTIMIZADO: cache de 5min (staleTime) + sem refetch no foco + sem refetch
-  // em remount evita rajadas de GET /medicines|appointments|patients a cada
-  // navegação entre abas (o AppShell remontava e refazia tudo).
   const [queryClient] = useState(
     () =>
       new QueryClient({

@@ -1,4 +1,4 @@
-// IMPORTS LOCAIS
+// imports locais
 import apiClient from '@/lib/axios';
 import type {
   AuthUser,
@@ -12,8 +12,19 @@ import type {
   ActivityLogEntry,
 } from '@/types';
 
-// OBJETO PRINCIPAL DA API
+// objeto principal do cliente http do app. organiza as chamadas
+// em tres camadas:
+// 1) helpers genericos (get/post/put/patch/delete) que ja prefixam
+//    /api quando o caminho nao veio com o prefixo.
+// 2) recursos agrupados por dominio (auth, medicines, batches, ...)
+//    cada um com seus metodos semanticos.
+// todas as chamadas usam o apiClient (/lib/axios), que cuida do
+// token e da normalizacao de erro.
+// retorno: as funcoes devolvem response.data direto (nao o response
+// completo do axios), pra quem consome so precisar do dado.
 export const api = {
+  // helpers genericos. aceitam tanto "/medicines" quanto "/api/medicines":
+  // a checagem do prefixo evita duplicar /api/api.
   get: async <T>(url: string, config?: any) => {
     let finalUrl = `/api${url}`;
     if (url.startsWith('/api')) {
@@ -70,7 +81,8 @@ export const api = {
     return result;
   },
 
-  // Auth
+  // auth: login, cadastro publico de paciente, leitura do proprio
+  // perfil e atualizacao de senha/perfil.
   auth: {
     login: async (email: string, password: string) => {
       const response = await apiClient.post<{ token: string; user: AuthUser }>('/api/auth/login', {
@@ -105,7 +117,7 @@ export const api = {
     },
   },
 
-  // Medicines
+  // medicines: crud do catalogo de medicamentos.
   medicines: {
     getAll: async () => {
       const response = await apiClient.get<Medicine[]>('/api/medicines');
@@ -143,9 +155,12 @@ export const api = {
     },
   },
 
-  // Batches
+  // batches: crud de lotes + as duas operacoes auditadas (block
+  // e adjust), que seguem endpoints dedicados no backend.
   batches: {
     getAll: async (medicineId?: number) => {
+      // filtro opcional por medicamento: so manda o param quando
+      // o id foi passado.
       let requestParams;
 
       if (medicineId) {
@@ -174,11 +189,14 @@ export const api = {
       const result = response.data;
       return result;
     },
+    // alterna o bloqueio sanitario do lote. e um endpoint auditado,
+    // entao exige motivo quando esta bloqueando.
     block: async (id: number, data: { isBlocked: boolean; blockReason?: string | null }) => {
       const response = await apiClient.patch<Batch>('/api/batches/' + id + '/block', data);
       const result = response.data;
       return result;
     },
+    // ajuste auditado de saldo. mesmo esquema: exige justificativa.
     adjust: async (id: number, data: { newQuantity: number; reason: string }) => {
       const response = await apiClient.post<Batch>('/api/batches/' + id + '/adjustments', data);
       const result = response.data;
@@ -199,7 +217,8 @@ export const api = {
     },
   },
 
-  // Appointments
+  // appointments: crud de agendamento + transicoes de status
+  // (updatestatus/cancel) + os fluxos de dispensacao e estorno.
   appointments: {
     getAll: async () => {
       const response = await apiClient.get<Appointment[]>('/api/appointments');
@@ -226,6 +245,9 @@ export const api = {
       return result;
     },
     updateStatus: async (id: number, status: 'PENDING' | 'CONFIRMED' | 'COMPLETED' | 'CANCELLED', notes?: string) => {
+      // monta o payload so com o status e, se veio, as notes.
+      // a distincao undefined/null importa aqui: so manda notes
+      // quando ela existe de fato.
       const payload: { status: string; notes?: string } = { status };
       if (notes !== undefined && notes !== null) {
         payload.notes = notes;
@@ -234,6 +256,8 @@ export const api = {
       const result = response.data;
       return result;
     },
+    // cancelamento: usa o mesmo endpoint de status, forcando
+    // cancelled + notas (a justificativa do cancelamento).
     cancel: async (id: number, cancelReason: string) => {
       const response = await apiClient.put<Appointment>(`/api/appointments/${id}/status`, { status: 'CANCELLED', notes: cancelReason });
       const result = response.data;
@@ -251,9 +275,11 @@ export const api = {
     },
   },
 
-  // Patients
+  // patients: crud de pacientes + busca por termo.
   patients: {
     getAll: async (search?: string) => {
+      // filtro opcional por busca: so manda o param quando veio
+      // algum termo.
       let requestParams: { search: string } | undefined = undefined;
       if (search) {
         requestParams = { search: search };
@@ -288,7 +314,8 @@ export const api = {
     },
   },
 
-  // Schedule Slots
+  // scheduleslots: crud de escala de atendimento. o update e feito
+  // direto via apiclient em outro ponto, entao nao aparece aqui.
   scheduleSlots: {
     getAll: async (params?: { startDate?: string; endDate?: string }) => {
       const response = await apiClient.get<ScheduleSlot[]>('/api/schedule-slots', { params });
@@ -307,7 +334,8 @@ export const api = {
     },
   },
 
-  // Disposals
+  // disposals: listar, criar e reverter descartes. a reversao
+  // exige motivo no backend.
   disposals: {
     getAll: async () => {
       const response = await apiClient.get<Disposal[]>('/api/disposals');
@@ -326,7 +354,7 @@ export const api = {
     },
   },
 
-  // Users
+  // users: crud de usuarios (gestao de contas).
   users: {
     getAll: async () => {
       const response = await apiClient.get<User[]>('/api/users');
@@ -350,7 +378,8 @@ export const api = {
     },
   },
 
-  // Activity Logs
+  // activitylogs: leitura dos logs de auditoria com filtros e
+  // paginacao. o retorno ja traz logs + info de paginacao prontos.
   activityLogs: {
     getAll: async (params?: { userId?: number; entity?: string; page?: number; limit?: number }) => {
       const response = await apiClient.get<{

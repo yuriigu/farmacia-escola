@@ -1,7 +1,12 @@
-// IMPORTS DOS TIPOS CENTRALIZADOS
+// imports dos tipos centralizados
 import type { AppRole, ModuleKey } from '@/types';
 
-// MAPEAMENTO DE PERMISSOES POR PAPEL (APENAS CHAVES CANONICAS)
+// mapa de permissoes por papel. cada entrada lista as chaves
+// canonicas de modulo que aquele papel acessa. qualquer modulo
+// fora da lista e bloqueado. admin, farmaceutico e aluno veem o
+// sistema praticamente inteiro; medico perde estoque/descartes e
+// paciente fica com o essencial (dashboard, medicamentos,
+// agendamentos, calendario e settings).
 export const rolePermissions: Record<AppRole, ModuleKey[]> = {
   ADMIN: [
     'dashboard',
@@ -53,48 +58,52 @@ export const rolePermissions: Record<AppRole, ModuleKey[]> = {
   ],
 };
 
-// DE-PARA UNICO: URL AMIGAVEL (PT), ROTA LEGADA (EN) OU ID DE MODULO (EN) -> CHAVE CANONICA
-// Qualquer segmento que NAO esteja aqui e tratado como rota desconhecida (acesso negado).
+// de-para unico que traduz tres formatos de entrada (url amigavel
+// em portugues, rota legada em ingles ou id de modulo) pra chave
+// canonica. qualquer segmento fora daqui cai em "rota desconhecida"
+// e o hasRouteAccess acaba negando o acesso.
 const CANONICAL_ALIASES: Record<string, ModuleKey> = {
-  // Dashboard
+  // dashboard
   dashboard: 'dashboard',
-  // Medicamentos
+  // medicamentos
   medicamentos: 'medicines',
   medicines: 'medicines',
-  // Lotes (estoque/batches/inventory)
+  // lotes (estoque/batches/inventory)
   lotes: 'inventory',
   estoque: 'inventory',
   batches: 'inventory',
   inventory: 'inventory',
-  // Descartes
+  // descartes
   descartes: 'disposals',
   disposals: 'disposals',
-  // Agendamentos
+  // agendamentos
   agendamentos: 'appointments',
   appointments: 'appointments',
   'my-appointments': 'appointments',
-  // Calendario
+  // calendario
   calendario: 'calendar',
   calendar: 'calendar',
-  // Escala
+  // escala
   escala: 'scales',
   escalas: 'scales',
   scales: 'scales',
-  // Usuarios (inclui a rota fisica /users e seus apelidos)
+  // usuarios (inclui a rota fisica /users e seus apelidos)
   users: 'users',
   usuarios: 'users',
   administracao: 'users',
   admin: 'users',
   pacientes: 'users',
-  // Configuracoes (perfil/settings)
+  // configuracoes (perfil/settings)
   configuracoes: 'settings',
   perfil: 'settings',
   profile: 'settings',
   settings: 'settings',
 };
 
-// NORMALIZA A ROTA SOLICITADA (REMOVE BARRA INICIAL, QUERY E SUBSEGMENTOS)
-// E TRADUZ O APELIDO DE URL PARA A CHAVE CANONICA
+// normaliza a rota solicitada (tira barra inicial, query e
+// subsegmentos) e traduz o apelido pra chave canonica.
+// o que sobra depois do split('/') e o primeiro segmento, que e
+// o que decide o modulo.
 function toModuleKey(routeOrModule: string): ModuleKey | undefined {
   const clean = routeOrModule
     .replace(/^\/+/, '')
@@ -108,8 +117,11 @@ function toModuleKey(routeOrModule: string): ModuleKey | undefined {
   return CANONICAL_ALIASES[clean];
 }
 
-// FUNCAO PARA VERIFICAR SE O PAPEL TEM ACESSO A ROTA
-// Rotas desconhecidas, papéis invalidos ou chamadas sem papel retornam false.
+// checagem principal de autorizacao por rota. devolve true so
+// quando o papel existe, a rota resolve pra um modulo conhecido e
+// esse modulo esta na lista de permissoes do papel. qualquer caso
+// de erro (sem papel, papel desconhecido, rota desconhecida) vira
+// false — o default e negar.
 export function hasRouteAccess(role: string | undefined | null, routeOrModule: string): boolean {
   if (!role) {
     return false;
@@ -125,14 +137,19 @@ export function hasRouteAccess(role: string | undefined | null, routeOrModule: s
   return permissions.includes(moduleKey);
 }
 
-// ==================== GESTAO DE USUARIOS (PERMISSOES GRANULARES) ====================
-// LISTA CANONICA DE PAPEIS EXISTENTES NO SISTEMA.
+// gestao de usuarios (permissoes granulares).
+// alem do rbac por rota, a area de usuarios tem regras especificas
+// sobre quem pode gerenciar quem. as funcoes abaixo cobrem essas
+// regras e sao consumidas pela tela de admin e pelos controllers.
+
+// lista canonica de papeis existentes no sistema.
 export const APP_ROLES: AppRole[] = ['ADMIN', 'FARMACEUTICO', 'MEDICO', 'ALUNO', 'PACIENTE'];
 
-// PAPEIS QUE UM OPERADOR PODE ATRIBUIR AO CADASTRAR/EDITAR UM USUARIO.
-// - ADMIN: qualquer perfil (ADMIN, FARMACEUTICO, MEDICO, ALUNO, PACIENTE).
-// - FARMACEUTICO / MEDICO / ALUNO: EXCLUSIVAMENTE PACIENTE.
-// - PACIENTE / PERFIL DESCONHECIDO: nenhum (sem acesso a gestao de usuarios).
+// resolve quais papeis um operador pode atribuir ao criar ou editar
+// um usuario. regra:
+// - admin: pode tudo (todos os papeis)
+// - farmaceutico, medico e aluno: so pode cadastrar paciente
+// - paciente ou papel desconhecido: nenhum (sem acesso a gestao)
 export function getAssignableRoles(actorRole: string | undefined | null): AppRole[] {
   if (!actorRole) {
     return [];
@@ -151,7 +168,8 @@ export function getAssignableRoles(actorRole: string | undefined | null): AppRol
   return [];
 }
 
-// VERIFICA SE O ATOR PODE CRIAR UM USUARIO COM O PERFIL ALVO.
+// checa se o operador pode criar um usuario com o perfil alvo.
+// e um atalho que reusa a regra do getassignableroles.
 export function canCreateUser(actorRole: string | undefined | null, targetRole: string | undefined | null): boolean {
   if (!targetRole) {
     return false;
@@ -159,12 +177,14 @@ export function canCreateUser(actorRole: string | undefined | null, targetRole: 
   return getAssignableRoles(actorRole).includes(targetRole.toUpperCase() as AppRole);
 }
 
-// VERIFICA SE O ATOR PODE EDITAR UM USUARIO QUE POSSUI O PERFIL ALVO.
+// checa se o operador pode editar um usuario com o perfil alvo.
+// a regra e a mesma do create: quem pode criar tambem pode editar.
 export function canEditUser(actorRole: string | undefined | null, targetRole: string | undefined | null): boolean {
   return canCreateUser(actorRole, targetRole);
 }
 
-// EXCLUSAO DE USUARIOS: EXCLUSIVAMENTE ADMIN.
+// exclusao de usuarios: mais restrita que create/edit.
+// so admin pode excluir, independente do perfil alvo.
 export function canDeleteUser(actorRole: string | undefined | null): boolean {
   if (!actorRole) {
     return false;

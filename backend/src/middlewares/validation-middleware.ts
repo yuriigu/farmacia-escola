@@ -80,6 +80,7 @@ export const registerPatientSchema = z.object({
 // mas pra trocar de senha o usuario precisa informar a atual.
 export const updateProfileSchema = z.object({
   name: z.string().min(2, 'Nome deve ter no mínimo 2 caracteres').max(NAME_MAX, 'Nome muito longo').optional(),
+  email: z.string().email('Formato de email inválido').optional(),
   phone: z.string().max(PHONE_MAX, 'Telefone muito longo').optional(),
   address: z.string().max(ADDRESS_MAX, 'Endereço muito longo').optional(),
   currentPassword: z.string().min(1, 'Senha atual é obrigatória para alteração de senha').optional(),

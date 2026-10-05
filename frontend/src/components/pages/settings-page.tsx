@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Settings, UserRound, Lock, Save, Eye, EyeOff, Loader2,
@@ -43,7 +43,7 @@ export function SettingsPage() {
       initialEmail = user.email;
     }
   }
-  const [email, setEmail] = useState(initialEmail);
+  const [email, setEmail] = useState(user?.email ?? initialEmail);
 
   // telefone inicial puxado do usuario.
   let initialPhone = '';
@@ -52,11 +52,18 @@ export function SettingsPage() {
       initialPhone = user.phone;
     }
   }
-  const [phone, setPhone] = useState(initialPhone);
+  const [phone, setPhone] = useState(user?.phone ?? initialPhone);
 
-  // endereco comeca vazio (nao vem no objeto do usuario por padrao).
-  const [address, setAddress] = useState('');
+  const [address, setAddress] = useState(user?.patient?.address ?? user?.address ?? '');
+  const [name, setName] = useState(user?.name ?? '');
   const [savingProfile, setSavingProfile] = useState(false);
+
+  useEffect(() => {
+    setEmail(user?.email ?? '');
+    setPhone(user?.phone ?? '');
+    setAddress(user?.patient?.address ?? user?.address ?? '');
+    setName(user?.name ?? '');
+  }, [user?.id, user?.email, user?.phone, user?.patient?.address, user?.address, user?.name]);
 
   // campos de senha. os toggles controlam mostrar/ocultar.
   const [currentPassword, setCurrentPassword] = useState('');
@@ -66,10 +73,7 @@ export function SettingsPage() {
   const [showNewPw, setShowNewPw] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
 
-  // salva os dados de contato. atualiza o usuario e, se ele tiver
-  // patientid, tambem atualiza o cadastro de paciente vinculado
-  // (pra telefone e endereco ficarem coerentes entre as duas pontas).
-  // no fim, refaz o setauth pra refletir o email/telefone novos na store.
+  // salva os dados do perfil e sincroniza a sessao com o retorno do backend.
   const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
@@ -77,31 +81,11 @@ export function SettingsPage() {
 
     setSavingProfile(true);
     try {
-      // chamamos o cliente http (/lib/api) pra atualizar o usuario.
-      const updatedUser = await api.updateUser(user.id, { email, phone, address });
-      // se for paciente, sincroniza o cadastro de paciente tambem.
-      if (user.patientId) {
-        await api.updatePatient(user.patientId, { phone, address });
-      }
-      let authToken = '';
-      if (token) {
-        authToken = token;
-      }
-      setAuth(authToken, {
-        ...user,
-        email: updatedUser.email,
-        phone: phone,
-      });
+      const result = await api.updateProfile({ name, email, phone, address });
+      setAuth(token ?? '', result.user);
       toast.success('Perfil atualizado com sucesso!');
     } catch (err: unknown) {
-      const error = err as { error?: string };
-      let errorMsg = 'Erro ao atualizar perfil.';
-      if (error) {
-        if (error.error) {
-          errorMsg = error.error;
-        }
-      }
-      toast.error(errorMsg);
+      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar perfil.');
     } finally {
       setSavingProfile(false);
     }
@@ -146,14 +130,7 @@ export function SettingsPage() {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: unknown) {
-      const error = err as { error?: string };
-      let errorMsg = 'Erro ao alterar senha. Verifique a senha atual.';
-      if (error) {
-        if (error.error) {
-          errorMsg = error.error;
-        }
-      }
-      toast.error(errorMsg);
+      toast.error(err instanceof Error ? err.message : 'Erro ao alterar senha. Verifique a senha atual.');
     } finally {
       setSavingPassword(false);
     }
@@ -276,24 +253,17 @@ export function SettingsPage() {
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleSaveProfile} className="space-y-4">
-                      {/* nome somente leitura: alteracao so via admin */}
+                      {/* nome editavel */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Nome Completo
                         </Label>
                         <Input
-                          value={(() => {
-                            if (user) {
-                              if (typeof user.name === 'string' || typeof user.name === 'number') {
-                                return user.name;
-                              }
-                            }
-                            return '';
-                          })()}
-                          disabled
-                          className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed rounded-xl text-xs"
+                          value={name}
+                          onChange={(e) => setName(e.target.value)}
+                          required
+                          className="rounded-xl border-slate-200 dark:border-slate-700 text-xs"
                         />
-                        <p className="text-[11px] text-slate-400">O nome deve ser alterado por um administrador.</p>
                       </div>
 
                       {/* identificador tambem somente leitura */}

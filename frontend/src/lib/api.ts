@@ -16,6 +16,8 @@ export const api = {
   register: (data: { name: string; email: string; password: string; cpf: string; phone?: string; birthDate?: string; address?: string }) =>
     serviceApi.auth.register(data),
   me: () => serviceApi.auth.me(),
+  updateProfile: (data: { currentPassword?: string; newPassword?: string; name?: string; email?: string; phone?: string; address?: string }) =>
+    serviceApi.auth.updateProfile(data),
   updateProfilePassword: (data: { currentPassword?: string; newPassword?: string; name?: string; phone?: string; address?: string }) =>
     serviceApi.auth.updateProfile(data),
 

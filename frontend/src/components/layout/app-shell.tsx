@@ -8,7 +8,7 @@ import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { toast } from '@/lib/toast-handler';
 import {
-  Pill, LogOut, Menu, XIcon, Sun, Moon, UserRound, ChevronRight, Settings, ShieldAlert
+  Pill, LogOut, Menu, XIcon, Sun, Moon, UserRound, ChevronRight, ShieldAlert
 } from 'lucide-react';
 import { useTheme } from 'next-themes';
 
@@ -482,13 +482,7 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
                 <DropdownMenuItem asChild>
                   <Link href="/profile" className="cursor-pointer gap-2 text-sm flex items-center">
                     <UserRound className="w-4 h-4" />
-                    Meu Perfil &amp; Senha
-                  </Link>
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <Link href="/settings" className="cursor-pointer gap-2 text-sm flex items-center">
-                    <Settings className="w-4 h-4" />
-                    Configurações &amp; Tema
+                    Meu Perfil
                   </Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem

@@ -243,7 +243,7 @@ export class AuthService {
 
   // atualiza os dados do proprio perfil. se veio troca de senha,
   // exige a senha atual e valida com bcrypt antes de hashear a nova.
-  async updateProfile(userId: number, data: { currentPassword?: string; newPassword?: string; name?: string; phone?: string; address?: string }) {
+  async updateProfile(userId: number, data: { currentPassword?: string; newPassword?: string; name?: string; email?: string; phone?: string; address?: string }) {
     const user = await this.userRepo.findById(userId);
     if (!user) {
       throw { statusCode: 404, message: 'Usuário não encontrado' };
@@ -251,8 +251,19 @@ export class AuthService {
 
     // monta o update so com os campos que vieram.
     const updateData: any = {};
-    if (data.name) {
+    if (data.name !== undefined) {
       updateData.name = data.name;
+    }
+    if (data.email !== undefined) {
+      const newEmail = data.email.trim().toLowerCase();
+      if (!newEmail) {
+        throw { statusCode: 400, message: 'Email é obrigatório' };
+      }
+      const existingUser = await this.userRepo.findByEmail(newEmail);
+      if (existingUser && existingUser.id !== userId) {
+        throw { statusCode: 409, message: 'Email já está em uso' };
+      }
+      updateData.email = newEmail;
     }
     if (data.phone !== undefined) {
       updateData.phone = data.phone;

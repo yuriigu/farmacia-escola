@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { toast } from '@/lib/toast-handler';
 import { Eye, EyeOff, UserPlus, Shield } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
@@ -14,6 +15,7 @@ import { Label } from '@/components/ui/label';
 // do submit pra api. ao sucesso, o paciente ja sai autenticado
 // (a api devolve token no cadastro).
 export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void }) {
+  const router = useRouter();
   const [form, setForm] = useState({ name: '', email: '', password: '', cpf: '', phone: '', birthDate: '', address: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -113,17 +115,12 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
         address: addressVal,
       });
       setAuth(result.token, result.user);
+      router.push('/dashboard');
+      router.refresh();
       toast.success('Cadastro realizado com sucesso!');
     } catch (err: unknown) {
       // o erro da api e exibido no bloco de erro do formulario.
-      const error = err as { error?: string };
-      let errorMsg = 'Erro ao realizar cadastro.';
-      if (error) {
-        if (error.error) {
-          errorMsg = error.error;
-        }
-      }
-      setError(errorMsg);
+      setError(err instanceof Error ? err.message : 'Erro ao realizar cadastro.');
     } finally {
       setLoading(false);
     }

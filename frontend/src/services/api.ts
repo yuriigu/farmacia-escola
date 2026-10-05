@@ -110,8 +110,8 @@ export const api = {
       const result = response.data;
       return result;
     },
-    updateProfile: async (data: { currentPassword?: string; newPassword?: string; name?: string; phone?: string; address?: string }) => {
-      const response = await apiClient.put<{ message: string }>('/api/auth/profile', data);
+    updateProfile: async (data: { currentPassword?: string; newPassword?: string; name?: string; email?: string; phone?: string; address?: string }): Promise<{ message: string; user: AuthUser }> => {
+      const response = await apiClient.put<{ message: string; user: AuthUser }>('/api/auth/profile', data);
       const result = response.data;
       return result;
     },

@@ -45,7 +45,16 @@ export interface AuthUser {
   role: string;
   active?: boolean;
   phone?: string | null;
+  birthDate?: string | null;
+  address?: string | null;
   registerDoc?: string | null;
   patientId?: number | null;
   permissions?: Record<string, boolean>;
+  patient?: {
+    id: number;
+    cpf: string;
+    birthDate?: string | null;
+    address?: string | null;
+    phone?: string | null;
+  } | null;
 }

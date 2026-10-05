@@ -4,6 +4,7 @@ import { MedicineRepository } from '../repositories/medicine-repository';
 import { PatientRepository } from '../repositories/patient-repository';
 import { ActivityLogService } from './activity-log-service';
 import { prisma } from '../utils/prisma';
+import { isExpired, startOfDay } from './stock-status-service';
 
 // service de agendamento (consulta). concentra a regra de negocio
 // mais pesada do sistema: criar consulta, mudar status, dispensar
@@ -175,6 +176,12 @@ export class AppointmentService {
         // saber o saldo real, descontando reservas de consultas em aberto.
         const stockInfo = await this.calculateRealAvailableStock(medId);
         if (qty > stockInfo.realAvailableStock) {
+          if (user.role === 'PACIENTE') {
+            throw {
+              statusCode: 400,
+              message: 'Disponibilidade insuficiente para este medicamento. Ajuste a quantidade ou tente novamente.',
+            };
+          }
           throw {
             statusCode: 400,
             message: `Estoque insuficiente para o medicamento "${med.name}". Solicitado: ${qty}, Disponível real: ${stockInfo.realAvailableStock} (Físico: ${stockInfo.physicalStockTotal}, Reservado: ${stockInfo.reservedQuantity})`,
@@ -373,7 +380,7 @@ export class AppointmentService {
             if (batch.isBlocked) {
               throw { statusCode: 400, message: `Lote ${batch.batchNumber} está bloqueado para uso` };
             }
-            if (new Date(batch.expirationDate).getTime() < new Date().getTime()) {
+            if (isExpired(batch.expirationDate)) {
               throw { statusCode: 400, message: `Lote ${batch.batchNumber} está vencido` };
             }
             if (batch.currentQuantity < item.quantity) {
@@ -431,7 +438,7 @@ export class AppointmentService {
                 medicineId: medicineId,
                 currentQuantity: { gt: 0 },
                 isBlocked: false,
-                expirationDate: { gte: new Date() },
+                expirationDate: { gte: startOfDay(new Date()) },
               },
               orderBy: { expirationDate: 'asc' },
             });
@@ -879,7 +886,7 @@ export class AppointmentService {
       throw { statusCode: 404, message: `Medicamento #${medicineId} não encontrado` };
     }
 
-    const now = new Date();
+    const todayStart = startOfDay(new Date());
     let physicalStockTotal = 0;
 
     // soma do estoque fisico. tentamos primeiro um aggregate no banco
@@ -892,7 +899,7 @@ export class AppointmentService {
           where: {
             medicineId: medicineId,
             currentQuantity: { gt: 0 },
-            expirationDate: { gte: now },
+            expirationDate: { gte: todayStart },
             isBlocked: false,
           },
           _sum: { currentQuantity: true },
@@ -903,7 +910,7 @@ export class AppointmentService {
           where: {
             medicineId: medicineId,
             currentQuantity: { gt: 0 },
-            expirationDate: { gte: now },
+            expirationDate: { gte: todayStart },
             isBlocked: false,
           },
         });
@@ -929,8 +936,7 @@ export class AppointmentService {
               for (let b = 0; b < med.batches.length; b++) {
                 const bItem = med.batches[b];
                 if (!bItem.isBlocked) {
-                  const expTime = new Date(bItem.expirationDate).getTime();
-                  if (expTime >= now.getTime()) {
+                  if (!isExpired(bItem.expirationDate, todayStart)) {
                     if (bItem.currentQuantity > 0) {
                       physicalStockTotal = physicalStockTotal + bItem.currentQuantity;
                     }

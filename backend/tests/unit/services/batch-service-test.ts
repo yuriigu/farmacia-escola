@@ -31,6 +31,8 @@ describe('BatchService', () => {
       findAll: vi.fn(),
       findById: vi.fn(),
       findByMedicineAndBatchNumber: vi.fn(),
+      findMergeCandidate: vi.fn(),
+      incrementQuantities: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
       setQuantity: vi.fn(),
@@ -82,8 +84,8 @@ describe('BatchService', () => {
   // o test confirma que o create do repo foi chamado.
   it('deve criar novo lote com sucesso incluindo fornecedor', async () => {
     mockMedicineRepo.findById.mockResolvedValue(mockMedicine);
-    // sem lote duplicado com o mesmo numero pro medicamento.
-    mockBatchRepo.findByMedicineAndBatchNumber.mockResolvedValue(null);
+    // sem lote com a mesma identidade (validade e fornecedor).
+    mockBatchRepo.findMergeCandidate.mockResolvedValue(null);
     mockBatchRepo.create.mockResolvedValue(mockBatch);
 
     const result = await batchService.create(1, 'FARMACEUTICO', {
@@ -96,6 +98,27 @@ describe('BatchService', () => {
 
     expect(result).toEqual(mockBatch);
     expect(mockBatchRepo.create).toHaveBeenCalled();
+    expect(mockBatchRepo.create).toHaveBeenCalledWith(expect.objectContaining({ initialQuantity: 100 }));
+  });
+
+  it('deve agregar quantidade quando o lote tem validade e fornecedor iguais', async () => {
+    mockMedicineRepo.findById.mockResolvedValue(mockMedicine);
+    const existingBatch = { ...mockBatch, id: 12, currentQuantity: 100, initialQuantity: 100 };
+    const mergedBatch = { ...existingBatch, currentQuantity: 150, initialQuantity: 150 };
+    mockBatchRepo.findMergeCandidate.mockResolvedValue(existingBatch);
+    mockBatchRepo.incrementQuantities.mockResolvedValue(mergedBatch);
+
+    const result = await batchService.create(1, 'FARMACEUTICO', {
+      medicineId: 1,
+      batchNumber: ' LOTE-2025-001 ',
+      currentQuantity: 50,
+      expirationDate: '2026-12-31',
+      supplier: ' Laboratório Farmacêutico Nacional ',
+    });
+
+    expect(result).toEqual(mergedBatch);
+    expect(mockBatchRepo.incrementQuantities).toHaveBeenCalledWith(12, 50);
+    expect(mockBatchRepo.create).not.toHaveBeenCalled();
   });
 
   // verifica o ajuste auditado de saldo: chama setquantity com o

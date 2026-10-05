@@ -53,6 +53,46 @@ describe('MedicineService', () => {
     expect(mockMedicineRepo.findAll).toHaveBeenCalledTimes(1);
   });
 
+  it('deve sanitizar e filtrar medicamentos vencidos para pacientes', async () => {
+    const validMedicine = {
+      ...mockMedicine,
+      batches: [{
+        id: 11,
+        batchNumber: 'LOT-PRIVATE-001',
+        currentQuantity: 10,
+        expirationDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        isBlocked: false,
+      }],
+    };
+    const expiredMedicine = {
+      ...mockMedicine,
+      id: 2,
+      batches: [{
+        id: 12,
+        batchNumber: 'LOT-EXPIRED-001',
+        currentQuantity: 10,
+        expirationDate: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        isBlocked: false,
+      }],
+    };
+    mockMedicineRepo.findAll.mockResolvedValue([validMedicine, expiredMedicine]);
+
+    const result = await medicineService.getAll('PACIENTE');
+
+    expect(result).toHaveLength(1);
+    expect(result[0]).toEqual({
+      id: validMedicine.id,
+      name: validMedicine.name,
+      activeIngredient: validMedicine.activeIngredient,
+      dosage: validMedicine.dosage,
+      category: validMedicine.category,
+      accessibleDesc: validMedicine.accessibleDesc,
+      status: 'IN_STOCK',
+      available: true,
+      hasStock: true,
+    });
+  });
+
   // verifica que o getbyid chama o findbyid com o id certo e devolve
   // o medicamento com os campos de estoque calculados.
   it('deve buscar medicamento por ID', async () => {
@@ -63,6 +103,50 @@ describe('MedicineService', () => {
     expect(result).toBeDefined();
     expect(result.id).toBe(1);
     expect(mockMedicineRepo.findById).toHaveBeenCalledWith(1);
+  });
+
+  it('deve retornar detalhes sanitizados para pacientes', async () => {
+    mockMedicineRepo.findById.mockResolvedValue({
+      ...mockMedicine,
+      batches: [{
+        id: 11,
+        batchNumber: 'LOT-PRIVATE-001',
+        currentQuantity: 10,
+        expirationDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        isBlocked: false,
+      }],
+    });
+
+    const result = await medicineService.getById(1, 'PACIENTE');
+
+    expect(result).toEqual({
+      id: mockMedicine.id,
+      name: mockMedicine.name,
+      activeIngredient: mockMedicine.activeIngredient,
+      dosage: mockMedicine.dosage,
+      category: mockMedicine.category,
+      accessibleDesc: mockMedicine.accessibleDesc,
+      status: 'IN_STOCK',
+      available: true,
+      hasStock: true,
+    });
+  });
+
+  it('deve ocultar medicamento vencido da busca por paciente', async () => {
+    mockMedicineRepo.findById.mockResolvedValue({
+      ...mockMedicine,
+      batches: [{
+        id: 12,
+        batchNumber: 'LOT-EXPIRED-001',
+        currentQuantity: 10,
+        expirationDate: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        isBlocked: false,
+      }],
+    });
+
+    await expect(medicineService.getById(1, 'PACIENTE')).rejects.toEqual(
+      expect.objectContaining({ statusCode: 404 })
+    );
   });
 
   // quando o repo devolve null, o service precisa lancar 404 pro

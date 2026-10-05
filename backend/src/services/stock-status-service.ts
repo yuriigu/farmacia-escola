@@ -1,5 +1,15 @@
 import { StockStatus } from '../types/enums';
 
+export function startOfDay(value: string | Date): Date {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+}
+
+export function isExpired(expirationDate: string | Date, today: string | Date = new Date()): boolean {
+  return startOfDay(expirationDate).getTime() <= startOfDay(today).getTime();
+}
+
 // formato minimo de lote usado pelos calculos desse service.
 // serve pra qualquer origem de dados (banco, mock, dto) que tenha
 // pelo menos esses campos.
@@ -30,19 +40,19 @@ export class StockStatusService {
       return StockStatus.BLOCKED;
     }
 
-    const now = new Date();
-    const nowTime = now.getTime();
-    const expDate = new Date(expirationDate);
-    const expTime = expDate.getTime();
+    const todayStart = startOfDay(new Date());
+    const todayTime = todayStart.getTime();
+    const expirationStart = startOfDay(expirationDate);
+    const expTime = expirationStart.getTime();
     const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
 
-    if (expTime < nowTime) {
+    if (expTime <= todayTime) {
       return StockStatus.EXPIRED;
     } else {
       if (currentQuantity <= 0) {
         return StockStatus.OUT_OF_STOCK;
       } else {
-        const timeDifference = expTime - nowTime;
+        const timeDifference = expTime - todayTime;
         if (timeDifference <= thirtyDaysInMs) {
           return StockStatus.CRITICAL_EXPIRATION;
         } else {
@@ -71,8 +81,8 @@ export class StockStatusService {
       }
     }
 
-    const now = new Date();
-    const nowTime = now.getTime();
+    const todayStart = startOfDay(new Date());
+    const todayTime = todayStart.getTime();
     const thirtyDaysInMs = 30 * 24 * 60 * 60 * 1000;
 
     // acumuladores usados durante a varredura dos lotes.
@@ -84,17 +94,17 @@ export class StockStatusService {
     let index = 0;
     while (index < batches.length) {
       const batch = batches[index];
-      const expDate = new Date(batch.expirationDate);
-      const expTime = expDate.getTime();
+      const expirationStart = startOfDay(batch.expirationDate);
+      const expTime = expirationStart.getTime();
 
       // considera so lotes nao bloqueados e ainda dentro da validade.
       if (!batch.isBlocked) {
-        if (expTime >= nowTime) {
+        if (!isExpired(batch.expirationDate, todayStart)) {
           allBatchesExpired = false;
           if (batch.currentQuantity > 0) {
             totalActiveQuantity = totalActiveQuantity + batch.currentQuantity;
             // marca critico se esse lote vence em ate 30 dias.
-            const timeDifference = expTime - nowTime;
+            const timeDifference = expTime - todayTime;
             if (timeDifference <= thirtyDaysInMs) {
               hasCriticalExpiration = true;
             }
@@ -158,8 +168,7 @@ export class StockStatusService {
       }
     }
 
-    const now = new Date();
-    const nowTime = now.getTime();
+    const todayStart = startOfDay(new Date());
     let totalValidQuantity = 0;
 
     // soma so o que e de fato aproveitavel: nao bloqueado,
@@ -167,14 +176,9 @@ export class StockStatusService {
     let index = 0;
     while (index < batches.length) {
       const batch = batches[index];
-      const expDate = new Date(batch.expirationDate);
-      const expTime = expDate.getTime();
-
       if (!batch.isBlocked) {
-        if (expTime >= nowTime) {
-          if (batch.currentQuantity > 0) {
-            totalValidQuantity = totalValidQuantity + batch.currentQuantity;
-          }
+        if (!isExpired(batch.expirationDate, todayStart) && batch.currentQuantity > 0) {
+          totalValidQuantity = totalValidQuantity + batch.currentQuantity;
         }
       }
       index = index + 1;

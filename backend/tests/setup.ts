@@ -72,6 +72,9 @@ vi.mock('@prisma/client', () => {
         updateMany: vi.fn(),
         delete: vi.fn(),
       };
+      stockMovement = {
+        create: vi.fn(),
+      };
       // query raw usada em alguns fluxos (ex: fallback de cpf).
       // por padrao devolve array vazio.
       $queryRawUnsafe = vi.fn().mockResolvedValue([]);

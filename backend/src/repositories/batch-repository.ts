@@ -71,11 +71,35 @@ export class BatchRepository {
     });
   }
 
+  async findMergeCandidate(
+    medicineId: number,
+    batchNumber: string,
+    expirationDate: Date,
+    supplier: string
+  ) {
+    const dayStart = new Date(expirationDate);
+    dayStart.setHours(0, 0, 0, 0);
+    const nextDay = new Date(dayStart);
+    nextDay.setDate(nextDay.getDate() + 1);
+    const normalizedSupplier = supplier.trim().toLowerCase();
+
+    const candidates = await prisma.stockBatch.findMany({
+      where: {
+        medicineId,
+        batchNumber: batchNumber.trim(),
+        expirationDate: { gte: dayStart, lt: nextDay },
+      },
+    });
+
+    return candidates.find((batch) => batch.supplier.trim().toLowerCase() === normalizedSupplier) ?? null;
+  }
+
   // cria um novo lote no banco.
   async create(data: {
     medicineId: number;
     batchNumber: string;
     currentQuantity: number;
+    initialQuantity: number;
     expirationDate: Date;
     manufacturingDate?: Date | null;
     supplier: string;
@@ -95,6 +119,17 @@ export class BatchRepository {
     return prisma.stockBatch.update({
       where: { id },
       data: { currentQuantity: { increment: delta } },
+    });
+  }
+
+  async incrementQuantities(id: number, qty: number) {
+    return prisma.stockBatch.update({
+      where: { id },
+      data: {
+        currentQuantity: { increment: qty },
+        initialQuantity: { increment: qty },
+      },
+      include: { medicine: { select: this.medicineSelect } },
     });
   }
 

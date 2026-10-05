@@ -21,7 +21,7 @@ export class MedicineController {
     try {
       // chamamos o service (/services/medicine-service.ts) pra trazer
       // a lista completa de medicamentos nao deletados.
-      const medicines = await this.medicineService.getAll();
+      const medicines = await this.medicineService.getAll(req.user?.role);
       res.json(medicines);
       return;
     } catch (err: any) {
@@ -53,7 +53,7 @@ export class MedicineController {
 
       // chamamos o service (/services/medicine-service.ts) direto,
       // que ja lanca erro com statusCode 404 se o medicamento nao existir.
-      const medicine = await this.medicineService.getById(id);
+      const medicine = await this.medicineService.getById(id, req.user?.role);
       res.json(medicine);
       return;
     } catch (err: any) {

@@ -151,7 +151,7 @@ export default function MedicinesPage() {
   } else {
     selectedMedDetailsId = undefined;
   }
-  const { data: queriedBatches } = useBatches(selectedMedDetailsId);
+  const { data: queriedBatches } = useBatches(selectedMedDetailsId, { enabled: !isPatient });
 
   // estados do formulario de agendamento.
   const [appointmentDate, setAppointmentDate] = useState('');
@@ -311,7 +311,12 @@ export default function MedicinesPage() {
     }
 
     // trava de ui: se estourar o saldo real, nem chega na api.
-    if (appointmentQuantity > realAvailableStock) {
+    if (isPatient && !selectedMedicineForAppointment.available) {
+      toast.error('Este medicamento não está disponível para agendamento no momento.');
+      return;
+    }
+
+    if (!isPatient && appointmentQuantity > realAvailableStock) {
       toast.error(
         'Estoque insuficiente: A quantidade solicitada (' +
           appointmentQuantity +
@@ -438,11 +443,20 @@ export default function MedicinesPage() {
         });
       }
 
+      const isExpired = status === 'EXPIRED' || status === 'expired' || status === 'Vencido';
+      if (isPatient && isExpired) {
+        return false;
+      }
+
       // filtro de status de estoque. aceita tanto as chaves novas
       // (in_stock, critical_expiration, etc) quanto as antigas
       // (ok, low, critical, expired) por compatibilidade.
       let matchesStock = false;
-      if (stockFilter === 'all') {
+      if (isPatient && stockFilter === 'DISPONIVEL') {
+        matchesStock = med.available === true;
+      } else if (isPatient && stockFilter === 'INDISPONIVEL') {
+        matchesStock = med.available === false;
+      } else if (stockFilter === 'all') {
         matchesStock = true;
       } else if (stockFilter === 'IN_STOCK' || stockFilter === 'ok') {
         if (status === 'IN_STOCK' || status === 'ok') {
@@ -481,7 +495,7 @@ export default function MedicinesPage() {
       }
       return false;
     });
-  }, [medicines, searchTerm, selectedCategory, stockFilter]);
+  }, [medicines, searchTerm, selectedCategory, stockFilter, isPatient]);
 
   // exporta csv dos medicamentos filtrados. so a equipe ve o botao.
   const handleExportCSV = () => {
@@ -558,7 +572,7 @@ export default function MedicinesPage() {
   };
 
   // colunas da tabela de medicamentos.
-  const columns: Column<Medicine>[] = [
+  const columns = useMemo<Column<Medicine>[]>(() => [
     {
       header: 'Medicamento',
       width: '240px',
@@ -611,6 +625,15 @@ export default function MedicinesPage() {
         );
       },
     },
+    ...(isPatient
+      ? [{
+          header: 'Disponibilidade',
+          width: '150px',
+          cell: (med: Medicine) => (
+            <StockStatusBadge status={med.status} variant="patient" available={med.available} />
+          ),
+        }]
+      : [
     {
       header: 'Saldo Físico',
       width: '110px',
@@ -707,7 +730,7 @@ export default function MedicinesPage() {
       },
     },
     {
-      header: 'Status',
+      header: 'Status Detalhado',
       width: '140px',
       cell: (med) => {
         // status vem da api ou calculado no cliente como fallback.
@@ -727,6 +750,7 @@ export default function MedicinesPage() {
         return <StockStatusBadge status={currentStatus} />;
       },
     },
+    ]),
     {
       header: 'Ações',
       width: '180px',
@@ -776,7 +800,9 @@ export default function MedicinesPage() {
           currentStatus === 'BLOCKED' ||
           currentStatus === 'Bloqueado';
 
-        const isUnavailable = realAvail <= 0 || isExpired || isBlocked;
+        const isUnavailable = isPatient
+          ? med.available !== true
+          : realAvail <= 0 || isExpired || isBlocked;
 
         return (
           <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
@@ -813,7 +839,7 @@ export default function MedicinesPage() {
         );
       },
     },
-  ];
+  ], [isPatient]);
 
   return (
     <AppShell>
@@ -821,7 +847,9 @@ export default function MedicinesPage() {
         {/* cabecalho com acoes (exportar csv e novo medicamento) */}
         <PageHeader
           title="Catálogo de Medicamentos"
-          description="Consulte estoque físico, reservas em tempo real e agende dispensações na Farmácia Escola Universitária."
+          description={isPatient
+            ? 'Consulte medicamentos e agende dispensações na Farmácia Escola Universitária.'
+            : 'Consulte estoque físico, reservas em tempo real e agende dispensações na Farmácia Escola Universitária.'}
           icon={Pill}
           actions={
             <div className="flex items-center gap-2">
@@ -887,10 +915,19 @@ export default function MedicinesPage() {
                 className="w-full h-9 px-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               >
                 <option value="all">Todos os status</option>
-                <option value="IN_STOCK">Disponível (Em dia)</option>
-                <option value="CRITICAL_EXPIRATION">Vencimento Próximo (≤ 30d)</option>
-                <option value="OUT_OF_STOCK">Sem Estoque</option>
-                <option value="EXPIRED">Vencido</option>
+                {isPatient ? (
+                  <>
+                    <option value="DISPONIVEL">Disponível</option>
+                    <option value="INDISPONIVEL">Indisponível</option>
+                  </>
+                ) : (
+                  <>
+                    <option value="IN_STOCK">Disponível (Em dia)</option>
+                    <option value="CRITICAL_EXPIRATION">Vencimento Próximo (≤ 30d)</option>
+                    <option value="OUT_OF_STOCK">Sem Estoque</option>
+                    <option value="EXPIRED">Vencido</option>
+                  </>
+                )}
               </select>
             </div>
 
@@ -1050,7 +1087,11 @@ export default function MedicinesPage() {
                   <DialogHeader>
                     <div className="flex items-center gap-2 mb-1">
                       <CategoryBadge category={med.category} />
-                      <StockStatusBadge status={status} />
+                      <StockStatusBadge
+                        status={status}
+                        variant={isPatient ? 'patient' : 'default'}
+                        available={isPatient ? med.available : undefined}
+                      />
                     </div>
                     <DialogTitle className="text-2xl font-black text-slate-900 dark:text-slate-100 tracking-tight flex items-center gap-2">
                       <Pill className="w-6 h-6 text-emerald-600" />
@@ -1069,6 +1110,7 @@ export default function MedicinesPage() {
                   </DialogHeader>
 
                   {/* painel de saldos: fisico, reservado, disponivel real */}
+                  {!isPatient && (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs">
                     <div className="p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-200/60 dark:border-slate-700/60">
                       <span className="text-slate-400 block font-semibold text-[10px] uppercase tracking-wider">Saldo Físico</span>
@@ -1089,6 +1131,7 @@ export default function MedicinesPage() {
                       </span>
                     </div>
                   </div>
+                  )}
 
                   <div className="p-3.5 bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 text-xs space-y-1">
                     <span className="text-slate-400 block font-medium">Princípio Ativo</span>
@@ -1115,7 +1158,7 @@ export default function MedicinesPage() {
 
                   {/* lista de lotes do medicamento. usa queriedbatches
                       quando disponivel, senao cai pra med.batches. */}
-                  {(() => {
+                  {!isPatient && (() => {
                     let displayBatches: Batch[] = [];
                     if (queriedBatches) {
                       if (queriedBatches.length > 0) {
@@ -1308,11 +1351,21 @@ export default function MedicinesPage() {
 
               // flag que reage a medida que o usuario digita a quantidade.
               // usada pra bloquear o submit e mostrar o alerta vermelho.
-              const isOverbooking = appointmentQuantity > realAvailableStock;
+              const isOverbooking = !isPatient && appointmentQuantity > realAvailableStock;
 
               return (
                 <form onSubmit={handleCreateAppointment} className="space-y-4 py-2">
-                  {/* painel de auditoria de disponibilidade */}
+                  {isPatient ? (
+                    <div className="flex items-center justify-between rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 p-3.5">
+                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Disponibilidade:</span>
+                      <StockStatusBadge
+                        status={selectedMedicineForAppointment.status}
+                        variant="patient"
+                        available={selectedMedicineForAppointment.available}
+                      />
+                    </div>
+                  ) : (
+                  /* painel de auditoria de disponibilidade */
                   <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
                     <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
                       <span>Auditoria de Disponibilidade:</span>
@@ -1350,6 +1403,7 @@ export default function MedicinesPage() {
                       return null;
                     })()}
                   </div>
+                  )}
 
                   {/* select de paciente, so pra equipe */}
                   {(() => {
@@ -1435,9 +1489,11 @@ export default function MedicinesPage() {
                       <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
                         Quantidade de Unidades *
                       </Label>
-                      <span className="text-[11px] text-slate-500 font-semibold">
-                        Máximo Disponível: {realAvailableStock} un.
-                      </span>
+                      {!isPatient && (
+                        <span className="text-[11px] text-slate-500 font-semibold">
+                          Máximo Disponível: {realAvailableStock} un.
+                        </span>
+                      )}
                     </div>
                     <Input
                       type="number"
@@ -1489,7 +1545,7 @@ export default function MedicinesPage() {
                         if (isOverbooking) {
                           return true;
                         }
-                        if (realAvailableStock <= 0) {
+                        if (!isPatient && realAvailableStock <= 0) {
                           return true;
                         }
                         return false;

@@ -41,6 +41,36 @@ export class BatchService {
     return batch;
   }
 
+  private async mergeBatch(userId: number, existingBatch: { id: number; batchNumber: string }, qty: number) {
+    const batch = await this.batchRepo.incrementQuantities(existingBatch.id, qty);
+
+    if (qty > 0) {
+      try {
+        await prisma.stockMovement.create({
+          data: {
+            batchId: existingBatch.id,
+            type: StockMovementType.ENTRY,
+            quantity: qty,
+            notes: 'Entrada agregada ao lote: ' + existingBatch.batchNumber,
+            userId,
+          },
+        });
+      } catch {
+        // O movimento nao deve desfazer a agregacao ja aplicada.
+      }
+    }
+
+    await this.logService.log(
+      userId,
+      'aggregate',
+      'batches',
+      existingBatch.id,
+      `Agregou ${qty} unidades ao lote ${existingBatch.batchNumber}`
+    );
+
+    return batch;
+  }
+
   // cria um novo lote. valida todos os campos, confere se o medicamento
   // existe e se ja nao ha lote com o mesmo numero pra esse medicamento.
   // se veio quantidade inicial, registra a movimentacao de entrada
@@ -118,14 +148,18 @@ export class BatchService {
       throw { statusCode: 404, message: 'Medicamento não encontrado' };
     }
 
-    // checa duplicidade de numero de lote por medicamento antes de tentar
-    // criar. se ja existe, devolve 409 direto.
-    const existingBatch = await this.batchRepo.findByMedicineAndBatchNumber(medicineId, batchNumber.trim());
+    const normalizedBatchNumber = batchNumber.trim();
+    const normalizedSupplier = supplier.trim();
+    const expirationDay = new Date(expDate);
+    expirationDay.setHours(0, 0, 0, 0);
+    const existingBatch = await this.batchRepo.findMergeCandidate(
+      medicineId,
+      normalizedBatchNumber,
+      expirationDay,
+      normalizedSupplier
+    );
     if (existingBatch) {
-      throw {
-        statusCode: 409,
-        message: 'Já existe um lote cadastrado com este número para o medicamento selecionado.',
-      };
+      return this.mergeBatch(userId, existingBatch, qty);
     }
 
     // normaliza os campos de bloqueio inicial.
@@ -149,30 +183,26 @@ export class BatchService {
     try {
       batch = await this.batchRepo.create({
         medicineId,
-        batchNumber: batchNumber.trim(),
+        batchNumber: normalizedBatchNumber,
         currentQuantity: qty,
-        expirationDate: expDate,
+        initialQuantity: qty,
+        expirationDate: expirationDay,
         manufacturingDate: mfgDate,
-        supplier: supplier.trim(),
+        supplier: normalizedSupplier,
         isBlocked: isBlockedValue,
         blockReason: blockReasonValue,
       });
     } catch (err: any) {
-      let isDuplicate = false;
-      if (err) {
-        if (err.code === 'P2002') {
-          isDuplicate = true;
-        } else if (err.message) {
-          if (err.message.includes('Unique constraint')) {
-            isDuplicate = true;
-          }
+      if (err?.code === 'P2002') {
+        const racedBatch = await this.batchRepo.findMergeCandidate(
+          medicineId,
+          normalizedBatchNumber,
+          expirationDay,
+          normalizedSupplier
+        );
+        if (racedBatch) {
+          return this.mergeBatch(userId, racedBatch, qty);
         }
-      }
-      if (isDuplicate) {
-        throw {
-          statusCode: 409,
-          message: 'Já existe um lote cadastrado com este número para o medicamento selecionado.',
-        };
       }
       throw err;
     }

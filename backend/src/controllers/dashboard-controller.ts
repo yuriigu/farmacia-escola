@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middlewares/auth-middleware';
 import { prisma } from '../utils/prisma';
+import { isExpired } from '../services/stock-status-service';
 
 // controller do painel (dashboard). por enquanto expoe so o panorama
 // de estoque, que alimenta os cards de resumo na tela inicial.
@@ -42,7 +43,7 @@ export class DashboardController {
         expired: 0,
       };
 
-      const now = Date.now();
+      const today = new Date();
 
       // duas coisas acontecem nesse laco:
       // 1) lotes vencidos sao contados no nivel de lote (cada lote vencido = 1)
@@ -51,7 +52,7 @@ export class DashboardController {
       //    nao cada lote isolado.
       const activeStockByMedicine = new Map<number, number>();
       for (const batch of batches) {
-        if (batch.expirationDate.getTime() < now) {
+        if (isExpired(batch.expirationDate, today)) {
           counts.expired = counts.expired + 1;
           continue;
         }

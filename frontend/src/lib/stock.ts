@@ -13,6 +13,30 @@
 // por fim zero.
 import type { StockStatus } from '@/types';
 
+type MedicineStock = {
+  totalQuantity?: number;
+  physicalQuantity?: number;
+  reservedQuantity?: number;
+  availableQuantity?: number;
+  available?: boolean;
+  hasStock?: boolean;
+};
+
+export function getRealAvailableQuantity(medicine: MedicineStock): number {
+  if (medicine.availableQuantity !== undefined && medicine.availableQuantity !== null) {
+    return medicine.availableQuantity;
+  }
+  const physicalQuantity = medicine.physicalQuantity ?? medicine.totalQuantity ?? 0;
+  return Math.max(0, physicalQuantity - (medicine.reservedQuantity ?? 0));
+}
+
+export function isMedicineAvailable(medicine: MedicineStock, isPatient = false): boolean {
+  if (isPatient || medicine.totalQuantity === undefined) {
+    return medicine.hasStock ?? medicine.available ?? false;
+  }
+  return getRealAvailableQuantity(medicine) > 0;
+}
+
 export function computeStockStatus(item: {
   totalQuantity?: number;
   physicalQuantity?: number;

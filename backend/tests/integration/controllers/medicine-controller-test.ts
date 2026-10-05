@@ -42,7 +42,7 @@ describe('MedicineController Integration', () => {
   // verifica que o getall delega pro service e devolve a lista
   // exatamente como veio, sem transformacao no controller.
   it('deve retornar lista de medicamentos', async () => {
-    const mockReq = { query: {} } as any;
+    const mockReq = { user: { userId: 5, role: 'PACIENTE' }, query: {} } as any;
     const mockRes = {
       json: vi.fn(),
       status: vi.fn().mockReturnThis(),
@@ -54,8 +54,25 @@ describe('MedicineController Integration', () => {
 
     // confirma que o service foi chamado e que a resposta saiu com
     // a lista certa.
-    expect(mockMedService.getAll).toHaveBeenCalled();
+    expect(mockMedService.getAll).toHaveBeenCalledWith('PACIENTE');
     expect(mockRes.json).toHaveBeenCalledWith(mockMedicinesList);
+  });
+
+  it('deve repassar o papel ao buscar um medicamento por ID', async () => {
+    const mockReq = {
+      user: { userId: 5, role: 'PACIENTE' },
+      params: { id: '1' },
+    } as any;
+    const mockRes = {
+      json: vi.fn(),
+      status: vi.fn().mockReturnThis(),
+    } as any;
+    mockMedService.getById.mockResolvedValue(mockMedicine);
+
+    await medController.getById(mockReq, mockRes);
+
+    expect(mockMedService.getById).toHaveBeenCalledWith(1, 'PACIENTE');
+    expect(mockRes.json).toHaveBeenCalledWith(mockMedicine);
   });
 
   // verifica o fluxo de criacao: o controller deve chamar o service

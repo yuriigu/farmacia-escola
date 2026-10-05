@@ -26,7 +26,7 @@ export class MedicineService {
   // a estrategia e: 1 query pros medicamentos (com lotes enxutos)
   // + 1 query agregada pro reservado, totalizando 2 consultas,
   // em vez de varrer items e somar em js lote a lote.
-  async getAll() {
+  async getAll(role?: string) {
     const medicines = await this.medicineRepo.findAll();
 
     // monta o mapa de reservas por medicamento. usamos groupby no banco
@@ -84,6 +84,10 @@ export class MedicineService {
       // do medicamento a partir dos lotes e da quantidade minima.
       const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList, medMinQuantity);
 
+      if (role === 'PACIENTE' && stockCalc.status === 'EXPIRED') {
+        continue;
+      }
+
       // calcula o status de cada lote individualmente pra enriquecer
       // a resposta que vai pro front.
       const formattedBatches = [];
@@ -114,7 +118,20 @@ export class MedicineService {
         availQty = 0;
       }
 
-      formattedMedicines.push({
+      if (role === 'PACIENTE') {
+        formattedMedicines.push({
+          id: med.id,
+          name: med.name,
+          activeIngredient: med.activeIngredient,
+          dosage: med.dosage,
+          category: med.category,
+          accessibleDesc: med.accessibleDesc,
+          status: stockCalc.status,
+          available: availQty > 0,
+          hasStock: availQty > 0,
+        });
+      } else {
+        formattedMedicines.push({
         ...med,
         batches: formattedBatches,
         totalQuantity: physicalQty,
@@ -123,7 +140,8 @@ export class MedicineService {
         availableQuantity: availQty,
         batchesCount: stockCalc.batchesCount,
         status: stockCalc.status,
-      });
+        });
+      }
     }
     return formattedMedicines;
   }
@@ -131,7 +149,7 @@ export class MedicineService {
   // busca um medicamento pelo id, tambem enriquecido com status dos
   // lotes, totais e reserva. a reserva vem de um aggregate no banco
   // (soma das quantidades em consultas pending/confirmed).
-  async getById(id: number) {
+  async getById(id: number, role?: string) {
     const med = await this.medicineRepo.findById(id);
     if (!med) {
       throw { statusCode: 404, message: 'Medicamento não encontrado' };
@@ -152,6 +170,10 @@ export class MedicineService {
     }
 
     const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList, medMinQuantity);
+
+    if (role === 'PACIENTE' && stockCalc.status === 'EXPIRED') {
+      throw { statusCode: 404, message: 'Medicamento não encontrado' };
+    }
 
     const formattedBatches = [];
     for (let j = 0; j < batchesList.length; j++) {
@@ -204,6 +226,20 @@ export class MedicineService {
       availQty = physicalQty - resQty;
     } else {
       availQty = 0;
+    }
+
+    if (role === 'PACIENTE') {
+      return {
+        id: med.id,
+        name: med.name,
+        activeIngredient: med.activeIngredient,
+        dosage: med.dosage,
+        category: med.category,
+        accessibleDesc: med.accessibleDesc,
+        status: stockCalc.status,
+        available: availQty > 0,
+        hasStock: availQty > 0,
+      };
     }
 
     return {

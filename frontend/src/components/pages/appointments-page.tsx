@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from '@/lib/toast-handler';
+import { getRealAvailableQuantity, isMedicineAvailable } from '@/lib/stock';
 import {
   Calendar, Plus, Check, X, Clock, Download, CircleCheckBig,
   Eye, Pill, FileText, Search, CalendarDays
@@ -42,9 +43,7 @@ function stripCPF(value: string): string {
 // quando a api manda; senao deriva de fisico - reservado (nunca abaixo
 // de zero).
 function getAvailableStock(medicine: { physicalQuantity?: number; totalQuantity?: number; reservedQuantity?: number; availableQuantity?: number }): number {
-  const physicalStock = medicine.physicalQuantity ?? medicine.totalQuantity ?? 0;
-  const reservedStock = medicine.reservedQuantity ?? 0;
-  return medicine.availableQuantity ?? Math.max(physicalStock - reservedStock, 0);
+  return getRealAvailableQuantity(medicine);
 }
 
 // modal de agendamento com foco em medico. existe porque medico tem
@@ -631,14 +630,17 @@ export function AppointmentsPage() {
           realAvailableStock = 0;
         }
       }
-      if (form.items[0].quantity > realAvailableStock) {
-        toast.error(
-          'Estoque insuficiente: A quantidade solicitada (' +
+      const invalidStock = isPatient
+        ? !isMedicineAvailable(selectedMed, true)
+        : form.items[0].quantity > realAvailableStock;
+      if (invalidStock) {
+        toast.error(isPatient
+          ? 'Este medicamento não está disponível para agendamento no momento.'
+          : 'Estoque insuficiente: A quantidade solicitada (' +
             form.items[0].quantity +
             ' un.) excede o saldo disponível real (' +
             realAvailableStock +
-            ' un.).'
-        );
+            ' un.).');
         return;
       }
     }
@@ -1613,7 +1615,7 @@ export function AppointmentsPage() {
                             dosageSuffix = ' — ' + m.dosage;
                           }
                           return (
-                            <SelectItem key={m.id} value={String(m.id)}>{m.name}{dosageSuffix}</SelectItem>
+                              <SelectItem key={m.id} value={String(m.id)} disabled={isPatient && !isMedicineAvailable(m, true)}>{m.name}{dosageSuffix}</SelectItem>
                           );
                         })}
                       </SelectContent>
@@ -1646,11 +1648,17 @@ export function AppointmentsPage() {
                             realAvailableStock = 0;
                           }
                         }
-                        const isOver = form.items[0].quantity > realAvailableStock;
+                        const isOver = isPatient
+                          ? !isMedicineAvailable(selectedMed, true)
+                          : form.items[0].quantity > realAvailableStock;
 
                         return (
                           <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
-                            <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                            {isPatient ? (
+                              <p className={`text-center text-xs font-semibold ${isMedicineAvailable(selectedMed, true) ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'}`}>
+                                {isMedicineAvailable(selectedMed, true) ? 'Disponível' : 'Indisponível'}
+                              </p>
+                            ) : <div className="grid grid-cols-3 gap-2 text-center text-xs">
                               <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
                                 <span className="block text-[10px] uppercase font-bold text-slate-400">Físico</span>
                                 <span className="font-bold text-slate-800 dark:text-slate-100">{physicalStock} un.</span>
@@ -1663,8 +1671,8 @@ export function AppointmentsPage() {
                                 <span className="block text-[10px] uppercase font-bold text-emerald-600">Disponível</span>
                                 <span className="font-bold text-emerald-700 dark:text-emerald-300">{realAvailableStock} un.</span>
                               </div>
-                            </div>
-                            {isOver && (
+                            </div>}
+                            {isOver && !isPatient && (
                               <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
                                 Quantidade solicitada ({form.items[0].quantity} un.) excede o saldo disponível real ({realAvailableStock} un.), pois há {reservedStock} un. reservadas.
                               </p>
@@ -1759,7 +1767,10 @@ export function AppointmentsPage() {
                   </div>
                   <div className="flex justify-end gap-3 pt-2">
                     <Button type="button" variant="outline" onClick={() => setModalOpen(false)} className="rounded-xl">Cancelar</Button>
-                    <Button type="submit">Agendar</Button>
+                    <Button
+                      type="submit"
+                      disabled={loading || (isPatient && !isMedicineAvailable(medicines.find((medicine) => medicine.id === form.items[0]?.medicineId) ?? {}, true))}
+                    >Agendar</Button>
                   </div>
                 </form>
               </DialogContent>

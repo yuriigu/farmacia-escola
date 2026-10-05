@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from '@/lib/toast-handler';
+import { getRealAvailableQuantity, isMedicineAvailable } from '@/lib/stock';
 import {
   Calendar, Plus, Clock, Pill, Search, X, Check, XCircle,
   Eye, RefreshCw, CalendarDays, User, Download, CircleCheck
@@ -162,9 +163,7 @@ function AppointmentsContent() {
   const realAvailable = (medicineId: number) => {
     const medicine = medicines.find((item) => item.id === medicineId);
     if (!medicine) return 0;
-    if (medicine.availableQuantity !== undefined && medicine.availableQuantity !== null) return medicine.availableQuantity;
-    const physical = medicine.physicalQuantity ?? medicine.totalQuantity ?? 0;
-    return Math.max(0, physical - (medicine.reservedQuantity ?? 0));
+    return getRealAvailableQuantity(medicine);
   };
 
   // abre o modal de criacao resetando o formulario. a ideia e nao
@@ -209,9 +208,17 @@ function AppointmentsContent() {
     // trava de ui: se a quantidade pedida passa do saldo real, nem
     // chega na api. o backend tambem valida, mas isso evita um round
     // trip desnecessario.
-    const invalidStock = items.find((item) => item.quantity > realAvailable(item.medicineId));
+    const invalidStock = items.find((item) => {
+      const medicine = medicines.find((entry) => entry.id === item.medicineId);
+      if (!medicine) return true;
+      return isPatient
+        ? !isMedicineAvailable(medicine, true)
+        : item.quantity > getRealAvailableQuantity(medicine);
+    });
     if (invalidStock) {
-      toast.error('A quantidade solicitada excede o estoque disponível real.');
+      toast.error(isPatient
+        ? 'Este medicamento não está disponível para agendamento no momento.'
+        : 'A quantidade solicitada excede o estoque disponível real.');
       return;
     }
 
@@ -888,7 +895,7 @@ function AppointmentsContent() {
                         <SelectValue placeholder="Selecione o medicamento" />
                       </SelectTrigger>
                       <SelectContent>
-                        {medicines.map((medicine) => <SelectItem key={medicine.id} value={String(medicine.id)}>{medicine.name}</SelectItem>)}
+                        {medicines.map((medicine) => <SelectItem key={medicine.id} value={String(medicine.id)} disabled={isPatient && !isMedicineAvailable(medicine, true)}>{medicine.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
                     <Input
@@ -899,8 +906,13 @@ function AppointmentsContent() {
                       className="rounded-xl text-xs"
                       aria-label="Quantidade"
                     />
-                    <Badge variant="outline" className="whitespace-nowrap text-[10px] text-emerald-700 border-emerald-200">
-                      Disponível Real: {realAvailable(item.medicineId)} un.
+                    <Badge
+                      variant="outline"
+                      className={`whitespace-nowrap text-[10px] ${isPatient && !isMedicineAvailable(medicines.find((medicine) => medicine.id === item.medicineId) ?? {}, true) ? 'text-rose-700 border-rose-200' : 'text-emerald-700 border-emerald-200'}`}
+                    >
+                      {isPatient
+                        ? (isMedicineAvailable(medicines.find((medicine) => medicine.id === item.medicineId) ?? {}, true) ? 'Disponível' : 'Indisponível')
+                        : `Disponível Real: ${realAvailable(item.medicineId)} un.`}
                     </Badge>
                   </div>
                 ))}
@@ -971,7 +983,10 @@ function AppointmentsContent() {
                 </Button>
                 <Button
                   type="submit"
-                  disabled={createAppointmentMutation.isPending}
+                  disabled={createAppointmentMutation.isPending || (isPatient && items.some((item) => {
+                    const medicine = medicines.find((entry) => entry.id === item.medicineId);
+                    return !medicine || !isMedicineAvailable(medicine, true);
+                  }))}
                   size="sm"
                 >
                   {(() => {

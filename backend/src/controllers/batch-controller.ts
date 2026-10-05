@@ -170,22 +170,6 @@ export class BatchController {
       res.status(201).json(batch);
       return;
     } catch (err: any) {
-      // tratamos o erro de unicidade do prisma (P2002) caso o numero
-      // do lote ja exista para o mesmo medicamento, devolvendo 409.
-      let isDuplicate = false;
-      if (err) {
-        if (err.code === 'P2002') {
-          isDuplicate = true;
-        } else if (err.message) {
-          if (err.message.includes('Unique constraint')) {
-            isDuplicate = true;
-          }
-        }
-      }
-      if (isDuplicate) {
-        res.status(409).json({ error: 'Já existe um lote cadastrado com este número para o medicamento selecionado.' });
-        return;
-      }
       if (err.statusCode) {
         res.status(err.statusCode).json({ error: err.message });
         return;

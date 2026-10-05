@@ -23,10 +23,12 @@ export interface Medicine {
   minQuantity?: number;
   accessibleDesc: string;
   category?: string | null;
-  totalQuantity: number;
+  totalQuantity?: number;
   physicalQuantity?: number;
   reservedQuantity?: number;
   availableQuantity?: number;
+  available?: boolean;
+  hasStock?: boolean;
   batchesCount?: number;
   status?: StockStatus;
   batches?: Batch[];

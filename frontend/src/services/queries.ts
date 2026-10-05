@@ -1,6 +1,7 @@
 // imports do react e bibliotecas
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from '@/lib/toast-handler';
+import { useAuthStore } from '@/lib/auth-store';
 
 // imports locais
 import { api } from './api';
@@ -34,8 +35,9 @@ export const QUERY_KEYS = {
 // lista o catalogo de medicamentos. staletime de 5 min porque o
 // catalogo muda pouco e evita refetch a cada montagem de tela.
 export function useMedicines() {
+  const role = useAuthStore((state) => state.user?.role);
   return useQuery({
-    queryKey: QUERY_KEYS.medicines,
+    queryKey: [...QUERY_KEYS.medicines, role],
     queryFn: () => {
       return api.medicines.getAll();
     },
@@ -47,6 +49,7 @@ export function useMedicines() {
 // valido (> 0), por causa do enabled. util pra modais que abrem
 // com id opcional.
 export function useMedicine(id: number | null | undefined) {
+  const role = useAuthStore((state) => state.user?.role);
   let medicineId = 0;
   if (id) {
     medicineId = id;
@@ -66,7 +69,7 @@ export function useMedicine(id: number | null | undefined) {
   }
 
   return useQuery({
-    queryKey: QUERY_KEYS.medicine(medicineId),
+    queryKey: [...QUERY_KEYS.medicine(medicineId), role],
     queryFn: () => {
       return api.medicines.getById(id!);
     },
@@ -99,24 +102,28 @@ export function useCreateMedicine() {
 // batches (estoque)
 
 // lista os lotes, com filtro opcional por medicamento.
-export function useBatches(medicineId?: number) {
+export function useBatches(medicineId?: number, options: { enabled?: boolean } = {}) {
+  const role = useAuthStore((state) => state.user?.role);
   return useQuery({
-    queryKey: QUERY_KEYS.batches(medicineId),
+    queryKey: [...QUERY_KEYS.batches(medicineId), role],
     queryFn: () => {
       return api.batches.getAll(medicineId);
     },
+    enabled: options.enabled ?? true,
   });
 }
 
 // panorama do estoque consolidado pelo backend (get /api/dashboard/stock-status).
 // staletime de 5 min porque e um agregado barato no backend mas
 // usado em toda tela de dashboard.
-export function useStockStatus() {
+export function useStockStatus(options: { enabled?: boolean } = {}) {
+  const role = useAuthStore((state) => state.user?.role);
   return useQuery({
-    queryKey: QUERY_KEYS.stockStatus,
+    queryKey: [...QUERY_KEYS.stockStatus, role],
     queryFn: () => {
       return api.get<StockStatusSummary>('/dashboard/stock-status');
     },
+    enabled: options.enabled ?? true,
     staleTime: 1000 * 60 * 5,
   });
 }

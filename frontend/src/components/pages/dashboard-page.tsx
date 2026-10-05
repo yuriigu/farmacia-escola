@@ -78,7 +78,7 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
   // metricas consolidadas pelo backend (get /api/dashboard/stock-status).
   // a api ja devolve as contagens por faixa (ok, low, critical, expired),
   // entao nao ha calculo no cliente alem do fallback pra zero.
-  const { data: stockStatusData } = useStockStatus();
+  const { data: stockStatusData } = useStockStatus({ enabled: !isPatient });
   const stockTaxonomyCounts = useMemo(() => {
     return {
       ok: stockStatusData ? stockStatusData.ok : 0,

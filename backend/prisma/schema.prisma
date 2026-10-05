@@ -126,6 +126,7 @@ model StockBatch {
   medicineId        Int
   batchNumber       String
   currentQuantity   Int       @default(0)
+  initialQuantity   Int       @default(0)
   expirationDate    DateTime
   manufacturingDate DateTime?
   supplier          String    @default("Não informado")
@@ -142,11 +143,10 @@ model StockBatch {
   appointmentItems  AppointmentItem[]
   appointments      Appointment[]
 
-  // nao pode existir dois lotes com o mesmo numero para o mesmo medicamento.
-  @@unique([medicineId, batchNumber])
-
   // indices para validade, bloqueio e cruzamentos com quantidade.
   @@index([medicineId])
+  @@index([medicineId, batchNumber])
+  @@index([medicineId, batchNumber, expirationDate, supplier])
   @@index([expirationDate])
   @@index([isBlocked])
   @@index([medicineId, expirationDate])

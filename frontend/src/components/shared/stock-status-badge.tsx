@@ -7,6 +7,8 @@ import type { StockStatus } from '@/types';
 // (ex: "bloqueado", "vencido", "esgotado").
 interface StockStatusBadgeProps {
   status?: StockStatus | string;
+  variant?: 'default' | 'patient';
+  available?: boolean;
 }
 
 // cracha de status de estoque. mostra um badge com pontinho colorido
@@ -14,7 +16,7 @@ interface StockStatusBadgeProps {
 // baixo, critico, vencimento proximo, vencido, esgotado e ativo.
 // o default e "ativo" quando nao veio nada. cada status tem uma cor
 // especifica e o bloqueado tem pontinho pulsante pra chamar atencao.
-export function StockStatusBadge({ status }: StockStatusBadgeProps) {
+export function StockStatusBadge({ status, variant = 'default', available }: StockStatusBadgeProps) {
   // valores default (usados no fallback). ja comeca em "ativo",
   // que e o caso mais comum.
   let labelText = 'Ativo';
@@ -23,10 +25,28 @@ export function StockStatusBadge({ status }: StockStatusBadgeProps) {
   let badgeBorder = 'border-emerald-200 dark:border-emerald-800/80';
   let dotColor = 'bg-emerald-500';
 
-  // resolve label/cor/pontinho de acordo com o status. cada branch
-  // cobre uma variacao do valor (enum do backend ou valor legado
-  // em portugues).
-  if (status) {
+  if (variant === 'patient') {
+    const isAvailable = available ?? (
+      status === 'IN_STOCK' ||
+      status === 'LOW_STOCK' ||
+      status === 'CRITICAL_EXPIRATION' ||
+      status === 'ok' ||
+      status === 'low' ||
+      status === 'Venc. Próx' ||
+      status === 'Vencimento Próximo' ||
+      status === 'Vencimento Próximo (≤ 30d)'
+    );
+
+    labelText = isAvailable ? 'Disponível' : 'Indisponível';
+    badgeBg = isAvailable ? 'bg-emerald-50 dark:bg-emerald-950/40' : 'bg-slate-100 dark:bg-slate-800';
+    badgeText = isAvailable ? 'text-emerald-700 dark:text-emerald-400' : 'text-slate-600 dark:text-slate-400';
+    badgeBorder = isAvailable ? 'border-emerald-200 dark:border-emerald-800/80' : 'border-slate-300 dark:border-slate-700';
+    dotColor = isAvailable ? 'bg-emerald-500' : 'bg-slate-400';
+  } else if (status) {
+
+    // resolve label/cor/pontinho de acordo com o status. cada branch
+    // cobre uma variacao do valor (enum do backend ou valor legado
+    // em portugues).
     // bloqueado: usa rose forte e pontinho pulsante, porque e uma
     // trava sanitaria que precisa chamar atencao.
     if (status === 'BLOCKED') {

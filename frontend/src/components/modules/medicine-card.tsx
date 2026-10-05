@@ -11,12 +11,13 @@ import type { Medicine, StockStatus } from '@/types';
 interface MedicineCardProps {
   medicine: Medicine;
   onSelect?: (medicine: Medicine) => void;
+  hideStock?: boolean;
 }
 
 // card de medicamento. mostra nome, status de estoque, categoria,
 // dosagem, quantidade total e descricao acessivel. o status e
 // derivado da quantidade total com faixas fixas locais.
-export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
+export function MedicineCard({ medicine, onSelect, hideStock = false }: MedicineCardProps) {
   // deriva o status a partir da quantidade total.
   // regra local (so pra esse card): zero e critico, menos de 20 e
   // baixo, o resto e ok.
@@ -87,15 +88,21 @@ export function MedicineCard({ medicine, onSelect }: MedicineCardProps) {
           <CardTitle className="text-base font-semibold text-slate-800 dark:text-slate-100">
             {medicine.name}
           </CardTitle>
-          <StockStatusBadge status={getStatus(totalQty)} />
+          <StockStatusBadge
+            status={hideStock ? (medicine.available ? 'IN_STOCK' : 'OUT_OF_STOCK') : getStatus(totalQty)}
+            variant={hideStock ? 'patient' : 'default'}
+            available={hideStock ? medicine.available : undefined}
+          />
         </div>
         {renderedCategory}
       </CardHeader>
       <CardContent className="space-y-1">
         {renderedDosage}
-        <p className="text-sm text-slate-600 dark:text-slate-300">
-          <span className="font-medium">Estoque total:</span> {totalQty} un
-        </p>
+        {!hideStock && (
+          <p className="text-sm text-slate-600 dark:text-slate-300">
+            <span className="font-medium">Estoque total:</span> {totalQty} un
+          </p>
+        )}
         {renderedAccessibleDesc}
       </CardContent>
     </Card>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { toast } from 'sonner';
+import { toast } from '@/lib/toast-handler';
 import {
   Settings, UserRound, Lock, Save, Eye, EyeOff, Loader2,
 } from 'lucide-react';
@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldError } from '@/components/ui/field-error';
 
 // pagina de configuracoes do usuario. cobre duas areas:
 // - dados de contato (email, telefone, endereco)
@@ -69,6 +70,7 @@ export function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordErrors, setPasswordErrors] = useState<{ currentPassword?: string; newPassword?: string; confirmPassword?: string }>({});
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -96,24 +98,26 @@ export function SettingsPage() {
   // e conferida pelo backend.
   const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nextErrors: typeof passwordErrors = {};
     if (!currentPassword) {
-      toast.error('Preencha todos os campos de senha.');
-      return;
+      nextErrors.currentPassword = 'Informe a senha atual.';
     }
     if (!newPassword) {
-      toast.error('Preencha todos os campos de senha.');
-      return;
+      nextErrors.newPassword = 'Informe a nova senha.';
     }
     if (!confirmPassword) {
-      toast.error('Preencha todos os campos de senha.');
-      return;
+      nextErrors.confirmPassword = 'Confirme a nova senha.';
     }
-    if (newPassword.length < 6) {
-      toast.error('A nova senha deve ter pelo menos 6 caracteres.');
-      return;
+    if (newPassword && newPassword.length < 6) {
+      nextErrors.newPassword = 'A nova senha deve ter pelo menos 6 caracteres.';
     }
-    if (newPassword !== confirmPassword) {
-      toast.error('A nova senha e a confirmação não coincidem.');
+    if (newPassword && confirmPassword && newPassword !== confirmPassword) {
+      nextErrors.confirmPassword = 'A nova senha e a confirmação não coincidem.';
+    }
+    setPasswordErrors(nextErrors);
+    const firstInvalidField = Object.keys(nextErrors)[0];
+    if (firstInvalidField) {
+      document.getElementById(`password-${firstInvalidField}`)?.focus();
       return;
     }
 
@@ -255,7 +259,7 @@ export function SettingsPage() {
                     <form onSubmit={handleSaveProfile} className="space-y-4">
                       {/* nome editavel */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        <Label htmlFor="password-currentPassword" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Nome Completo
                         </Label>
                         <Input
@@ -369,6 +373,7 @@ export function SettingsPage() {
                         </Label>
                         <div className="relative">
                           <Input
+                            id="password-currentPassword"
                             type={(() => {
                               if (showCurrentPw) {
                                 return 'text';
@@ -376,9 +381,13 @@ export function SettingsPage() {
                               return 'password';
                             })()}
                             value={currentPassword}
-                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            aria-invalid={!!passwordErrors.currentPassword}
+                            aria-describedby={passwordErrors.currentPassword ? 'password-currentPassword-error' : undefined}
+                            onChange={(e) => {
+                              setCurrentPassword(e.target.value);
+                              setPasswordErrors((current) => ({ ...current, currentPassword: undefined }));
+                            }}
                             placeholder="••••••••"
-                            required
                             className="pr-9 rounded-xl border-slate-200 dark:border-slate-700 text-xs"
                           />
                           <Button
@@ -396,15 +405,17 @@ export function SettingsPage() {
                             })()}
                           </Button>
                         </div>
+                        {passwordErrors.currentPassword && <FieldError id="password-currentPassword-error" message={passwordErrors.currentPassword} />}
                       </div>
 
                       {/* nova senha com toggle */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        <Label htmlFor="password-newPassword" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Nova Senha * (mínimo 6 caracteres)
                         </Label>
                         <div className="relative">
                           <Input
+                            id="password-newPassword"
                             type={(() => {
                               if (showNewPw) {
                                 return 'text';
@@ -412,10 +423,13 @@ export function SettingsPage() {
                               return 'password';
                             })()}
                             value={newPassword}
-                            onChange={(e) => setNewPassword(e.target.value)}
+                            aria-invalid={!!passwordErrors.newPassword}
+                            aria-describedby={passwordErrors.newPassword ? 'password-newPassword-error' : undefined}
+                            onChange={(e) => {
+                              setNewPassword(e.target.value);
+                              setPasswordErrors((current) => ({ ...current, newPassword: undefined }));
+                            }}
                             placeholder="••••••••"
-                            required
-                            minLength={6}
                             className="pr-9 rounded-xl border-slate-200 dark:border-slate-700 text-xs"
                           />
                           <Button
@@ -433,15 +447,17 @@ export function SettingsPage() {
                             })()}
                           </Button>
                         </div>
+                        {passwordErrors.newPassword && <FieldError id="password-newPassword-error" message={passwordErrors.newPassword} />}
                       </div>
 
                       {/* confirmacao da nova senha. mostra aviso quando
                           as duas nao batem. */}
                       <div className="space-y-1.5">
-                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                        <Label htmlFor="password-confirmPassword" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                           Confirmar Nova Senha *
                         </Label>
                         <Input
+                          id="password-confirmPassword"
                           type={(() => {
                             if (showNewPw) {
                               return 'text';
@@ -449,17 +465,20 @@ export function SettingsPage() {
                             return 'password';
                           })()}
                           value={confirmPassword}
-                          onChange={(e) => setConfirmPassword(e.target.value)}
+                          aria-invalid={!!passwordErrors.confirmPassword || (!!confirmPassword && !!newPassword && confirmPassword !== newPassword)}
+                          aria-describedby={passwordErrors.confirmPassword || (!!confirmPassword && !!newPassword && confirmPassword !== newPassword) ? 'password-confirmPassword-error' : undefined}
+                          onChange={(e) => {
+                            setConfirmPassword(e.target.value);
+                            setPasswordErrors((current) => ({ ...current, confirmPassword: undefined }));
+                          }}
                           placeholder="Repita a nova senha"
-                          required
-                          minLength={6}
                           className="rounded-xl border-slate-200 dark:border-slate-700 text-xs"
                         />
                         {(() => {
                           if (confirmPassword) {
                             if (newPassword) {
                               if (confirmPassword !== newPassword) {
-                                return <p className="text-xs text-rose-500 font-medium">As senhas não coincidem.</p>;
+                                return <FieldError id="password-confirmPassword-error" message={passwordErrors.confirmPassword ?? 'As senhas não coincidem.'} />;
                               }
                             }
                           }
@@ -472,11 +491,7 @@ export function SettingsPage() {
                       <Button
                         type="submit"
                         disabled={(() => {
-                          if (savingPassword) return true;
-                          if (!currentPassword) return true;
-                          if (!newPassword) return true;
-                          if (!confirmPassword) return true;
-                          return false;
+                          return savingPassword;
                         })()}
                         className="w-full"
                         size="sm"

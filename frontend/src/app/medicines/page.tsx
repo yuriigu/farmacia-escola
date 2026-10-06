@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { computeStockStatus } from '@/lib/stock';
 import type { Medicine, Batch } from '@/types';
+import { FieldError } from '@/components/ui/field-error';
 
 // unidades de dosagem aceitas no formulario. o schema zod logo abaixo
 // usa essa mesma lista pra garantir consistencia entre ui e validacao.
@@ -964,7 +965,7 @@ export default function MedicinesPage() {
               </DialogDescription>
             </DialogHeader>
 
-            <form onSubmit={handleSubmit(onSubmitMedicine)} className="space-y-4 py-2">
+            <form onSubmit={handleSubmit(onSubmitMedicine)} noValidate className="space-y-4 py-2">
               {/* nome do medicamento */}
               <div className="space-y-1.5">
                 <Label htmlFor="name" className="text-xs font-bold text-slate-600 dark:text-slate-300">
@@ -973,13 +974,15 @@ export default function MedicinesPage() {
                 <Input
                   id="name"
                   placeholder="Ex: Paracetamol, Amoxicilina, Dipirona..."
+                  aria-invalid={!!errors.name}
+                  aria-describedby={errors.name ? 'medicine-name-error' : undefined}
                   {...register('name')}
                   className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
                 />
                 {(() => {
                   if (errors.name) {
                     if (errors.name.message) {
-                      return <p className="text-xs text-rose-500 font-medium">{errors.name.message}</p>;
+                      return <FieldError id="medicine-name-error" message={errors.name.message} />;
                     }
                   }
                   return null;
@@ -998,13 +1001,15 @@ export default function MedicinesPage() {
                     step="any"
                     min={0.0001}
                     placeholder="Ex: 500, 10, 2.5"
+                    aria-invalid={!!errors.dosageValue}
+                    aria-describedby={errors.dosageValue ? 'medicine-dosageValue-error' : undefined}
                     {...register('dosageValue')}
                     className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
                   />
                   {(() => {
                     if (errors.dosageValue) {
                       if (errors.dosageValue.message) {
-                        return <p className="text-xs text-rose-500 font-medium">{errors.dosageValue.message as string}</p>;
+                        return <FieldError id="medicine-dosageValue-error" message={errors.dosageValue.message as string} />;
                       }
                     }
                     return null;

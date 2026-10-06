@@ -1,9 +1,8 @@
 import { toast as sonnerToast, type ExternalToast } from 'sonner';
 
-// helper interno que centraliza a emissao de toast. antes de
-// mostrar o novo, ele sempre dispensa o anterior (sonnertoast.dismiss()).
-// isso evita empilhar toasts quando varias acoes disparam em
-// sequencia — a tela mostra sempre o mais recente, sem poluir.
+// Toasts sao reservados a sucesso e falhas globais/servidor. Erros
+// de validacao de campo devem aparecer junto ao controle via FieldError.
+// Cada nova notificacao substitui a anterior para evitar duplicatas.
 function emit(
   level: 'success' | 'error',
   message: string,

@@ -19,6 +19,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
+import { FieldError } from '@/components/ui/field-error';
 import { PageHeader } from '@/components/shared/page-header';
 import { AppointmentCreateModal } from '@/components/shared/appointment-create-modal';
 import { DataTable } from '@/components/shared/data-table';
@@ -99,6 +100,7 @@ function AppointmentsContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [appointmentToCancel, setAppointmentToCancel] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancelReasonError, setCancelReasonError] = useState('');
   const [selectedAppointmentForDetails, setSelectedAppointmentForDetails] = useState<Appointment | null>(null);
   const [receipt, setReceipt] = useState<any>(null);
 
@@ -187,9 +189,11 @@ function AppointmentsContent() {
   // com canceled + justificativa).
   const handleConfirmCancel = () => {
     if (!cancelReason.trim()) {
-      toast.error('O motivo do cancelamento é obrigatório.');
+      setCancelReasonError('O motivo do cancelamento é obrigatório.');
+      document.getElementById('appointment-cancel-reason')?.focus();
       return;
     }
+    setCancelReasonError('');
     if (appointmentToCancel) {
       cancelAppointmentMutation.mutate({ id: appointmentToCancel, reason: cancelReason.trim() }, {
         onSuccess: () => {
@@ -935,17 +939,32 @@ function AppointmentsContent() {
                   Informe obrigatoriamente o motivo do cancelamento. Esta ação não pode ser desfeita.
               </AlertDialogDescription>
               <Textarea
+                id="appointment-cancel-reason"
+                aria-label="Motivo do cancelamento"
                 value={cancelReason}
-                onChange={(event) => setCancelReason(event.target.value)}
+                aria-invalid={!!cancelReasonError}
+                aria-describedby={cancelReasonError ? 'appointment-cancel-reason-error' : undefined}
+                onChange={(event) => {
+                  setCancelReason(event.target.value);
+                  setCancelReasonError('');
+                }}
                 placeholder="Motivo do Cancelamento"
-                required
                 rows={4}
               />
+              {cancelReasonError && <FieldError id="appointment-cancel-reason-error" message={cancelReasonError} />}
             </AlertDialogHeader>
             <AlertDialogFooter>
               <AlertDialogCancel className="rounded-xl">Não, manter</AlertDialogCancel>
               <AlertDialogAction
-                onClick={handleConfirmCancel}
+                onClick={(event) => {
+                  if (!cancelReason.trim()) {
+                    event.preventDefault();
+                    setCancelReasonError('O motivo do cancelamento é obrigatório.');
+                    document.getElementById('appointment-cancel-reason')?.focus();
+                    return;
+                  }
+                  handleConfirmCancel();
+                }}
                 className="rounded-xl bg-rose-600 hover:bg-rose-700 text-white"
               >
                 Sim, cancelar

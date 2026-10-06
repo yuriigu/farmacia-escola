@@ -19,6 +19,7 @@ import { Label } from '@/components/ui/label';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StandardCalendar } from '@/components/shared/standard-calendar';
+import { FieldError } from '@/components/ui/field-error';
 
 // horarios fixos disponiveis na escala. o select do modal usa essa
 // lista pra evitar que o operador digite horario fora do padrao.
@@ -42,6 +43,7 @@ export function ScheduleSlotsPage() {
   const [editSlot, setEditSlot] = useState<ScheduleSlot | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ date: '', timeSlot: '09:00', maxCapacity: 4, assignedToId: 0 });
+  const [fieldErrors, setFieldErrors] = useState<{ date?: string; timeSlot?: string; maxCapacity?: string }>({});
 
   // carrega a lista de farmaceuticos pro select de responsavel.
   // so farmaceuticos aparecem, porque a escala e gerida por eles.
@@ -144,8 +146,18 @@ export function ScheduleSlotsPage() {
   // submit do modal. em edicao, data/horario ficam travados; em
   // criacao, manda todos os campos obrigatorios.
   const handleSave = async () => {
-    if (!form.date) return;
-    if (!form.timeSlot) return;
+    const nextErrors: typeof fieldErrors = {};
+    if (!editSlot && !form.date) nextErrors.date = 'Selecione a data da escala.';
+    if (!editSlot && !form.timeSlot) nextErrors.timeSlot = 'Selecione o horário.';
+    if (!Number.isInteger(Number(form.maxCapacity)) || form.maxCapacity < 1 || form.maxCapacity > 20) {
+      nextErrors.maxCapacity = 'Informe uma capacidade entre 1 e 20 vagas.';
+    }
+    setFieldErrors(nextErrors);
+    const firstInvalidField = Object.keys(nextErrors)[0];
+    if (firstInvalidField) {
+      document.getElementById(`schedule-${firstInvalidField}`)?.focus();
+      return;
+    }
     setSaving(true);
     try {
       if (editSlot) {
@@ -397,12 +409,19 @@ export function ScheduleSlotsPage() {
                       Data
                     </Label>
                     <Input
+                      id="schedule-date"
                       type="date"
                       value={form.date}
-                      onChange={(e) => setForm({ ...form, date: e.target.value })}
+                      aria-invalid={!!fieldErrors.date}
+                      aria-describedby={fieldErrors.date ? 'schedule-date-error' : undefined}
+                      onChange={(e) => {
+                        setForm({ ...form, date: e.target.value });
+                        setFieldErrors((current) => ({ ...current, date: undefined }));
+                      }}
                       disabled={Boolean(editSlot)}
                       className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
                     />
+                    {fieldErrors.date && <FieldError id="schedule-date-error" message={fieldErrors.date} />}
                   </div>
                   {!editSlot && (
                     <div>
@@ -410,8 +429,14 @@ export function ScheduleSlotsPage() {
                         Horário
                       </Label>
                       <select
+                        id="schedule-timeSlot"
                         value={form.timeSlot}
-                        onChange={(e) => setForm({ ...form, timeSlot: e.target.value })}
+                        aria-invalid={!!fieldErrors.timeSlot}
+                        aria-describedby={fieldErrors.timeSlot ? 'schedule-timeSlot-error' : undefined}
+                        onChange={(e) => {
+                          setForm({ ...form, timeSlot: e.target.value });
+                          setFieldErrors((current) => ({ ...current, timeSlot: undefined }));
+                        }}
                         className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-200 text-sm focus:outline-none"
                       >
                         {TIME_OPTIONS.map((t) => (
@@ -420,6 +445,7 @@ export function ScheduleSlotsPage() {
                           </option>
                         ))}
                       </select>
+                      {fieldErrors.timeSlot && <FieldError id="schedule-timeSlot-error" message={fieldErrors.timeSlot} />}
                     </div>
                   )}
                   {/* capacidade maxima (1 a 20). pode ser editada nos
@@ -429,13 +455,20 @@ export function ScheduleSlotsPage() {
                       Capacidade Máxima (Vagas)
                     </Label>
                     <Input
+                      id="schedule-maxCapacity"
                       type="number"
                       min={1}
                       max={20}
                       value={form.maxCapacity}
-                      onChange={(e) => setForm({ ...form, maxCapacity: Number(e.target.value) })}
+                      aria-invalid={!!fieldErrors.maxCapacity}
+                      aria-describedby={fieldErrors.maxCapacity ? 'schedule-maxCapacity-error' : undefined}
+                      onChange={(e) => {
+                        setForm({ ...form, maxCapacity: Number(e.target.value) });
+                        setFieldErrors((current) => ({ ...current, maxCapacity: undefined }));
+                      }}
                       className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
                     />
+                    {fieldErrors.maxCapacity && <FieldError id="schedule-maxCapacity-error" message={fieldErrors.maxCapacity} />}
                   </div>
 
                   <DialogFooter className="pt-2">

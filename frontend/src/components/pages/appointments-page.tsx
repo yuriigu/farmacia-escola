@@ -17,6 +17,7 @@ import { dateKeyOffsetLocal, formatDateKeyBr, isoFromLocalDateTime, todayKeyLoca
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { FieldError } from '@/components/ui/field-error';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
@@ -63,6 +64,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
   const [cpfSuggestions, setCpfSuggestions] = useState<Array<{ id: number; name: string; cpf: string }>>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchingCpf, setSearchingCpf] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ cpfInput?: string; patientName?: string; items?: string; scheduledDate?: string; slotId?: string }>({});
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -77,6 +79,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
     setNotes('');
     setCpfSuggestions([]);
     setShowSuggestions(false);
+    setFieldErrors({});
   }, []);
 
   useEffect(() => {
@@ -142,26 +145,26 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
   // chamar a api.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nextErrors: typeof fieldErrors = {};
     if (items.some((item) => !item.medicineId || item.quantity < 1)) {
-      toast.error('Selecione o medicamento e informe uma quantidade válida em todas as linhas.');
-      return;
+      nextErrors.items = 'Selecione o medicamento e informe uma quantidade válida em todas as linhas.';
     }
     if (!scheduledDate) {
-      toast.error('Preencha medicamento e data/horário.');
-      return;
+      nextErrors.scheduledDate = 'Selecione a data do agendamento.';
     }
-    if (!slotId) {
-      toast.error('Selecione um horário disponível na escala.');
-      return;
+    const selectedSlot = scheduleSlots.find((slot) => slot.id === slotId);
+    if (!selectedSlot || !selectedSlot.active || selectedSlot.date.slice(0, 10) !== scheduledDate) {
+      nextErrors.slotId = 'Selecione um horário disponível na escala.';
+    } else if (Math.max(0, selectedSlot.maxCapacity - (selectedSlot._count?.appointments ?? 0)) === 0) {
+      nextErrors.slotId = 'Este horário da escala está lotado.';
     }
 
     const digits = stripCPF(cpfInput);
     if (digits.length !== 11) {
-      toast.error('CPF inválido. Informe um CPF completo com 11 dígitos.');
-      return;
+      nextErrors.cpfInput = 'CPF inválido. Informe um CPF completo com 11 dígitos.';
     }
     if (!patientName.trim()) {
-      toast.error('Informe o nome do paciente.');
+      nextErrors.patientName = 'Informe o nome do paciente.';
       return;
     }
 
@@ -173,20 +176,20 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
       const selectedMed = medicines.find((medicine) => medicine.id === requestedMedicineId);
       const availableStock = selectedMed ? getAvailableStock(selectedMed) : 0;
       if (!selectedMed || requestedQuantity > availableStock) {
-        toast.error(
-          `Estoque insuficiente: a quantidade solicitada (${requestedQuantity} un.) excede o saldo disponível (${availableStock} un.).`
-        );
-        return;
+        nextErrors.items = `Estoque insuficiente: a quantidade solicitada (${requestedQuantity} un.) excede o saldo disponível (${availableStock} un.).`;
+        break;
       }
+    }
+    setFieldErrors(nextErrors);
+    const firstInvalidField = ['cpfInput', 'patientName', 'items', 'scheduledDate', 'slotId'].find((field) => nextErrors[field as keyof typeof nextErrors]);
+    if (firstInvalidField) {
+      document.getElementById(`doctor-appointment-${firstInvalidField}`)?.focus();
+      return;
     }
 
     try {
       setLoading(true);
-      const selectedSlot = scheduleSlots.find((slot) => slot.id === slotId);
-      if (!selectedSlot) {
-        toast.error('Selecione um horário disponível na escala.');
-        return;
-      }
+      if (!selectedSlot) return;
       // combina a data escolhida com o horario do slot pra montar
       // o datetime completo.
       const dateVal = isoFromLocalDateTime(scheduledDate, selectedSlot.timeSlot);
@@ -234,7 +237,10 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
   };
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={(nextOpen) => {
+      if (nextOpen) setFieldErrors({});
+      onOpenChange(nextOpen);
+    }}>
       <DialogContent className="rounded-2xl max-w-lg">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -248,19 +254,25 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
           </DialogDescription>
         </DialogHeader>
 
-        <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+        <form onSubmit={handleSubmit} noValidate className="space-y-4 pt-1">
           {/* cpf com autocomplete: digita 3+ digitos pra ver sugestoes
               do historico de pacientes do medico. */}
           <div className="relative" ref={suggestionsRef}>
-            <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
+            <Label htmlFor="doctor-appointment-cpfInput" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
               CPF do Paciente
             </Label>
             <div className="relative">
               <Input
+                id="doctor-appointment-cpfInput"
                 type="text"
                 placeholder="000.000.000-00"
                 value={cpfInput}
-                onChange={(e) => handleCpfChange(e.target.value)}
+                aria-invalid={!!fieldErrors.cpfInput}
+                aria-describedby={fieldErrors.cpfInput ? 'doctor-appointment-cpfInput-error' : undefined}
+                onChange={(e) => {
+                  handleCpfChange(e.target.value);
+                  setFieldErrors((current) => ({ ...current, cpfInput: undefined }));
+                }}
                 maxLength={14}
                 className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
               />
@@ -276,6 +288,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
                 return null;
               })()}
             </div>
+            {fieldErrors.cpfInput && <FieldError id="doctor-appointment-cpfInput-error" message={fieldErrors.cpfInput} />}
 
             {/* dropdown de sugestoes de pacientes */}
             {(() => {
@@ -307,16 +320,23 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
 
           {/* nome do paciente */}
           <div>
-            <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
+            <Label htmlFor="doctor-appointment-patientName" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
               Nome do Paciente
             </Label>
             <Input
+              id="doctor-appointment-patientName"
               type="text"
               placeholder="Nome completo do paciente"
               value={patientName}
-              onChange={(e) => setPatientName(e.target.value)}
+              aria-invalid={!!fieldErrors.patientName}
+              aria-describedby={fieldErrors.patientName ? 'doctor-appointment-patientName-error' : undefined}
+              onChange={(e) => {
+                setPatientName(e.target.value);
+                setFieldErrors((current) => ({ ...current, patientName: undefined }));
+              }}
               className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"
             />
+            {fieldErrors.patientName && <FieldError id="doctor-appointment-patientName-error" message={fieldErrors.patientName} />}
           </div>
 
           {/* lista de medicamentos prescritos, com saldo em tempo real.
@@ -343,8 +363,11 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
                   <div className="grid grid-cols-[minmax(0,1fr)_6rem_auto] gap-2 items-end">
                     <div>
                       <Label className="mb-1 block text-[11px] font-semibold text-slate-500">Medicamento</Label>
-                      <Select value={item.medicineId ? String(item.medicineId) : ''} onValueChange={(value) => setItems((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, medicineId: Number(value) } : entry))}>
-                        <SelectTrigger className="rounded-lg"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                      <Select value={item.medicineId ? String(item.medicineId) : ''} onValueChange={(value) => {
+                        setItems((current) => current.map((entry, entryIndex) => entryIndex === index ? { ...entry, medicineId: Number(value) } : entry));
+                        setFieldErrors((current) => ({ ...current, items: undefined }));
+                      }}>
+                        <SelectTrigger id={index === 0 ? 'doctor-appointment-items' : undefined} aria-invalid={!!fieldErrors.items} aria-describedby={fieldErrors.items ? 'doctor-appointment-items-error' : undefined} className="rounded-lg"><SelectValue placeholder="Selecione..." /></SelectTrigger>
                         <SelectContent>
                           {medicines.map((medicine) => <SelectItem key={medicine.id} value={String(medicine.id)}>{medicine.name}{medicine.dosage ? ` — ${medicine.dosage}` : ''}</SelectItem>)}
                         </SelectContent>
@@ -361,17 +384,19 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
                 </div>
               );
             })}
+            {fieldErrors.items && <FieldError id="doctor-appointment-items-error" message={fieldErrors.items} />}
           </div>
 
           {/* data + slot. o select de horario filtra pelos slots da
               data escolhida e so aceita os que ainda tem vaga. */}
           <div>
-            <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
+            <Label htmlFor="doctor-appointment-scheduledDate" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
               Data e Horário (Slot)
             </Label>
-            <Input type="date" required value={scheduledDate} onChange={(e) => { setScheduledDate(e.target.value); setSlotId(0); }} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-            <Select value={slotId ? String(slotId) : ''} onValueChange={(value) => setSlotId(Number(value))}>
-              <SelectTrigger className="mt-2 rounded-xl border-slate-200 dark:border-slate-600"><SelectValue placeholder="Selecione um horário com vagas..." /></SelectTrigger>
+            <Input id="doctor-appointment-scheduledDate" type="date" aria-invalid={!!fieldErrors.scheduledDate} aria-describedby={fieldErrors.scheduledDate ? 'doctor-appointment-scheduledDate-error' : undefined} value={scheduledDate} onChange={(e) => { setScheduledDate(e.target.value); setSlotId(0); setFieldErrors((current) => ({ ...current, scheduledDate: undefined, slotId: undefined })); }} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+            {fieldErrors.scheduledDate && <FieldError id="doctor-appointment-scheduledDate-error" message={fieldErrors.scheduledDate} />}
+            <Select value={slotId ? String(slotId) : ''} onValueChange={(value) => { setSlotId(Number(value)); setFieldErrors((current) => ({ ...current, slotId: undefined })); }}>
+              <SelectTrigger id="doctor-appointment-slotId" aria-invalid={!!fieldErrors.slotId} aria-describedby={fieldErrors.slotId ? 'doctor-appointment-slotId-error' : undefined} className="mt-2 rounded-xl border-slate-200 dark:border-slate-600"><SelectValue placeholder="Selecione um horário com vagas..." /></SelectTrigger>
               <SelectContent>
                 {scheduleSlots.filter((slot) => {
                   if (!slot.active) {
@@ -397,6 +422,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
                 })}
               </SelectContent>
             </Select>
+            {fieldErrors.slotId && <FieldError id="doctor-appointment-slotId-error" message={fieldErrors.slotId} />}
           </div>
 
           {/* observacoes livres */}
@@ -465,6 +491,8 @@ export function AppointmentsPage() {
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
   const [cancelReason, setCancelReason] = useState('');
+  const [cancelReasonError, setCancelReasonError] = useState('');
+  const [formErrors, setFormErrors] = useState<{ items?: string; scheduledDate?: string; slotId?: string; patientId?: string }>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [patientSearch, setPatientSearch] = useState('');
@@ -598,20 +626,18 @@ export function AppointmentsPage() {
   // manda patientid (o backend amarra ao dono do token).
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nextErrors: typeof formErrors = {};
     if (form.items.length === 0 || form.items.some((item) => !item.medicineId || item.quantity < 1)) {
-      toast.error('Selecione um medicamento.');
-      return;
+      nextErrors.items = 'Selecione um medicamento e informe uma quantidade válida.';
     }
     if (!form.scheduledDate) {
-      return;
+      nextErrors.scheduledDate = 'Selecione uma data para o agendamento.';
     }
     if (!form.slotId) {
-      toast.error('Selecione um horário disponível na escala.');
-      return;
+      nextErrors.slotId = 'Selecione um horário disponível na escala.';
     }
     if (!isPatient && !isMedico && !form.patientId) {
-      toast.error('Selecione o paciente.');
-      return;
+      nextErrors.patientId = 'Selecione o paciente.';
     }
 
     const invalidItem = form.items.find((item) => {
@@ -623,9 +649,14 @@ export function AppointmentsPage() {
     });
     if (invalidItem) {
       const medicine = medicines.find((entry) => entry.id === invalidItem.medicineId);
-      toast.error(isPatient
+      nextErrors.items = isPatient
         ? 'Este medicamento não está disponível para agendamento no momento.'
-        : `Estoque insuficiente: a quantidade solicitada (${invalidItem.quantity} un.) excede o saldo disponível real (${medicine ? getAvailableStock(medicine) : 0} un.).`);
+        : `Estoque insuficiente: a quantidade solicitada (${invalidItem.quantity} un.) excede o saldo disponível real (${medicine ? getAvailableStock(medicine) : 0} un.).`;
+    }
+    setFormErrors(nextErrors);
+    const firstInvalidField = Object.keys(nextErrors)[0];
+    if (firstInvalidField) {
+      document.getElementById(`appointment-form-${firstInvalidField}`)?.focus();
       return;
     }
 
@@ -682,9 +713,11 @@ export function AppointmentsPage() {
       return;
     }
     if (!cancelReason.trim()) {
-      toast.error('A justificativa do cancelamento é obrigatória.');
+      setCancelReasonError('A justificativa do cancelamento é obrigatória.');
+      document.getElementById('appointment-cancel-reason')?.focus();
       return;
     }
+    setCancelReasonError('');
     try {
       await api.cancelAppointment(cancelTarget.id, cancelReason.trim());
       toast.success('Agendamento cancelado e reserva liberada.');
@@ -1540,7 +1573,10 @@ export function AppointmentsPage() {
       {(() => {
         if (!isMedico) {
           return (
-            <Dialog open={modalOpen} onOpenChange={setModalOpen}>
+            <Dialog open={modalOpen} onOpenChange={(open) => {
+              if (open) setFieldErrors({});
+              setModalOpen(open);
+            }}>
               <DialogContent className="sm:max-w-125 rounded-3xl">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
@@ -1553,21 +1589,25 @@ export function AppointmentsPage() {
                       : 'Registre um novo agendamento de atendimento farmacêutico.'}
                   </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4 py-2">
+                <form onSubmit={handleSubmit} noValidate className="space-y-4 py-2">
                   {(() => {
                     if (!isPatient) {
                       return (
                         <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                          <Label htmlFor="appointment-form-patientId" className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                             <User className="w-3.5 h-3.5 text-emerald-600" />
                             Paciente *
                           </Label>
                           <div className="relative">
                             <Input
+                              id="appointment-form-patientId"
+                              aria-invalid={!!formErrors.patientId}
+                              aria-describedby={formErrors.patientId ? 'appointment-form-patientId-error' : undefined}
                               value={patientSearch || patients.find((patient) => patient.id === form.patientId)?.name || ''}
                               onChange={(event) => {
                                 setPatientSearch(event.target.value);
                                 setForm({ ...form, patientId: undefined });
+                                setFormErrors((current) => ({ ...current, patientId: undefined }));
                               }}
                               placeholder="Buscar por nome ou CPF"
                               className="rounded-xl text-xs"
@@ -1590,13 +1630,14 @@ export function AppointmentsPage() {
                               </div>
                             )}
                           </div>
+                          {formErrors.patientId && <FieldError id="appointment-form-patientId-error" message={formErrors.patientId} />}
                         </div>
                       );
                     }
                     return null;
                   })()}
                   <div className="space-y-2">
-                    <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                    <Label htmlFor="appointment-form-items" className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                       <Pill className="w-3.5 h-3.5 text-emerald-600" />
                       Medicamentos *
                     </Label>
@@ -1607,14 +1648,17 @@ export function AppointmentsPage() {
                         <div key={`${index}-${item.medicineId}`} className="grid grid-cols-[minmax(0,1fr)_80px_auto_auto] items-center gap-2">
                           <Select
                             value={item.medicineId ? String(item.medicineId) : ''}
-                            onValueChange={(value) => setForm({
-                              ...form,
-                              items: form.items.map((entry, itemIndex) => itemIndex === index
-                                ? { ...entry, medicineId: Number(value) }
-                                : entry),
-                            })}
+                            onValueChange={(value) => {
+                              setForm({
+                                ...form,
+                                items: form.items.map((entry, itemIndex) => itemIndex === index
+                                  ? { ...entry, medicineId: Number(value) }
+                                  : entry),
+                              });
+                              setFormErrors((current) => ({ ...current, items: undefined }));
+                            }}
                           >
-                            <SelectTrigger className="min-w-0 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                            <SelectTrigger id={index === 0 ? 'appointment-form-items' : undefined} aria-invalid={!!formErrors.items} aria-describedby={formErrors.items ? 'appointment-form-items-error' : undefined} className="min-w-0 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
                               <SelectValue placeholder="Selecione o medicamento" />
                             </SelectTrigger>
                             <SelectContent>
@@ -1660,6 +1704,7 @@ export function AppointmentsPage() {
                         </div>
                       );
                     })}
+                    {formErrors.items && <FieldError id="appointment-form-items-error" message={formErrors.items} />}
                     <Button
                       type="button"
                       variant="outline"
@@ -1671,17 +1716,23 @@ export function AppointmentsPage() {
                   </div>
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">Data *</Label>
+                      <Label htmlFor="appointment-form-scheduledDate" className="text-xs font-bold text-slate-600 dark:text-slate-300">Data *</Label>
                       <Input
+                        id="appointment-form-scheduledDate"
                         type="date"
-                        required
+                        aria-invalid={!!formErrors.scheduledDate}
+                        aria-describedby={formErrors.scheduledDate ? 'appointment-form-date-error' : undefined}
                         value={form.scheduledDate}
-                        onChange={(event) => setForm({ ...form, scheduledDate: event.target.value, scheduledTime: '', slotId: undefined })}
+                        onChange={(event) => {
+                          setForm({ ...form, scheduledDate: event.target.value, scheduledTime: '', slotId: undefined });
+                          setFormErrors((current) => ({ ...current, scheduledDate: undefined, slotId: undefined }));
+                        }}
                         className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
                       />
+                      {formErrors.scheduledDate && <FieldError id="appointment-form-date-error" message={formErrors.scheduledDate} />}
                     </div>
                     <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">Horário da Escala *</Label>
+                      <Label htmlFor="appointment-form-slotId" className="text-xs font-bold text-slate-600 dark:text-slate-300">Horário da Escala *</Label>
                       <Select
                         value={form.slotId ? String(form.slotId) : ''}
                         onValueChange={(value) => {
@@ -1692,7 +1743,7 @@ export function AppointmentsPage() {
                         }}
                         disabled={!form.scheduledDate}
                       >
-                        <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                        <SelectTrigger id="appointment-form-slotId" aria-invalid={!!formErrors.slotId} aria-describedby={formErrors.slotId ? 'appointment-form-slot-error' : undefined} className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
                           <SelectValue placeholder={form.scheduledDate ? 'Selecione um horário' : 'Escolha a data primeiro'} />
                         </SelectTrigger>
                         <SelectContent>
@@ -1708,6 +1759,7 @@ export function AppointmentsPage() {
                           })}
                         </SelectContent>
                       </Select>
+                      {formErrors.slotId && <FieldError id="appointment-form-slot-error" message={formErrors.slotId} />}
                     </div>
                   </div>
                   <div className="space-y-1.5">
@@ -1727,10 +1779,6 @@ export function AppointmentsPage() {
                     <Button
                       type="submit"
                       size="sm"
-                      disabled={isPatient && form.items.some((item) => {
-                        const medicine = medicines.find((entry) => entry.id === item.medicineId);
-                        return !medicine || !isMedicineAvailable(medicine, true);
-                      })}
                     >
                       Agendar
                     </Button>
@@ -1750,7 +1798,8 @@ export function AppointmentsPage() {
             <DialogTitle className="text-rose-600">Cancelar agendamento</DialogTitle>
             <DialogDescription>A reserva de estoque será liberada. Informe a justificativa obrigatória.</DialogDescription>
           </DialogHeader>
-          <Textarea value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="Justificativa do cancelamento" rows={4} />
+          <Textarea id="appointment-cancel-reason" aria-label="Justificativa do cancelamento" value={cancelReason} aria-invalid={!!cancelReasonError} aria-describedby={cancelReasonError ? 'appointment-cancel-reason-error' : undefined} onChange={(event) => { setCancelReason(event.target.value); setCancelReasonError(''); }} placeholder="Justificativa do cancelamento" rows={4} />
+          {cancelReasonError && <FieldError id="appointment-cancel-reason-error" message={cancelReasonError} />}
           <div className="flex justify-end gap-3 pt-2">
             <Button type="button" variant="outline" onClick={() => setCancelTarget(null)}>Voltar</Button>
             <Button type="button" variant="destructive" onClick={handleCancelAppointment}>Confirmar cancelamento</Button>

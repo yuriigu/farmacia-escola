@@ -7,6 +7,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldError } from '@/components/ui/field-error';
 
 // props do formulario de login. o onsubmit e opcional porque o
 // componente pode ser usado so como apresentacao (sem logica) em
@@ -24,6 +25,7 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
 
   // submit do formulario. valida presenca de email e senha, limpa o
   // erro anterior e chama o onsubmit. se o onsubmit lancar, captura
@@ -31,16 +33,21 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setFieldErrors({});
 
     // valida se o email foi preenchido.
     if (!email) {
-      setError('Preencha todos os campos');
+      setFieldErrors({ email: 'Informe o e-mail.' });
+      return;
+    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setFieldErrors({ email: 'Informe um e-mail válido.' });
       return;
     }
 
     // valida se a senha foi preenchida.
     if (!password) {
-      setError('Preencha todos os campos');
+      setFieldErrors({ password: 'Informe a senha.' });
       return;
     }
 
@@ -84,7 +91,7 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 max-w-sm w-full mx-auto" data-testid="login-form">
+    <form onSubmit={handleSubmit} noValidate className="space-y-4 max-w-sm w-full mx-auto" data-testid="login-form">
       {errorMessageBlock}
       <div className="space-y-2">
         <Label htmlFor="email">E-mail</Label>
@@ -95,9 +102,12 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
           value={email}
           onChange={(e) => {
             setEmail(e.target.value);
+            setFieldErrors((current) => ({ ...current, email: undefined }));
           }}
-          required
+          aria-invalid={!!fieldErrors.email}
+          aria-describedby={fieldErrors.email ? 'login-email-error' : undefined}
         />
+        {fieldErrors.email && <FieldError id="login-email-error" message={fieldErrors.email} />}
       </div>
       <div className="space-y-2">
         <Label htmlFor="password">Senha</Label>
@@ -108,9 +118,12 @@ export function LoginForm({ onSubmit, isLoading = false }: LoginFormProps) {
           value={password}
           onChange={(e) => {
             setPassword(e.target.value);
+            setFieldErrors((current) => ({ ...current, password: undefined }));
           }}
-          required
+          aria-invalid={!!fieldErrors.password}
+          aria-describedby={fieldErrors.password ? 'login-password-error' : undefined}
         />
+        {fieldErrors.password && <FieldError id="login-password-error" message={fieldErrors.password} />}
       </div>
       <Button type="submit" className="w-full" disabled={isLoading}>
         {buttonLabel}

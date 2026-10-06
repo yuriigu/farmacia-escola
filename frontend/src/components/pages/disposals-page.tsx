@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { FieldError } from '@/components/ui/field-error';
 
 // pagina de descartes. lista o historico de descartes com busca,
 // permite registrar um novo (baixa de estoque) e reverter um descarte
@@ -30,6 +31,7 @@ export function DisposalsPage() {
   const [reverting, setReverting] = useState<number | null>(null);
   const [selectedDisposal, setSelectedDisposal] = useState<Disposal | null>(null);
   const [revertReason, setRevertReason] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ batchId?: string; quantity?: string; revertReason?: string }>({});
   const [loadingBatches, setLoadingBatches] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [form, setForm] = useState<DisposalDraft>({ batchId: 0, quantity: 0, reason: 'EXPIRED', notes: '' });
@@ -166,13 +168,20 @@ export function DisposalsPage() {
   // quantidade antes de chamar a api.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nextErrors: typeof fieldErrors = {};
     if (!selectedBatch) {
-      return;
+      nextErrors.batchId = 'Selecione o lote de origem.';
     }
     if (overBalance) {
-      return;
+      nextErrors.quantity = `Quantidade maior que o saldo disponível (${selectedBatch?.currentQuantity ?? 0} un.).`;
     }
     if (form.quantity <= 0) {
+      nextErrors.quantity = 'Informe uma quantidade maior que zero.';
+    }
+    setFieldErrors(nextErrors);
+    const firstInvalidField = Object.keys(nextErrors)[0];
+    if (firstInvalidField) {
+      document.getElementById(`disposal-${firstInvalidField}`)?.focus();
       return;
     }
     try {
@@ -200,9 +209,11 @@ export function DisposalsPage() {
   // o objetivo e manter tanto o comprovante quanto a lista coerentes.
   const handleRevert = async (id: number) => {
     if (!revertReason.trim()) {
-      toast.error('Informe a justificativa da reversão.');
+      setFieldErrors((current) => ({ ...current, revertReason: 'Informe a justificativa da reversão.' }));
+      document.getElementById('disposal-revertReason')?.focus();
       return;
     }
+    setFieldErrors((current) => ({ ...current, revertReason: undefined }));
     const reasonText = revertReason.trim();
     try {
       await api.revertDisposal(id, reasonText);
@@ -516,11 +527,11 @@ export function DisposalsPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4 pt-1">
             {/* select de lote. so lista lotes com saldo > 0 pra nao
                 permitir descarte de lote vazio. */}
             <div>
-              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
+              <Label htmlFor="disposal-batchId" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                 Lote de Origem *
               </Label>
               {(() => {
@@ -535,11 +546,15 @@ export function DisposalsPage() {
                 }
 
                 return (
+                  <>
                   <Select
                     value={batchVal}
-                    onValueChange={(v) => setForm({ ...form, batchId: Number(v) })}
+                    onValueChange={(v) => {
+                      setForm({ ...form, batchId: Number(v) });
+                      setFieldErrors((current) => ({ ...current, batchId: undefined }));
+                    }}
                   >
-                    <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50">
+                    <SelectTrigger id="disposal-batchId" aria-invalid={!!fieldErrors.batchId} aria-describedby={fieldErrors.batchId ? 'disposal-batchId-error' : undefined} className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50">
                       <SelectValue placeholder={batchPlaceholder} />
                     </SelectTrigger>
                     <SelectContent>
@@ -560,6 +575,8 @@ export function DisposalsPage() {
                         })}
                     </SelectContent>
                   </Select>
+                  {fieldErrors.batchId && <FieldError id="disposal-batchId-error" message={fieldErrors.batchId} />}
+                  </>
                 );
               })()}
             </div>
@@ -568,7 +585,7 @@ export function DisposalsPage() {
                 estourar, o input fica com borda vermelha e um aviso
                 aparece embaixo. */}
             <div>
-              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
+              <Label htmlFor="disposal-quantity" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
                 Quantidade a Descartar *
               </Label>
               {(() => {
@@ -589,13 +606,17 @@ export function DisposalsPage() {
 
                 return (
                   <Input
+                    id="disposal-quantity"
                     type="number"
-                    min={1}
                     max={maxQty}
                     value={formQtyVal}
-                    onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })}
+                    aria-invalid={!!fieldErrors.quantity || overBalance}
+                    aria-describedby={fieldErrors.quantity || overBalance ? 'disposal-quantity-error' : undefined}
+                    onChange={(e) => {
+                      setForm({ ...form, quantity: Number(e.target.value) });
+                      setFieldErrors((current) => ({ ...current, quantity: undefined }));
+                    }}
                     placeholder="0"
-                    required
                     className={'rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50 ' + overBalanceInputClass}
                   />
                 );
@@ -608,11 +629,10 @@ export function DisposalsPage() {
                     availQty = selectedBatch.currentQuantity;
                   }
                   return (
-                    <p className="text-xs text-rose-600 mt-1 font-medium">
-                      Quantidade maior que o saldo disponível ({availQty} un.).
-                    </p>
+                    <FieldError id="disposal-quantity-error" message={fieldErrors.quantity ?? `Quantidade maior que o saldo disponível (${availQty} un.).`} />
                   );
                 }
+                if (fieldErrors.quantity) return <FieldError id="disposal-quantity-error" message={fieldErrors.quantity} />;
                 return null;
               })()}
             </div>
@@ -643,19 +663,9 @@ export function DisposalsPage() {
               {(() => {
                 // botao de submit bloqueado enquanto nao ha lote, o
                 // saldo estourou ou a quantidade nao e positiva.
-                let isSubmitDisabled = false;
-                if (!selectedBatch) {
-                  isSubmitDisabled = true;
-                } else if (overBalance) {
-                  isSubmitDisabled = true;
-                } else if (form.quantity <= 0) {
-                  isSubmitDisabled = true;
-                }
-
                 return (
                   <Button
                     type="submit"
-                    disabled={isSubmitDisabled}
                   >
                     Confirmar Descarte
                   </Button>
@@ -830,11 +840,18 @@ export function DisposalsPage() {
             </DialogDescription>
           </DialogHeader>
           <Textarea
+            id="disposal-revertReason"
             value={revertReason}
-            onChange={(event) => setRevertReason(event.target.value)}
+            aria-invalid={!!fieldErrors.revertReason}
+            aria-describedby={fieldErrors.revertReason ? 'disposal-revertReason-error' : undefined}
+            onChange={(event) => {
+              setRevertReason(event.target.value);
+              setFieldErrors((current) => ({ ...current, revertReason: undefined }));
+            }}
             placeholder="Justificativa obrigatória da reversão"
             rows={4}
           />
+          {fieldErrors.revertReason && <FieldError id="disposal-revertReason-error" message={fieldErrors.revertReason} />}
           <DialogFooter className="pt-2">
             <Button variant="outline" onClick={() => setReverting(null)} className="rounded-xl">
               Cancelar

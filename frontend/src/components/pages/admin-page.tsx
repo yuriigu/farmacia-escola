@@ -55,6 +55,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { FieldError } from '@/components/ui/field-error';
 
 // lista canonica de papeis aceitos. usada pra montar o select de
 // filtro e o select de criacao, alem do rotulo em portugues.
@@ -149,6 +150,7 @@ export function AdminPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form, setForm] = useState<UserFormData>(initialFormData);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string; password?: string }>({});
   const [changePassword, setChangePassword] = useState(false);
 
   // estados do modal de confirmacao de exclusao.
@@ -178,6 +180,7 @@ export function AdminPage() {
   // operadores nao-admin tem o perfil fixado em paciente.
   const handleOpenCreate = () => {
     setEditingUser(null);
+    setFieldErrors({});
 
     let defaultRole = 'FARMACEUTICO';
     if (!isCurrentAdmin) {
@@ -199,6 +202,7 @@ export function AdminPage() {
       return;
     }
 
+    setFieldErrors({});
     setEditingUser(u);
 
     // resolve birthdate: prioriza o campo do usuario, cai pro do
@@ -337,23 +341,21 @@ export function AdminPage() {
   // nao sujar o payload). so a senha muda quando o toggle esta ligado.
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    const nextErrors: typeof fieldErrors = {};
     if (!form.name.trim()) {
-      toast.error('Informe o nome completo.');
-      return;
+      nextErrors.name = 'Informe o nome completo.';
     }
     if (!form.email.trim()) {
-      toast.error('Informe o e-mail.');
-      return;
+      nextErrors.email = 'Informe o e-mail.';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) {
+      nextErrors.email = 'Informe um e-mail válido.';
     }
     // na criacao, senha e obrigatoria e com minimo de 6.
     if (!editingUser) {
       if (!form.password) {
-        toast.error('A senha deve conter no mínimo 6 caracteres.');
-        return;
-      }
-      if (form.password.length < 6) {
-        toast.error('A senha deve conter no mínimo 6 caracteres.');
-        return;
+        nextErrors.password = 'A senha deve conter no mínimo 6 caracteres.';
+      } else if (form.password.length < 6) {
+        nextErrors.password = 'A senha deve conter no mínimo 6 caracteres.';
       }
     }
     // na edicao, senha so valida quando o toggle esta ligado.
@@ -361,11 +363,16 @@ export function AdminPage() {
       if (changePassword) {
         if (form.password) {
           if (form.password.length < 6) {
-            toast.error('A nova senha deve conter no mínimo 6 caracteres.');
-            return;
+            nextErrors.password = 'A nova senha deve conter no mínimo 6 caracteres.';
           }
         }
       }
+    }
+    setFieldErrors(nextErrors);
+    const firstInvalidField = Object.keys(nextErrors)[0];
+    if (firstInvalidField) {
+      document.getElementById(`user-${firstInvalidField}`)?.focus();
+      return;
     }
 
     try {
@@ -992,34 +999,48 @@ export function AdminPage() {
             </div>
           </DialogHeader>
 
-          <form onSubmit={handleSave} className="space-y-4 pt-2">
+          <form onSubmit={handleSave} noValidate className="space-y-4 pt-2">
             {/* grid 1: nome completo e email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <Label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                <Label htmlFor="user-name" className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
                   Nome Completo <span className="text-rose-500">*</span>
                 </Label>
                 <Input
+                  id="user-name"
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  aria-invalid={!!fieldErrors.name}
+                  aria-describedby={fieldErrors.name ? 'user-name-error' : undefined}
+                  onChange={(e) => {
+                    setForm({ ...form, name: e.target.value });
+                    setFieldErrors((current) => ({ ...current, name: undefined }));
+                  }}
                   placeholder="Ex: Dra. Juliana Santos"
                   required
                   className="rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 h-10"
                 />
+                {fieldErrors.name && <FieldError id="user-name-error" message={fieldErrors.name} />}
               </div>
 
               <div>
-                <Label className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
+                <Label htmlFor="user-email" className="mb-1.5 block text-xs font-bold text-slate-700 dark:text-slate-300">
                   E-mail <span className="text-rose-500">*</span>
                 </Label>
                 <Input
+                  id="user-email"
                   type="email"
                   value={form.email}
-                  onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  aria-invalid={!!fieldErrors.email}
+                  aria-describedby={fieldErrors.email ? 'user-email-error' : undefined}
+                  onChange={(e) => {
+                    setForm({ ...form, email: e.target.value });
+                    setFieldErrors((current) => ({ ...current, email: undefined }));
+                  }}
                   placeholder="usuario@farmacia.edu.br"
                   required
                   className="rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 h-10"
                 />
+                {fieldErrors.email && <FieldError id="user-email-error" message={fieldErrors.email} />}
               </div>
             </div>
 
@@ -1214,14 +1235,22 @@ export function AdminPage() {
 
                 return (
                   <div className="space-y-1.5 pt-1">
+                    <Label htmlFor="user-password" className="sr-only">Senha</Label>
                     <Input
+                      id="user-password"
                       type="password"
                       value={form.password}
-                      onChange={(e) => setForm({ ...form, password: e.target.value })}
+                      aria-invalid={!!fieldErrors.password}
+                      aria-describedby={fieldErrors.password ? 'user-password-error' : undefined}
+                      onChange={(e) => {
+                        setForm({ ...form, password: e.target.value });
+                        setFieldErrors((current) => ({ ...current, password: undefined }));
+                      }}
                       placeholder={passPlaceholder}
                       required={isPassRequired}
                       className="rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-800 h-10"
                     />
+                    {fieldErrors.password && <FieldError id="user-password-error" message={fieldErrors.password} />}
                     <p className="text-[11px] text-slate-500 dark:text-slate-400">
                       {passHelper}
                     </p>

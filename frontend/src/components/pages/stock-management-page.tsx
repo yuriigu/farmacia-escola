@@ -23,6 +23,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { FieldError } from '@/components/ui/field-error';
 
 // schema do formulario de novo lote. valida os campos obrigatorios
 // antes de mandar pra api (nome, quantidade, validade, fornecedor).
@@ -52,6 +53,7 @@ export function StockManagementPage() {
     manufacturingDate: '',
     supplier: '',
   });
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [batchSearch, setBatchSearch] = useState('');
   const [batchStatusFilter, setBatchStatusFilter] = useState<string>('all');
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
@@ -289,17 +291,13 @@ export function StockManagementPage() {
     e.preventDefault();
     const validation = batchDraftSchema.safeParse(form);
     if (!validation.success) {
-      let errorMsg = 'Preencha todos os campos obrigatórios.';
-      if (validation.error.issues) {
-        if (validation.error.issues.length > 0) {
-          if (validation.error.issues[0].message) {
-            errorMsg = validation.error.issues[0].message;
-          }
-        }
-      }
-      toast.error(errorMsg);
+      const errors = Object.fromEntries(validation.error.issues.map((issue) => [String(issue.path[0]), issue.message]));
+      setFieldErrors(errors);
+      const firstInvalidField = validation.error.issues[0]?.path[0];
+      if (typeof firstInvalidField === 'string') document.getElementById(`stock-${firstInvalidField}`)?.focus();
       return;
     }
+    setFieldErrors({});
     try {
       // chamamos o cliente http (/lib/api) pra criar o lote. o
       // backend tambem registra a movimentacao de entrada.
@@ -331,6 +329,7 @@ export function StockManagementPage() {
   // abre o dialog de bloqueio/desbloqueio, pre-preenchendo o motivo
   // quando ja existe um (caso de desbloqueio).
   const openBlockDialog = (batch: Batch) => {
+    setFieldErrors((current) => ({ ...current, blockReason: '' }));
     setBatchToBlock(batch);
     let reason = '';
     if (batch.blockReason) {
@@ -355,10 +354,12 @@ export function StockManagementPage() {
     // motivo so obrigatorio quando esta bloqueando.
     if (targetBlocked) {
       if (!blockReason.trim()) {
-        toast.error('Informe o motivo do bloqueio sanitário.');
+        setFieldErrors((current) => ({ ...current, blockReason: 'Informe o motivo do bloqueio sanitário.' }));
+        document.getElementById('stock-blockReason')?.focus();
         return;
       }
     }
+    setFieldErrors((current) => ({ ...current, blockReason: '' }));
     setBlockLoading(true);
     try {
       let reasonToSend: string | null = null;
@@ -398,6 +399,7 @@ export function StockManagementPage() {
 
   // abre o dialog de ajuste auditado, com o saldo atual preenchido.
   const openAdjustDialog = (batch: Batch) => {
+    setFieldErrors((current) => ({ ...current, adjustQuantity: '', adjustReason: '' }));
     setBatchToAdjust(batch);
     setAdjustNewQuantity(batch.currentQuantity);
     setAdjustReason('');
@@ -410,13 +412,16 @@ export function StockManagementPage() {
     e.preventDefault();
     if (!batchToAdjust) return;
     if (adjustNewQuantity < 0) {
-      toast.error('A nova quantidade não pode ser negativa.');
+      setFieldErrors((current) => ({ ...current, adjustQuantity: 'A nova quantidade não pode ser negativa.' }));
+      document.getElementById('stock-adjustQuantity')?.focus();
       return;
     }
     if (!adjustReason.trim()) {
-      toast.error('A justificativa do ajuste é obrigatória.');
+      setFieldErrors((current) => ({ ...current, adjustReason: 'A justificativa do ajuste é obrigatória.' }));
+      document.getElementById('stock-adjustReason')?.focus();
       return;
     }
+    setFieldErrors((current) => ({ ...current, adjustQuantity: '', adjustReason: '' }));
     setAdjustLoading(true);
     try {
       // chamamos o cliente http (/lib/api) pra aplicar o ajuste
@@ -829,10 +834,10 @@ export function StockManagementPage() {
             </DialogDescription>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="space-y-4 pt-1">
+          <form onSubmit={handleSubmit} noValidate className="space-y-4 pt-1">
             {/* select de medicamento. lista todos os medicamentos ativos. */}
             <div>
-              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label htmlFor="stock-medicineId" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Medicamento *
               </Label>
               <Select
@@ -844,7 +849,7 @@ export function StockManagementPage() {
                 })()}
                 onValueChange={(v) => setForm({ ...form, medicineId: Number(v) })}
               >
-                <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50">
+                <SelectTrigger id="stock-medicineId" aria-invalid={!!fieldErrors.medicineId} aria-describedby={fieldErrors.medicineId ? 'stock-medicineId-error' : undefined} className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50">
                   <SelectValue placeholder="Selecione um medicamento..." />
                 </SelectTrigger>
                 <SelectContent>
@@ -860,57 +865,76 @@ export function StockManagementPage() {
                   ))}
                 </SelectContent>
               </Select>
+              {fieldErrors.medicineId && <FieldError id="stock-medicineId-error" message={fieldErrors.medicineId} />}
             </div>
 
             {/* numero do lote + quantidade recebida */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                <Label htmlFor="stock-batchNumber" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                   Número do Lote *
                 </Label>
                 <Input
+                  id="stock-batchNumber"
                   value={form.batchNumber}
-                  onChange={(e) => setForm({ ...form, batchNumber: e.target.value })}
+                  aria-invalid={!!fieldErrors.batchNumber}
+                  aria-describedby={fieldErrors.batchNumber ? 'stock-batchNumber-error' : undefined}
+                  onChange={(e) => {
+                    setForm({ ...form, batchNumber: e.target.value });
+                    setFieldErrors((current) => ({ ...current, batchNumber: '' }));
+                  }}
                   placeholder="Ex: LOT-2026-08A"
-                  required
                   className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
                 />
+                {fieldErrors.batchNumber && <FieldError id="stock-batchNumber-error" message={fieldErrors.batchNumber} />}
               </div>
 
               <div>
-                <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                <Label htmlFor="stock-currentQuantity" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                   Quantidade Recebida *
                 </Label>
                 <Input
+                  id="stock-currentQuantity"
                   type="number"
                   min={1}
-                  required
+                  aria-invalid={!!fieldErrors.currentQuantity}
+                  aria-describedby={fieldErrors.currentQuantity ? 'stock-currentQuantity-error' : undefined}
                   value={(() => {
                     if (form.currentQuantity) {
                       return form.currentQuantity;
                     }
                     return '';
                   })()}
-                  onChange={(e) => setForm({ ...form, currentQuantity: Number(e.target.value) })}
+                  onChange={(e) => {
+                    setForm({ ...form, currentQuantity: Number(e.target.value) });
+                    setFieldErrors((current) => ({ ...current, currentQuantity: '' }));
+                  }}
                   placeholder="Ex: 100"
                   className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
                 />
+                {fieldErrors.currentQuantity && <FieldError id="stock-currentQuantity-error" message={fieldErrors.currentQuantity} />}
               </div>
             </div>
 
             {/* validade + fabricacao */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                <Label htmlFor="stock-expirationDate" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                   Data de Validade *
                 </Label>
                 <Input
+                  id="stock-expirationDate"
                   type="date"
-                  required
+                  aria-invalid={!!fieldErrors.expirationDate}
+                  aria-describedby={fieldErrors.expirationDate ? 'stock-expirationDate-error' : undefined}
                   value={form.expirationDate}
-                  onChange={(e) => setForm({ ...form, expirationDate: e.target.value })}
+                  onChange={(e) => {
+                    setForm({ ...form, expirationDate: e.target.value });
+                    setFieldErrors((current) => ({ ...current, expirationDate: '' }));
+                  }}
                   className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
                 />
+                {fieldErrors.expirationDate && <FieldError id="stock-expirationDate-error" message={fieldErrors.expirationDate} />}
               </div>
 
               <div>
@@ -933,16 +957,22 @@ export function StockManagementPage() {
 
             {/* fornecedor / origem */}
             <div>
-              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label htmlFor="stock-supplier" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Fornecedor / Origem *
               </Label>
               <Input
-                required
+                id="stock-supplier"
+                aria-invalid={!!fieldErrors.supplier}
+                aria-describedby={fieldErrors.supplier ? 'stock-supplier-error' : undefined}
                 placeholder="Ex: Laboratório EMS / Distribuidora Santa Cruz"
                 value={form.supplier}
-                onChange={(e) => setForm({ ...form, supplier: e.target.value })}
+                onChange={(e) => {
+                  setForm({ ...form, supplier: e.target.value });
+                  setFieldErrors((current) => ({ ...current, supplier: '' }));
+                }}
                 className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
               />
+              {fieldErrors.supplier && <FieldError id="stock-supplier-error" message={fieldErrors.supplier} />}
             </div>
 
             <DialogFooter className="pt-2">
@@ -1173,7 +1203,7 @@ export function StockManagementPage() {
           </DialogHeader>
           <form onSubmit={handleEdit} className="space-y-4 pt-1">
             <div>
-              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+                        <Label htmlFor="stock-blockReason" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Número do Lote
               </Label>
               <Input
@@ -1184,7 +1214,7 @@ export function StockManagementPage() {
               />
             </div>
             <div>
-              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label htmlFor="stock-adjustQuantity" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Quantidade em Estoque
               </Label>
               <Input
@@ -1197,7 +1227,7 @@ export function StockManagementPage() {
               />
             </div>
             <div>
-              <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
+              <Label htmlFor="stock-adjustReason" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Data de Validade
               </Label>
               <Input
@@ -1275,12 +1305,18 @@ export function StockManagementPage() {
                         Motivo do Bloqueio Sanitário *
                       </Label>
                       <Input
-                        required
+                        id="stock-blockReason"
+                        aria-invalid={!!fieldErrors.blockReason}
+                        aria-describedby={fieldErrors.blockReason ? 'stock-blockReason-error' : undefined}
                         placeholder="Ex: Recall Anvisa comunicado #123, suspeita de contaminação..."
                         value={blockReason}
-                        onChange={(e) => setBlockReason(e.target.value)}
+                        onChange={(e) => {
+                          setBlockReason(e.target.value);
+                          setFieldErrors((current) => ({ ...current, blockReason: '' }));
+                        }}
                         className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
                       />
+                      {fieldErrors.blockReason && <FieldError id="stock-blockReason-error" message={fieldErrors.blockReason} />}
                     </div>
                   );
                 }
@@ -1346,13 +1382,19 @@ export function StockManagementPage() {
                 Nova Quantidade em Estoque *
               </Label>
               <Input
+                id="stock-adjustQuantity"
                 type="number"
                 min={0}
-                required
+                aria-invalid={!!fieldErrors.adjustQuantity}
+                aria-describedby={fieldErrors.adjustQuantity ? 'stock-adjustQuantity-error' : undefined}
                 value={adjustNewQuantity}
-                onChange={(e) => setAdjustNewQuantity(Number(e.target.value))}
+                onChange={(e) => {
+                  setAdjustNewQuantity(Number(e.target.value));
+                  setFieldErrors((current) => ({ ...current, adjustQuantity: '' }));
+                }}
                 className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
               />
+              {fieldErrors.adjustQuantity && <FieldError id="stock-adjustQuantity-error" message={fieldErrors.adjustQuantity} />}
             </div>
 
             <div>
@@ -1360,12 +1402,18 @@ export function StockManagementPage() {
                 Justificativa Obrigatória *
               </Label>
               <Input
-                required
+                id="stock-adjustReason"
+                aria-invalid={!!fieldErrors.adjustReason}
+                aria-describedby={fieldErrors.adjustReason ? 'stock-adjustReason-error' : undefined}
                 placeholder="Ex: Contagem física mensal, avaria de frasco, reconciliação..."
                 value={adjustReason}
-                onChange={(e) => setAdjustReason(e.target.value)}
+                onChange={(e) => {
+                  setAdjustReason(e.target.value);
+                  setFieldErrors((current) => ({ ...current, adjustReason: '' }));
+                }}
                 className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
               />
+              {fieldErrors.adjustReason && <FieldError id="stock-adjustReason-error" message={fieldErrors.adjustReason} />}
             </div>
 
             <DialogFooter className="pt-2">

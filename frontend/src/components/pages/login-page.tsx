@@ -13,6 +13,7 @@ import { api } from '@/services/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldError } from '@/components/ui/field-error';
 
 // schema do formulario de login. valida email e tamanho minimo
 // da senha (4 caracteres aqui, porque a regra forte de 6+ fica
@@ -104,7 +105,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
               }
             }
             return (
-              <div className="mb-5 p-3.5 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl text-sm flex items-center gap-2.5">
+              <div role="alert" className="mb-5 p-3.5 bg-rose-50 dark:bg-rose-900/30 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 rounded-xl text-sm flex items-center gap-2.5">
                 <Shield className="w-4 h-4 shrink-0 text-rose-500" />
                 <span>{errorMsg}</span>
               </div>
@@ -114,7 +115,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
         })()}
 
         {/* formulario de login */}
-        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
           <div className="space-y-1.5">
             <Label htmlFor="email" className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
               E-mail
@@ -130,6 +131,8 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
                   id="email"
                   type="email"
                   placeholder="seu@email.com"
+                  aria-invalid={!!errors.email}
+                  aria-describedby={errors.email ? 'email-error' : undefined}
                   {...register('email')}
                   className={emailInputClass}
                 />
@@ -138,7 +141,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
             {/* mensagem de erro do campo email */}
             {(() => {
               if (errors.email) {
-                return <p className="text-xs text-rose-500 font-medium">{errors.email.message}</p>;
+                return <FieldError id="email-error" message={errors.email.message ?? 'E-mail inválido'} />;
               }
               return null;
             })()}
@@ -164,6 +167,8 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
                     id="password"
                     type={passType}
                     placeholder="••••••••"
+                    aria-invalid={!!errors.password}
+                    aria-describedby={errors.password ? 'password-error' : undefined}
                     {...register('password')}
                     className={passInputClass}
                   />
@@ -190,7 +195,7 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
             {/* mensagem de erro do campo senha */}
             {(() => {
               if (errors.password) {
-                return <p className="text-xs text-rose-500 font-medium">{errors.password.message}</p>;
+                return <FieldError id="password-error" message={errors.password.message ?? 'Senha inválida'} />;
               }
               return null;
             })()}

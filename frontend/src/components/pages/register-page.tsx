@@ -9,6 +9,7 @@ import { api } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { FieldError } from '@/components/ui/field-error';
 
 // pagina de cadastro publico de paciente. cuida do formulario,
 // da mascara de cpf e telefone, da validacao minima no cliente e
@@ -18,6 +19,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
   const router = useRouter();
   const [form, setForm] = useState({ name: '', email: '', password: '', cpf: '', phone: '', birthDate: '', address: '' });
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<{ cpf?: string; phone?: string }>({});
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const setAuth = useAuthStore((s) => s.setAuth);
@@ -40,6 +42,9 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
       value = value.replace(/(\d{5})(\d)/, '$1-$2');
     }
     setForm({ ...form, [field]: value });
+    if (field === 'cpf' || field === 'phone') {
+      setFieldErrors((current) => ({ ...current, [field]: undefined }));
+    }
   };
 
   // submit do cadastro. valida cpf (11 digitos e nao repetido) e
@@ -48,7 +53,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setLoading(true);
+    setFieldErrors({});
 
     // valida cpf: precisa ter 11 digitos e nao pode ser tudo igual
     // (ex: 11111111111).
@@ -62,8 +67,8 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
     }
 
     if (isCpfInvalid) {
-      setError('CPF inválido. Insira um CPF válido com 11 dígitos.');
-      setLoading(false);
+      setFieldErrors({ cpf: 'CPF inválido. Insira um CPF válido com 11 dígitos.' });
+      document.getElementById('register-cpf')?.focus();
       return;
     }
 
@@ -79,12 +84,13 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
       }
 
       if (isPhoneInvalid) {
-        setError('Telefone inválido. Insira um telefone com DDD (10 ou 11 dígitos).');
-        setLoading(false);
+        setFieldErrors({ phone: 'Telefone inválido. Insira um telefone com DDD (10 ou 11 dígitos).' });
+        document.getElementById('register-phone')?.focus();
         return;
       }
     }
 
+    setLoading(true);
     try {
       // opcionais viram undefined quando vazios, pra nao sujar o payload.
       let phoneVal: string | undefined = undefined;
@@ -157,7 +163,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
           {(() => {
             if (error) {
               return (
-                <div className="p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 rounded-xl text-sm flex items-center gap-2">
+                <div role="alert" className="p-3 bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800 text-rose-600 dark:text-rose-400 rounded-xl text-sm flex items-center gap-2">
                   <Shield className="w-4 h-4 shrink-0" />
                   {error}
                 </div>
@@ -179,8 +185,9 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
               <Input type="email" value={form.email} onChange={handleChange('email')} placeholder="seu@email.com" required className="rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
             </div>
             <div className="space-y-1.5">
-              <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">CPF</Label>
-              <Input value={form.cpf} onChange={handleChange('cpf')} placeholder="000.000.000-00" required className="rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
+              <Label htmlFor="register-cpf" className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">CPF</Label>
+              <Input id="register-cpf" value={form.cpf} onChange={handleChange('cpf')} placeholder="000.000.000-00" aria-invalid={!!fieldErrors.cpf} aria-describedby={fieldErrors.cpf ? 'register-cpf-error' : undefined} className={`rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm ${fieldErrors.cpf ? 'border-rose-500' : ''}`} />
+              {fieldErrors.cpf && <FieldError id="register-cpf-error" message={fieldErrors.cpf} />}
             </div>
           </div>
 
@@ -226,7 +233,8 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Telefone</Label>
-              <Input value={form.phone} onChange={handleChange('phone')} placeholder="(00) 00000-0000" className="rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm" />
+              <Input id="register-phone" value={form.phone} onChange={handleChange('phone')} placeholder="(00) 00000-0000" aria-invalid={!!fieldErrors.phone} aria-describedby={fieldErrors.phone ? 'register-phone-error' : undefined} className={`rounded-xl border-slate-200 dark:border-slate-600 h-11 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm ${fieldErrors.phone ? 'border-rose-500' : ''}`} />
+              {fieldErrors.phone && <FieldError id="register-phone-error" message={fieldErrors.phone} />}
             </div>
             <div className="space-y-1.5">
               <Label className="block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nascimento</Label>

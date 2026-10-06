@@ -88,6 +88,25 @@ describe('ScheduleSlotService', () => {
     expect(result).toEqual(mockSlot);
   });
 
+  it('deve permitir desvincular o responsável e atualizar o estado ativo', async () => {
+    const slot = { id: 1, appointments: [] };
+    const updatedSlot = { ...slot, assignedToId: null, active: false };
+    mockSlotRepo.findById.mockResolvedValue(slot);
+    mockSlotRepo.update.mockResolvedValue(updatedSlot);
+
+    await expect(slotService.update(1, 'ADMIN', 1, { assignedToId: null, active: false })).resolves.toEqual(updatedSlot);
+    expect(mockSlotRepo.update).toHaveBeenCalledWith(1, { assignedToId: null, active: false });
+  });
+
+  it('deve rejeitar IDs de responsável que não sejam inteiros positivos', async () => {
+    mockSlotRepo.findById.mockResolvedValue({ id: 1, appointments: [] });
+
+    await expect(slotService.update(1, 'ADMIN', 1, { assignedToId: 0 })).rejects.toMatchObject({
+      statusCode: 400,
+      message: 'ID de responsável inválido',
+    });
+  });
+
   // trava de seguranca: se a escala tem agendamento ativo (pending
   // ou confirmed), o service precisa cortar com 409 antes de tentar
   // excluir. isso evita apagar uma escala que ainda esta em uso.

@@ -4,7 +4,7 @@ import { MedicineRepository } from '../repositories/medicine-repository';
 import { PatientRepository } from '../repositories/patient-repository';
 import { ActivityLogService } from './activity-log-service';
 import { prisma } from '../utils/prisma';
-import { isExpired, startOfDay } from './stock-status-service';
+import { isExpired, startOfDay, startOfNextDay } from './stock-status-service';
 
 // service de agendamento (consulta). concentra a regra de negocio
 // mais pesada do sistema: criar consulta, mudar status, dispensar
@@ -149,7 +149,10 @@ export class AppointmentService {
       }
       // o dia da escala precisa bater com o dia pedido (so a data, sem hora).
       const slotDate = new Date(slot.date).toISOString().slice(0, 10);
-      if (slotDate !== parsedDate.toISOString().slice(0, 10)) {
+      const requestedDate = typeof scheduledDate === 'string'
+        ? scheduledDate.slice(0, 10)
+        : scheduledDate.toISOString().slice(0, 10);
+      if (slotDate !== requestedDate) {
         throw { statusCode: 400, message: 'A data não corresponde à escala selecionada' };
       }
     }
@@ -438,7 +441,7 @@ export class AppointmentService {
                 medicineId: medicineId,
                 currentQuantity: { gt: 0 },
                 isBlocked: false,
-                expirationDate: { gte: startOfDay(new Date()) },
+                expirationDate: { gte: startOfNextDay(new Date()) },
               },
               orderBy: { expirationDate: 'asc' },
             });
@@ -899,7 +902,7 @@ export class AppointmentService {
           where: {
             medicineId: medicineId,
             currentQuantity: { gt: 0 },
-            expirationDate: { gte: todayStart },
+            expirationDate: { gte: startOfNextDay(new Date()) },
             isBlocked: false,
           },
           _sum: { currentQuantity: true },
@@ -910,7 +913,7 @@ export class AppointmentService {
           where: {
             medicineId: medicineId,
             currentQuantity: { gt: 0 },
-            expirationDate: { gte: todayStart },
+            expirationDate: { gte: startOfNextDay(new Date()) },
             isBlocked: false,
           },
         });

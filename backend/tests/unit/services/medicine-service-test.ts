@@ -53,7 +53,7 @@ describe('MedicineService', () => {
     expect(mockMedicineRepo.findAll).toHaveBeenCalledTimes(1);
   });
 
-  it('deve sanitizar e filtrar medicamentos vencidos para pacientes', async () => {
+  it('deve listar medicamentos vencidos, bloqueados e sem saldo como indisponíveis para pacientes', async () => {
     const validMedicine = {
       ...mockMedicine,
       batches: [{
@@ -75,11 +75,33 @@ describe('MedicineService', () => {
         isBlocked: false,
       }],
     };
-    mockMedicineRepo.findAll.mockResolvedValue([validMedicine, expiredMedicine]);
+    const blockedMedicine = {
+      ...mockMedicine,
+      id: 3,
+      batches: [{
+        id: 13,
+        batchNumber: 'LOT-BLOCKED-001',
+        currentQuantity: 10,
+        expirationDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        isBlocked: true,
+      }],
+    };
+    const emptyMedicine = {
+      ...mockMedicine,
+      id: 4,
+      batches: [{
+        id: 14,
+        batchNumber: 'LOT-EMPTY-001',
+        currentQuantity: 0,
+        expirationDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000),
+        isBlocked: false,
+      }],
+    };
+    mockMedicineRepo.findAll.mockResolvedValue([validMedicine, expiredMedicine, blockedMedicine, emptyMedicine]);
 
     const result = await medicineService.getAll('PACIENTE');
 
-    expect(result).toHaveLength(1);
+    expect(result).toHaveLength(4);
     expect(result[0]).toEqual({
       id: validMedicine.id,
       name: validMedicine.name,
@@ -91,6 +113,7 @@ describe('MedicineService', () => {
       available: true,
       hasStock: true,
     });
+    expect(result.slice(1).map((medicine) => medicine.available)).toEqual([false, false, false]);
   });
 
   // verifica que o getbyid chama o findbyid com o id certo e devolve
@@ -132,7 +155,7 @@ describe('MedicineService', () => {
     });
   });
 
-  it('deve ocultar medicamento vencido da busca por paciente', async () => {
+  it('deve retornar medicamento vencido como indisponível na busca por paciente', async () => {
     mockMedicineRepo.findById.mockResolvedValue({
       ...mockMedicine,
       batches: [{
@@ -144,9 +167,11 @@ describe('MedicineService', () => {
       }],
     });
 
-    await expect(medicineService.getById(1, 'PACIENTE')).rejects.toEqual(
-      expect.objectContaining({ statusCode: 404 })
-    );
+    const result = await medicineService.getById(1, 'PACIENTE');
+
+    expect(result.status).toBe('EXPIRED');
+    expect(result.available).toBe(false);
+    expect(result.hasStock).toBe(false);
   });
 
   // quando o repo devolve null, o service precisa lancar 404 pro

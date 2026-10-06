@@ -118,6 +118,22 @@ describe('AppointmentService', () => {
     expect(mockAppRepo.create).toHaveBeenCalled();
   });
 
+  it('deve validar o dia de calendário enviado na data do agendamento', async () => {
+    mockAppRepo.create.mockResolvedValue(mockAppointment);
+
+    await expect(appointmentService.create(
+      { userId: 1, role: 'ADMIN', patientId: 1 },
+      {
+        patientId: 1,
+        scheduledDate: '2025-10-15T23:30:00-03:00',
+        scheduledTime: '10:00',
+        slotId: 3,
+        items: [{ medicineId: 1, quantity: 1 }],
+      }
+    )).resolves.toEqual(mockAppointment);
+    expect(mockAppRepo.create).toHaveBeenCalled();
+  });
+
   // verifica o update de status no caminho comum (nao completed).
   // confirma que o repo e chamado com o id, o status normalizado e
   // as notes (undefined quando nao veio).

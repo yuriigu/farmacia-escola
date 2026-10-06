@@ -33,6 +33,7 @@ const DashboardCharts = dynamic(
 import { useAuthStore } from '@/lib/auth-store';
 import { useMedicines, useAppointments, useStockStatus } from '@/services/queries';
 import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES } from '@/lib/constants';
+import { formatDateKeyBr, toDateKey } from '@/lib/dates';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -217,7 +218,7 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
                 return (
                   <div className="space-y-3">
                     {upcomingAppointments.map((app) => {
-                      const d = new Date(app.scheduledDate);
+                      const dateKey = toDateKey(app.scheduledDate);
                       return (
                         <div
                           key={app.id}
@@ -226,8 +227,8 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
                           <div className="flex items-center gap-3">
                             {/* bloco de data com dia e mes */}
                             <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 flex flex-col items-center justify-center font-bold text-xs">
-                              <span>{d.toLocaleDateString('pt-BR', { day: 'numeric' })}</span>
-                              <span className="text-[9px] uppercase">{d.toLocaleDateString('pt-BR', { month: 'short' })}</span>
+                              <span>{formatDateKeyBr(dateKey, { day: 'numeric' })}</span>
+                              <span className="text-[9px] uppercase">{formatDateKeyBr(dateKey, { month: 'short' })}</span>
                             </div>
                             <div>
                               <p className="text-sm font-bold text-slate-800 dark:text-slate-100">
@@ -258,7 +259,7 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
                                     return app.scheduledTime;
                                   }
                                   return '09:00';
-                                })()} • {d.toLocaleDateString('pt-BR')}
+                                })()} • {formatDateKeyBr(dateKey)}
                               </p>
                             </div>
                           </div>
@@ -446,7 +447,7 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
               return (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {upcomingAppointments.map((app) => {
-                    const d = new Date(app.scheduledDate);
+                    const dateKey = toDateKey(app.scheduledDate);
                     return (
                       <div
                         key={app.id}
@@ -455,8 +456,8 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
                         <div className="flex items-center gap-3">
                           {/* bloco de data compacto */}
                           <div className="w-10 h-10 rounded-xl bg-teal-50 dark:bg-teal-950/40 text-teal-600 font-bold text-xs flex flex-col items-center justify-center">
-                            <span>{d.toLocaleDateString('pt-BR', { day: 'numeric' })}</span>
-                            <span className="text-[8px] uppercase">{d.toLocaleDateString('pt-BR', { month: 'short' })}</span>
+                            <span>{formatDateKeyBr(dateKey, { day: 'numeric' })}</span>
+                            <span className="text-[8px] uppercase">{formatDateKeyBr(dateKey, { month: 'short' })}</span>
                           </div>
                           <div>
                             <p className="text-xs font-bold text-slate-800 dark:text-slate-200">

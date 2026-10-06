@@ -8,26 +8,25 @@ import { toast } from '@/lib/toast-handler';
 import {
   Package, Search, Plus, Calendar,
   Pill, X, Eye, HeartPulse, ShieldCheck,
-  Layers, User, Download, AlertCircle
+  Layers, Download
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
-import { useMedicines, useCreateMedicine, useCreateAppointment, usePatients, useBatches } from '@/services/queries';
+import { useMedicines, useCreateMedicine, useBatches } from '@/services/queries';
 import { useAuthStore } from '@/lib/auth-store';
 import { MEDICINE_CATEGORIES, downloadCSV } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/page-header';
 import { DataTable } from '@/components/shared/data-table';
 import type { Column } from '@/types';
 import { CategoryBadge } from '@/components/shared/category-badge';
 import { StockStatusBadge } from '@/components/shared/stock-status-badge';
+import { AppointmentCreateModal } from '@/components/shared/appointment-create-modal';
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter,
   DialogHeader, DialogTitle
 } from '@/components/ui/dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { computeStockStatus } from '@/lib/stock';
 import type { Medicine, Batch } from '@/types';
 
@@ -110,8 +109,7 @@ export default function MedicinesPage() {
     }
   }
 
-  // dados do catalogo e da lista de pacientes (essa ultima alimenta
-  // o select de paciente no modal de agendamento, quando for equipe).
+  // dados do catalogo de medicamentos.
   const { data: rawMedicines, isLoading } = useMedicines();
   let medicines: Medicine[] = [];
   if (rawMedicines) {
@@ -120,28 +118,19 @@ export default function MedicinesPage() {
     medicines = [];
   }
 
-  const { data: rawPatients } = usePatients();
-  let patients: any[] = [];
-  if (rawPatients) {
-    patients = rawPatients;
-  } else {
-    patients = [];
-  }
-
-  // mutations de criar medicamento e criar agendamento.
+  // mutation de cadastro de medicamento.
   const createMedicineMutation = useCreateMedicine();
-  const createAppointmentMutation = useCreateAppointment();
 
   // estados de filtro da listagem.
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [stockFilter, setStockFilter] = useState<string>('all');
 
-  // estados dos modais. cada um tem um proposito: criar medicamento,
-  // ver detalhes, agendar retirada.
+  // estados dos modais de cadastro, detalhes e agendamento.
   const [isCreateMedicineOpen, setIsCreateMedicineOpen] = useState(false);
   const [selectedMedicineForDetails, setSelectedMedicineForDetails] = useState<Medicine | null>(null);
-  const [selectedMedicineForAppointment, setSelectedMedicineForAppointment] = useState<Medicine | null>(null);
+  const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
+  const [appointmentMedicineId, setAppointmentMedicineId] = useState<number | undefined>();
 
   // quando o modal de detalhes esta aberto, buscamos os lotes daquele
   // medicamento via /services/queries pra mostrar a lista atualizada.
@@ -152,13 +141,6 @@ export default function MedicinesPage() {
     selectedMedDetailsId = undefined;
   }
   const { data: queriedBatches } = useBatches(selectedMedDetailsId, { enabled: !isPatient });
-
-  // estados do formulario de agendamento.
-  const [appointmentDate, setAppointmentDate] = useState('');
-  const [appointmentTime, setAppointmentTime] = useState('09:00');
-  const [appointmentQuantity, setAppointmentQuantity] = useState(1);
-  const [appointmentNotes, setAppointmentNotes] = useState('');
-  const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>(undefined);
 
   // hook de formulario do medicamento (react-hook-form + zod).
   const {
@@ -239,146 +221,9 @@ export default function MedicinesPage() {
     );
   };
 
-  // abre o modal de agendamento pro medicamento clicado, resetando
-  // data pra amanha, hora 09:00 e quantidade 1. pra equipe, ja sugere
-  // o primeiro paciente da lista.
   const handleOpenAppointmentModal = (med: Medicine) => {
-    setSelectedMedicineForAppointment(med);
-    setAppointmentQuantity(1);
-    setAppointmentNotes('');
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setAppointmentDate(tomorrow.toISOString().split('T')[0]);
-    setAppointmentTime('09:00');
-    if (!isPatient) {
-      if (patients.length > 0) {
-        setSelectedPatientId(patients[0].id);
-      }
-    }
-  };
-
-  // submit do agendamento. e aqui que mora a trava anti-overbooking
-  // da ui: antes de chamar a mutation, calcula o saldo real
-  // (fisico - reservado) e bloqueia se a quantidade pedida passar.
-  // o backend tambem valida, mas isso evita um round-trip desnecessario.
-  const handleCreateAppointment = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedMedicineForAppointment) {
-      toast.error('Informe a data do agendamento.');
-      return;
-    }
-    if (!appointmentDate) {
-      toast.error('Informe a data do agendamento.');
-      return;
-    }
-
-    if (!isPatient) {
-      if (!selectedPatientId) {
-        toast.error('Selecione o paciente para o agendamento.');
-        return;
-      }
-    }
-
-    // regra de reserva de estoque no agendamento (anti-overbooking).
-    // calcula fisico, reservado e disponivel real a partir do que a
-    // api mandou. se a api nao mandou availablequantity, deriva de
-    // fisico - reservado (nunca abaixo de zero).
-    let physicalStock = 0;
-    if (selectedMedicineForAppointment.physicalQuantity !== null && selectedMedicineForAppointment.physicalQuantity !== undefined) {
-      physicalStock = selectedMedicineForAppointment.physicalQuantity;
-    } else if (selectedMedicineForAppointment.totalQuantity !== null && selectedMedicineForAppointment.totalQuantity !== undefined) {
-      physicalStock = selectedMedicineForAppointment.totalQuantity;
-    } else {
-      physicalStock = 0;
-    }
-
-    let reservedStock = 0;
-    if (selectedMedicineForAppointment.reservedQuantity !== null && selectedMedicineForAppointment.reservedQuantity !== undefined) {
-      reservedStock = selectedMedicineForAppointment.reservedQuantity;
-    } else {
-      reservedStock = 0;
-    }
-
-    let realAvailableStock = 0;
-    if (selectedMedicineForAppointment.availableQuantity !== null && selectedMedicineForAppointment.availableQuantity !== undefined) {
-      realAvailableStock = selectedMedicineForAppointment.availableQuantity;
-    } else {
-      if (physicalStock > reservedStock) {
-        realAvailableStock = physicalStock - reservedStock;
-      } else {
-        realAvailableStock = 0;
-      }
-    }
-
-    // trava de ui: se estourar o saldo real, nem chega na api.
-    if (isPatient && !selectedMedicineForAppointment.available) {
-      toast.error('Este medicamento não está disponível para agendamento no momento.');
-      return;
-    }
-
-    if (!isPatient && appointmentQuantity > realAvailableStock) {
-      toast.error(
-        'Estoque insuficiente: A quantidade solicitada (' +
-          appointmentQuantity +
-          ' un.) excede o saldo disponível real (' +
-          realAvailableStock +
-          ' un.). Há ' +
-          reservedStock +
-          ' un. reservadas para outros agendamentos.'
-      );
-      return;
-    }
-
-    // paciente nao manda patientid (o backend amarra ao dono do token).
-    let targetPatientId: number | undefined = undefined;
-    if (!isPatient) {
-      targetPatientId = selectedPatientId;
-    } else {
-      targetPatientId = undefined;
-    }
-
-    let notesVal: string | undefined = undefined;
-    if (appointmentNotes.trim().length > 0) {
-      notesVal = appointmentNotes.trim();
-    } else {
-      notesVal = undefined;
-    }
-
-    // chama a mutation de criar agendamento.
-    createAppointmentMutation.mutate(
-      {
-        scheduledDate: appointmentDate,
-        scheduledTime: appointmentTime,
-        patientId: targetPatientId,
-        notes: notesVal,
-        items: [
-          {
-            medicineId: selectedMedicineForAppointment.id,
-            quantity: appointmentQuantity,
-          },
-        ],
-      },
-      {
-        onSuccess: () => {
-          toast.success('Agendamento realizado com sucesso! Estoque reservado.');
-          setSelectedMedicineForAppointment(null);
-          setSelectedMedicineForDetails(null);
-        },
-        onError: (err: any) => {
-          let msg = 'Erro ao realizar agendamento.';
-          if (err) {
-            if (err.message) {
-              msg = err.message;
-            } else {
-              msg = 'Erro ao realizar agendamento.';
-            }
-          } else {
-            msg = 'Erro ao realizar agendamento.';
-          }
-          toast.error(msg);
-        },
-      }
-    );
+    setAppointmentMedicineId(med.id);
+    setIsAppointmentModalOpen(true);
   };
 
   // filtro da listagem. combina busca por texto, categoria e status
@@ -388,219 +233,75 @@ export default function MedicinesPage() {
     return medicines.filter((med) => {
       // busca por nome, principio ativo ou dosagem, em cascata.
       const term = searchTerm.toLowerCase();
+      const matchesSearch = med.name.toLowerCase().includes(term)
+        || Boolean(med.activeIngredient?.toLowerCase().includes(term))
+        || Boolean(med.dosage?.toLowerCase().includes(term));
 
-      let matchesSearch = false;
-      if (med.name.toLowerCase().includes(term)) {
-        matchesSearch = true;
-      } else if (med.activeIngredient) {
-        if (med.activeIngredient.toLowerCase().includes(term)) {
-          matchesSearch = true;
-        } else if (med.dosage) {
-          if (med.dosage.toLowerCase().includes(term)) {
-            matchesSearch = true;
-          } else {
-            matchesSearch = false;
-          }
-        } else {
-          matchesSearch = false;
-        }
-      } else if (med.dosage) {
-        if (med.dosage.toLowerCase().includes(term)) {
-          matchesSearch = true;
-        } else {
-          matchesSearch = false;
-        }
-      } else {
-        matchesSearch = false;
-      }
-
-      // filtro de categoria.
-      let matchesCategory = false;
-      if (selectedCategory === 'all') {
-        matchesCategory = true;
-      } else if (med.category === selectedCategory) {
-        matchesCategory = true;
-      } else {
-        matchesCategory = false;
-      }
-
-      // resolve o saldo fisico do medicamento (fallback totalquantity).
-      let medPhysicalQty = 0;
-      if (med.physicalQuantity !== null && med.physicalQuantity !== undefined) {
-        medPhysicalQty = med.physicalQuantity;
-      } else if (med.totalQuantity !== null && med.totalQuantity !== undefined) {
-        medPhysicalQty = med.totalQuantity;
-      } else {
-        medPhysicalQty = 0;
-      }
-
-      // status vem da api, senao calcula no cliente.
-      let status = med.status;
-      if (!status) {
-        status = computeStockStatus({
-          totalQuantity: medPhysicalQty,
-          physicalQuantity: medPhysicalQty,
-        });
-      }
-
+      const matchesCategory = selectedCategory === 'all' || med.category === selectedCategory;
+      const physicalQuantity = med.physicalQuantity ?? med.totalQuantity ?? 0;
+      const status = med.status || computeStockStatus({
+        totalQuantity: physicalQuantity,
+        physicalQuantity,
+      });
       const isExpired = status === 'EXPIRED' || status === 'expired' || status === 'Vencido';
-      if (isPatient && isExpired) {
-        return false;
-      }
+      if (isPatient && isExpired) return false;
 
-      // filtro de status de estoque. aceita tanto as chaves novas
-      // (in_stock, critical_expiration, etc) quanto as antigas
-      // (ok, low, critical, expired) por compatibilidade.
-      let matchesStock = false;
+      let matchesStock = stockFilter === 'all';
       if (isPatient && stockFilter === 'DISPONIVEL') {
         matchesStock = med.available === true;
       } else if (isPatient && stockFilter === 'INDISPONIVEL') {
         matchesStock = med.available === false;
-      } else if (stockFilter === 'all') {
-        matchesStock = true;
       } else if (stockFilter === 'IN_STOCK' || stockFilter === 'ok') {
-        if (status === 'IN_STOCK' || status === 'ok') {
-          matchesStock = true;
-        } else {
-          matchesStock = false;
-        }
+        matchesStock = status === 'IN_STOCK' || status === 'ok';
       } else if (stockFilter === 'CRITICAL_EXPIRATION' || stockFilter === 'low') {
-        if (status === 'CRITICAL_EXPIRATION' || status === 'low') {
-          matchesStock = true;
-        } else {
-          matchesStock = false;
-        }
+        matchesStock = status === 'CRITICAL_EXPIRATION' || status === 'low';
       } else if (stockFilter === 'OUT_OF_STOCK' || stockFilter === 'critical') {
-        if (status === 'OUT_OF_STOCK' || status === 'critical') {
-          matchesStock = true;
-        } else {
-          matchesStock = false;
-        }
+        matchesStock = status === 'OUT_OF_STOCK' || status === 'critical';
       } else if (stockFilter === 'EXPIRED' || stockFilter === 'expired') {
-        if (status === 'EXPIRED' || status === 'expired') {
-          matchesStock = true;
-        } else {
-          matchesStock = false;
-        }
-      } else {
-        matchesStock = false;
+        matchesStock = status === 'EXPIRED' || status === 'expired';
       }
 
-      if (matchesSearch) {
-        if (matchesCategory) {
-          if (matchesStock) {
-            return true;
-          }
-        }
-      }
-      return false;
+      return matchesSearch && matchesCategory && matchesStock;
     });
   }, [medicines, searchTerm, selectedCategory, stockFilter, isPatient]);
 
-  // exporta csv dos medicamentos filtrados. so a equipe ve o botao.
   const handleExportCSV = () => {
     const header = ['Nome', 'Princípio Ativo', 'Dosagem', 'Categoria', 'Saldo Físico', 'Saldo Reservado', 'Disponível Real', 'Status'];
-    const rows = filteredMedicines.map((m) => {
-      // resolve fisico, reservado e disponivel real com fallback.
-      let physical = 0;
-      if (m.physicalQuantity !== null && m.physicalQuantity !== undefined) {
-        physical = m.physicalQuantity;
-      } else if (m.totalQuantity !== null && m.totalQuantity !== undefined) {
-        physical = m.totalQuantity;
-      } else {
-        physical = 0;
-      }
-
-      let reserved = 0;
-      if (m.reservedQuantity !== null && m.reservedQuantity !== undefined) {
-        reserved = m.reservedQuantity;
-      } else {
-        reserved = 0;
-      }
-
-      let available = 0;
-      if (m.availableQuantity !== null && m.availableQuantity !== undefined) {
-        available = m.availableQuantity;
-      } else {
-        if (physical > reserved) {
-          available = physical - reserved;
-        } else {
-          available = 0;
-        }
-      }
-
-      let statusStr = m.status;
-      if (!statusStr) {
-        statusStr = computeStockStatus({ totalQuantity: physical });
-      }
-
-      // campos opcionais viram travessao no csv quando ausentes.
-      let ingredient = '—';
-      if (m.activeIngredient) {
-        ingredient = m.activeIngredient;
-      } else {
-        ingredient = '—';
-      }
-
-      let dosage = '—';
-      if (m.dosage) {
-        dosage = m.dosage;
-      } else {
-        dosage = '—';
-      }
-
-      let category = 'Geral';
-      if (m.category) {
-        category = m.category;
-      } else {
-        category = 'Geral';
-      }
-
+    const rows = filteredMedicines.map((medicine) => {
+      const physical = medicine.physicalQuantity ?? medicine.totalQuantity ?? 0;
+      const reserved = medicine.reservedQuantity ?? 0;
+      const available = medicine.availableQuantity ?? Math.max(0, physical - reserved);
+      const status = medicine.status || computeStockStatus({ totalQuantity: physical });
       return [
-        m.name,
-        ingredient,
-        dosage,
-        category,
-        physical + ' un.',
-        reserved + ' un.',
-        available + ' un.',
-        String(statusStr),
+        medicine.name,
+        medicine.activeIngredient ?? '—',
+        medicine.dosage ?? '—',
+        medicine.category ?? 'Geral',
+        `${physical} un.`,
+        `${reserved} un.`,
+        `${available} un.`,
+        String(status),
       ];
     });
     downloadCSV('catalogo_medicamentos_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
     toast.success('Catálogo exportado com sucesso!');
   };
 
-  // colunas da tabela de medicamentos.
   const columns = useMemo<Column<Medicine>[]>(() => [
     {
       header: 'Medicamento',
       width: '240px',
-      cell: (med) => {
-        // nome + dosagem, com icone.
-        let dosageElement: React.ReactNode = null;
-        if (med.dosage) {
-          dosageElement = (
-            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">
-              {med.dosage}
-            </p>
-          );
-        }
-
-        return (
-          <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
-              <Pill className="w-4 h-4" />
-            </div>
-            <div>
-              <p className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm leading-tight">
-                {med.name}
-              </p>
-              {dosageElement}
-            </div>
+      cell: (med) => (
+        <div className="flex items-center gap-2.5">
+          <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+            <Pill className="w-4 h-4" />
           </div>
-        );
-      },
+          <div>
+            <p className="font-bold text-slate-800 dark:text-slate-100 text-xs sm:text-sm leading-tight">{med.name}</p>
+            {med.dosage && <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium mt-0.5">{med.dosage}</p>}
+          </div>
+        </div>
+      ),
     },
     {
       header: 'Categoria',
@@ -609,78 +310,30 @@ export default function MedicinesPage() {
     },
     {
       header: 'Princípio Ativo',
-      cell: (med) => {
-        // principio ativo com travessao quando ausente.
-        let ingredient = '—';
-        if (med.activeIngredient) {
-          ingredient = med.activeIngredient;
-        } else {
-          ingredient = '—';
-        }
-
-        return (
-          <span className="text-xs text-slate-600 dark:text-slate-300">
-            {ingredient}
-          </span>
-        );
-      },
+      cell: (med) => <span className="text-xs text-slate-600 dark:text-slate-300">{med.activeIngredient ?? '—'}</span>,
     },
     ...(isPatient
       ? [{
           header: 'Disponibilidade',
           width: '150px',
-          cell: (med: Medicine) => (
-            <StockStatusBadge status={med.status} variant="patient" available={med.available} />
-          ),
+          cell: (med: Medicine) => <StockStatusBadge status={med.status} variant="patient" available={med.available} />,
         }]
       : [
-    {
-      header: 'Saldo Físico',
-      width: '110px',
-      cell: (med) => {
-        let physical = 0;
-        if (med.physicalQuantity !== null && med.physicalQuantity !== undefined) {
-          physical = med.physicalQuantity;
-        } else if (med.totalQuantity !== null && med.totalQuantity !== undefined) {
-          physical = med.totalQuantity;
-        } else {
-          physical = 0;
-        }
-
-        return (
-          <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200">
-            {physical} un.
-          </span>
-        );
-      },
-    },
-    {
-      header: 'Reservado',
-      width: '100px',
-      cell: (med) => {
-        // reservado ganha destaque amarelo quando > 0.
-        let reserved = 0;
-        if (med.reservedQuantity !== null && med.reservedQuantity !== undefined) {
-          reserved = med.reservedQuantity;
-        } else {
-          reserved = 0;
-        }
-
-        if (reserved > 0) {
-          return (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-              {reserved} un.
-            </span>
-          );
-        }
-
-        return (
-          <span className="text-xs text-slate-400 dark:text-slate-500">
-            0 un.
-          </span>
-        );
-      },
-    },
+          {
+            header: 'Saldo Físico',
+            width: '110px',
+            cell: (med: Medicine) => <span className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-200">{med.physicalQuantity ?? med.totalQuantity ?? 0} un.</span>,
+          },
+          {
+            header: 'Reservado',
+            width: '100px',
+            cell: (med: Medicine) => {
+              const reserved = med.reservedQuantity ?? 0;
+              return reserved > 0
+                ? <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">{reserved} un.</span>
+                : <span className="text-xs text-slate-400 dark:text-slate-500">0 un.</span>;
+            },
+          },
     {
       header: 'Disponível Real',
       width: '120px',
@@ -1284,287 +937,16 @@ export default function MedicinesPage() {
           </DialogContent>
         </Dialog>
 
-        {/* modal de agendar retirada (md). inclui painel de
-            auditoria de disponibilidade e trava anti-overbooking
-            em tempo real conforme a quantidade muda. */}
-        <Dialog
-          open={selectedMedicineForAppointment !== null}
+        <AppointmentCreateModal
+          key={isAppointmentModalOpen ? `open-${appointmentMedicineId}` : 'closed'}
+          open={isAppointmentModalOpen}
+          initialMedicineId={appointmentMedicineId}
           onOpenChange={(open) => {
-            if (!open) {
-              setSelectedMedicineForAppointment(null);
-            }
+            setIsAppointmentModalOpen(open);
+            if (!open) setAppointmentMedicineId(undefined);
           }}
-        >
-          <DialogContent className="sm:max-w-lg rounded-3xl">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
-                <Calendar className="w-5 h-5 text-emerald-600" />
-                Agendar Retirada de Medicamento
-              </DialogTitle>
-              <DialogDescription>
-                {/* subtitulo mostra medicamento + dosagem, quando o modal esta aberto */}
-                {(() => {
-                  if (selectedMedicineForAppointment) {
-                    let dosageStr = '';
-                    if (selectedMedicineForAppointment.dosage) {
-                      dosageStr = ' (' + selectedMedicineForAppointment.dosage + ')';
-                    } else {
-                      dosageStr = '';
-                    }
-                    return 'Agendando: ' + selectedMedicineForAppointment.name + dosageStr;
-                  } else {
-                    return 'Preencha as informações para agendar a dispensação.';
-                  }
-                })()}
-              </DialogDescription>
-            </DialogHeader>
-
-            {selectedMedicineForAppointment && (() => {
-              // resolve os saldos pra o painel de auditoria e a trava
-              // anti-overbooking em tempo real.
-              let physicalStock = 0;
-              if (selectedMedicineForAppointment.physicalQuantity !== null && selectedMedicineForAppointment.physicalQuantity !== undefined) {
-                physicalStock = selectedMedicineForAppointment.physicalQuantity;
-              } else if (selectedMedicineForAppointment.totalQuantity !== null && selectedMedicineForAppointment.totalQuantity !== undefined) {
-                physicalStock = selectedMedicineForAppointment.totalQuantity;
-              } else {
-                physicalStock = 0;
-              }
-
-              let reservedStock = 0;
-              if (selectedMedicineForAppointment.reservedQuantity !== null && selectedMedicineForAppointment.reservedQuantity !== undefined) {
-                reservedStock = selectedMedicineForAppointment.reservedQuantity;
-              } else {
-                reservedStock = 0;
-              }
-
-              let realAvailableStock = 0;
-              if (selectedMedicineForAppointment.availableQuantity !== null && selectedMedicineForAppointment.availableQuantity !== undefined) {
-                realAvailableStock = selectedMedicineForAppointment.availableQuantity;
-              } else {
-                if (physicalStock > reservedStock) {
-                  realAvailableStock = physicalStock - reservedStock;
-                } else {
-                  realAvailableStock = 0;
-                }
-              }
-
-              // flag que reage a medida que o usuario digita a quantidade.
-              // usada pra bloquear o submit e mostrar o alerta vermelho.
-              const isOverbooking = !isPatient && appointmentQuantity > realAvailableStock;
-
-              return (
-                <form onSubmit={handleCreateAppointment} className="space-y-4 py-2">
-                  {isPatient ? (
-                    <div className="flex items-center justify-between rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 p-3.5">
-                      <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">Disponibilidade:</span>
-                      <StockStatusBadge
-                        status={selectedMedicineForAppointment.status}
-                        variant="patient"
-                        available={selectedMedicineForAppointment.available}
-                      />
-                    </div>
-                  ) : (
-                  /* painel de auditoria de disponibilidade */
-                  <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800 space-y-2.5">
-                    <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
-                      <span>Auditoria de Disponibilidade:</span>
-                      <StockStatusBadge status={selectedMedicineForAppointment.status} />
-                    </div>
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60">
-                        <span className="block text-[10px] uppercase font-bold text-slate-400 tracking-wider">Saldo Físico</span>
-                        <span className="text-sm font-black text-slate-800 dark:text-slate-200">{physicalStock} un.</span>
-                      </div>
-                      <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60">
-                        <span className="block text-[10px] uppercase font-bold text-amber-500 tracking-wider">Reservado</span>
-                        <span className="text-sm font-black text-amber-600 dark:text-amber-400">{reservedStock} un.</span>
-                      </div>
-                      <div className="p-2 rounded-xl bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700/60">
-                        <span className="block text-[10px] uppercase font-bold text-emerald-600 dark:text-emerald-400 tracking-wider">Disponível Real</span>
-                        <span className="text-sm font-black text-emerald-700 dark:text-emerald-300">{realAvailableStock} un.</span>
-                      </div>
-                    </div>
-
-                    {/* alerta vermelho quando a quantidade passa do
-                        saldo real (anti-overbooking em tempo real) */}
-                    {(() => {
-                      if (isOverbooking) {
-                        return (
-                          <div className="p-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800/80 text-xs text-rose-700 dark:text-rose-300 flex items-start gap-2">
-                            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600" />
-                            <div>
-                              <strong className="block font-bold">Bloqueio Anti-Overbooking:</strong>
-                              A quantidade solicitada ({appointmentQuantity} un.) excede a disponibilidade real ({realAvailableStock} un.). Existem {reservedStock} un. reservadas para outros agendamentos pendentes.
-                            </div>
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
-                  )}
-
-                  {/* select de paciente, so pra equipe */}
-                  {(() => {
-                    if (!isPatient) {
-                      return (
-                        <div className="space-y-1.5">
-                          <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                            <User className="w-3.5 h-3.5 text-emerald-600" />
-                            Paciente *
-                          </Label>
-                          <Select
-                            value={(() => {
-                              if (selectedPatientId) {
-                                return String(selectedPatientId);
-                              } else {
-                                return '';
-                              }
-                            })()}
-                            onValueChange={(val) => {
-                              setSelectedPatientId(Number(val));
-                            }}
-                          >
-                            <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
-                              <SelectValue placeholder="Selecione o paciente..." />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {patients.map((p) => {
-                                let cpfStr = '';
-                                if (p.cpf) {
-                                  cpfStr = ' (CPF: ' + p.cpf + ')';
-                                } else {
-                                  cpfStr = '';
-                                }
-
-                                return (
-                                  <SelectItem key={p.id} value={String(p.id)} className="text-xs">
-                                    {p.name}{cpfStr}
-                                  </SelectItem>
-                                );
-                              })}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-
-                  {/* data e horario sugerido */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                        Data da Retirada *
-                      </Label>
-                      <Input
-                        type="date"
-                        required
-                        value={appointmentDate}
-                        onChange={(e) => {
-                          setAppointmentDate(e.target.value);
-                        }}
-                        className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
-                      />
-                    </div>
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                        Horário Sugerido
-                      </Label>
-                      <Input
-                        type="time"
-                        value={appointmentTime}
-                        onChange={(e) => {
-                          setAppointmentTime(e.target.value);
-                        }}
-                        className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
-                      />
-                    </div>
-                  </div>
-
-                  {/* quantidade, com limite maximo exibido */}
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                        Quantidade de Unidades *
-                      </Label>
-                      {!isPatient && (
-                        <span className="text-[11px] text-slate-500 font-semibold">
-                          Máximo Disponível: {realAvailableStock} un.
-                        </span>
-                      )}
-                    </div>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={appointmentQuantity}
-                      onChange={(e) => {
-                        setAppointmentQuantity(Math.max(1, Number(e.target.value)));
-                      }}
-                      className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
-                    />
-                  </div>
-
-                  {/* observacoes livres */}
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                      Observações / Prescrição
-                    </Label>
-                    <Textarea
-                      rows={2}
-                      placeholder="Informações da receita ou orientações..."
-                      value={appointmentNotes}
-                      onChange={(e) => {
-                        setAppointmentNotes(e.target.value);
-                      }}
-                      className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
-                    />
-                  </div>
-
-                  <DialogFooter className="pt-3">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => {
-                        setSelectedMedicineForAppointment(null);
-                      }}
-                      className="rounded-xl text-xs"
-                    >
-                      Cancelar
-                    </Button>
-                    {/* botao desabilitado enquanto estiver salvando,
-                        enquanto houver overbooking, ou se nao houver
-                        saldo real. */}
-                    <Button
-                      type="submit"
-                      disabled={(() => {
-                        if (createAppointmentMutation.isPending) {
-                          return true;
-                        }
-                        if (isOverbooking) {
-                          return true;
-                        }
-                        if (!isPatient && realAvailableStock <= 0) {
-                          return true;
-                        }
-                        return false;
-                      })()}
-                      size="sm"
-                    >
-                      {(() => {
-                        if (createAppointmentMutation.isPending) {
-                          return 'Confirmando...';
-                        }
-                        return 'Confirmar Agendamento';
-                      })()}
-                    </Button>
-                  </DialogFooter>
-                </form>
-              );
-            })()}
-          </DialogContent>
-        </Dialog>
+          onSuccess={() => setSelectedMedicineForDetails(null)}
+        />
 
         {/* modal de cadastro de medicamento (md), com dosagem
             estruturada (valor + unidade) validada pelo zod. */}

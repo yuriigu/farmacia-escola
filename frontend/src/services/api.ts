@@ -314,8 +314,7 @@ export const api = {
     },
   },
 
-  // scheduleslots: crud de escala de atendimento. o update e feito
-  // direto via apiclient em outro ponto, entao nao aparece aqui.
+  // scheduleslots: crud de escala de atendimento.
   scheduleSlots: {
     getAll: async (params?: { startDate?: string; endDate?: string }) => {
       const response = await apiClient.get<ScheduleSlot[]>('/api/schedule-slots', { params });
@@ -324,6 +323,17 @@ export const api = {
     },
     create: async (data: { date: string; timeSlot: string; maxCapacity?: number; assignedToId?: number }) => {
       const response = await apiClient.post<ScheduleSlot>('/api/schedule-slots', data);
+      const result = response.data;
+      return result;
+    },
+    update: async (id: number, data: {
+      date?: string;
+      timeSlot?: string;
+      maxCapacity?: number;
+      assignedToId?: number | null;
+      active?: boolean;
+    }) => {
+      const response = await apiClient.put<ScheduleSlot>(`/api/schedule-slots/${id}`, data);
       const result = response.data;
       return result;
     },

@@ -69,6 +69,7 @@ export function StandardCalendar({ events, onDateClick, onEventClick, onDatesSet
     <FullCalendar
       initialView="dayGridMonth"
       initialDate={initialDate}
+      timeZone="local"
       // toolbar com prev/next/hoje a esquerda, titulo no centro e
       // as views (mes, semana, lista) a direita.
       headerToolbar={{

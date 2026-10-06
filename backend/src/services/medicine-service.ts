@@ -84,10 +84,6 @@ export class MedicineService {
       // do medicamento a partir dos lotes e da quantidade minima.
       const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList, medMinQuantity);
 
-      if (role === 'PACIENTE' && stockCalc.status === 'EXPIRED') {
-        continue;
-      }
-
       // calcula o status de cada lote individualmente pra enriquecer
       // a resposta que vai pro front.
       const formattedBatches = [];
@@ -170,10 +166,6 @@ export class MedicineService {
     }
 
     const stockCalc = this.stockStatusService.calculateMedicineStock(batchesList, medMinQuantity);
-
-    if (role === 'PACIENTE' && stockCalc.status === 'EXPIRED') {
-      throw { statusCode: 404, message: 'Medicamento não encontrado' };
-    }
 
     const formattedBatches = [];
     for (let j = 0; j < batchesList.length; j++) {

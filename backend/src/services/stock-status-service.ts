@@ -6,6 +6,12 @@ export function startOfDay(value: string | Date): Date {
   return date;
 }
 
+export function startOfNextDay(value: string | Date = new Date()): Date {
+  const date = startOfDay(value);
+  date.setDate(date.getDate() + 1);
+  return date;
+}
+
 export function isExpired(expirationDate: string | Date, today: string | Date = new Date()): boolean {
   return startOfDay(expirationDate).getTime() <= startOfDay(today).getTime();
 }

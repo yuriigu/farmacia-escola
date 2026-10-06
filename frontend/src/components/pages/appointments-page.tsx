@@ -6,13 +6,14 @@ import { toast } from '@/lib/toast-handler';
 import { getRealAvailableQuantity, isMedicineAvailable } from '@/lib/stock';
 import {
   Calendar, Plus, Check, X, Clock, Download, CircleCheckBig,
-  Eye, Pill, FileText, Search, CalendarDays
+  Eye, Pill, FileText, Search, CalendarDays, User
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { usePharmacyStore, fetchAllData, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
 import type { Appointment, AppointmentDraft, AppointmentItem } from '@/types';
 import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS, downloadCSV, getAvatarColor } from '@/lib/constants';
 import { api } from '@/lib/api';
+import { dateKeyOffsetLocal, formatDateKeyBr, isoFromLocalDateTime, todayKeyLocal, toDateKey } from '@/lib/dates';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -188,7 +189,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
       }
       // combina a data escolhida com o horario do slot pra montar
       // o datetime completo.
-      const dateVal = new Date(scheduledDate + 'T' + selectedSlot.timeSlot + ':00');
+      const dateVal = isoFromLocalDateTime(scheduledDate, selectedSlot.timeSlot);
       const timeVal = selectedSlot.timeSlot;
 
       let notesVal: string | undefined = undefined;
@@ -204,7 +205,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
         items,
         patientName: patientName.trim(),
         patientCpf: digits,
-        scheduledDate: dateVal.toISOString(),
+        scheduledDate: dateVal,
         scheduledTime: timeVal,
         slotId: selectedSlot.id,
         notes: notesVal,
@@ -466,6 +467,7 @@ export function AppointmentsPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [patientSearch, setPatientSearch] = useState('');
   const user = useAuthStore((s) => {
     return s.user;
   });
@@ -497,7 +499,7 @@ export function AppointmentsPage() {
 
   const defaultForm: AppointmentDraft = {
     items: [{ medicineId: initialMedId, quantity: 1 }],
-    scheduledDate: '',
+    scheduledDate: dateKeyOffsetLocal(1),
     scheduledTime: '',
     patientId: undefined,
     notes: '',
@@ -519,6 +521,14 @@ export function AppointmentsPage() {
     }
     return true;
   });
+  const patientSuggestions = patients.filter((patient) => {
+    const term = patientSearch.trim().toLowerCase();
+    const cpfTerm = patientSearch.replace(/\D/g, '');
+    return term.length >= 2 && (
+      patient.name.toLowerCase().includes(term) ||
+      (cpfTerm.length > 0 && patient.cpf.includes(cpfTerm))
+    );
+  }).slice(0, 6);
 
   // carrega slots uma vez ao montar.
   useEffect(() => {
@@ -543,6 +553,7 @@ export function AppointmentsPage() {
         }
       }
       setForm(nextForm);
+      setPatientSearch('');
       setModalOpen(true);
     };
     window.addEventListener('calendar:goToAppointments', handler);
@@ -587,13 +598,8 @@ export function AppointmentsPage() {
   // manda patientid (o backend amarra ao dono do token).
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (form.items.length === 0) {
-      return;
-    }
-    if (!form.items[0]) {
-      return;
-    }
-    if (!form.items[0].medicineId) {
+    if (form.items.length === 0 || form.items.some((item) => !item.medicineId || item.quantity < 1)) {
+      toast.error('Selecione um medicamento.');
       return;
     }
     if (!form.scheduledDate) {
@@ -604,56 +610,29 @@ export function AppointmentsPage() {
       return;
     }
     if (!isPatient && !isMedico && !form.patientId) {
+      toast.error('Selecione o paciente.');
       return;
     }
 
-    // trava de ui: nao deixa passar do saldo real disponivel.
-    const selectedMed = medicines.find((m) => m.id === form.items[0].medicineId);
-    if (selectedMed) {
-      let physicalStock = 0;
-      if (selectedMed.physicalQuantity !== null && selectedMed.physicalQuantity !== undefined) {
-        physicalStock = selectedMed.physicalQuantity;
-      } else if (selectedMed.totalQuantity !== null && selectedMed.totalQuantity !== undefined) {
-        physicalStock = selectedMed.totalQuantity;
-      }
-      let reservedStock = 0;
-      if (selectedMed.reservedQuantity !== null && selectedMed.reservedQuantity !== undefined) {
-        reservedStock = selectedMed.reservedQuantity;
-      }
-      let realAvailableStock = 0;
-      if (selectedMed.availableQuantity !== null && selectedMed.availableQuantity !== undefined) {
-        realAvailableStock = selectedMed.availableQuantity;
-      } else {
-        if (physicalStock > reservedStock) {
-          realAvailableStock = physicalStock - reservedStock;
-        } else {
-          realAvailableStock = 0;
-        }
-      }
-      const invalidStock = isPatient
-        ? !isMedicineAvailable(selectedMed, true)
-        : form.items[0].quantity > realAvailableStock;
-      if (invalidStock) {
-        toast.error(isPatient
-          ? 'Este medicamento não está disponível para agendamento no momento.'
-          : 'Estoque insuficiente: A quantidade solicitada (' +
-            form.items[0].quantity +
-            ' un.) excede o saldo disponível real (' +
-            realAvailableStock +
-            ' un.).');
-        return;
-      }
+    const invalidItem = form.items.find((item) => {
+      const medicine = medicines.find((entry) => entry.id === item.medicineId);
+      if (!medicine) return true;
+      return isPatient
+        ? !isMedicineAvailable(medicine, true)
+        : item.quantity > getAvailableStock(medicine);
+    });
+    if (invalidItem) {
+      const medicine = medicines.find((entry) => entry.id === invalidItem.medicineId);
+      toast.error(isPatient
+        ? 'Este medicamento não está disponível para agendamento no momento.'
+        : `Estoque insuficiente: a quantidade solicitada (${invalidItem.quantity} un.) excede o saldo disponível real (${medicine ? getAvailableStock(medicine) : 0} un.).`);
+      return;
     }
 
     try {
       // monta o datetime a partir da data + hora do formulario.
-      const dateVal = new Date(form.scheduledDate + 'T' + form.scheduledTime + ':00');
-      let timeVal = '';
-      if (form.scheduledTime) {
-        timeVal = form.scheduledTime;
-      } else {
-        timeVal = dateVal.toTimeString().slice(0, 5);
-      }
+      const timeVal = form.scheduledTime || '00:00';
+      const dateVal = isoFromLocalDateTime(form.scheduledDate, timeVal);
 
       let notesVal: string | undefined = undefined;
       if (form.notes) {
@@ -664,7 +643,7 @@ export function AppointmentsPage() {
 
       const payload: any = {
         items: form.items,
-        scheduledDate: dateVal.toISOString(),
+        scheduledDate: dateVal,
         scheduledTime: timeVal,
         slotId: form.slotId,
         notes: notesVal,
@@ -677,6 +656,7 @@ export function AppointmentsPage() {
       await api.createAppointment(payload);
       toast.success('Agendamento criado com sucesso!');
       setForm(defaultForm);
+      setPatientSearch('');
       setModalOpen(false);
       fetchAllData();
     } catch (err: unknown) {
@@ -720,12 +700,10 @@ export function AppointmentsPage() {
   const handleExportCSV = () => {
     const header = ['Medicamento', 'Dosagem', 'Paciente', 'CPF', 'Data Agendada', 'Status', 'Observações'];
     const rows = filteredAppointments.map((a) => {
-      const scheduled = new Date(a.scheduledDate);
-      let dateLabel = '-';
-      if (Number.isNaN(scheduled.getTime())) {
-        dateLabel = '-';
-      } else {
-        dateLabel = scheduled.toLocaleString('pt-BR');
+      const dateKey = toDateKey(a.scheduledDate);
+      let dateLabel = dateKey ? formatDateKeyBr(dateKey) : '-';
+      if (a.scheduledTime) {
+        dateLabel += ` ${a.scheduledTime}`;
       }
 
       let medName = '';
@@ -772,7 +750,7 @@ export function AppointmentsPage() {
         notesVal,
       ];
     });
-    downloadCSV('agendamentos_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
+    downloadCSV('agendamentos_' + todayKeyLocal() + '.csv', [header, ...rows]);
     toast.success('Relatório exportado com sucesso!');
   };
 
@@ -856,12 +834,7 @@ export function AppointmentsPage() {
         // data formatada em pt-br e hora (com fallback pra hora do
         // proprio date quando nao houver scheduledtime).
         const scheduled = new Date(app.scheduledDate);
-        let dateStr = '—';
-        if (Number.isNaN(scheduled.getTime())) {
-          dateStr = '—';
-        } else {
-          dateStr = scheduled.toLocaleDateString('pt-BR');
-        }
+        const dateStr = formatDateKeyBr(toDateKey(app.scheduledDate));
 
         let timeStr = '';
         if (app.scheduledTime) {
@@ -1179,34 +1152,6 @@ export function AppointmentsPage() {
     headerDesc = 'Controle de agendamentos e consultas farmacêuticas da Farmácia Escola';
   }
 
-  // valores derivados do formulario, usados pelos selects.
-  let formMedVal = '';
-  if (form.items) {
-    if (form.items.length > 0) {
-      if (form.items[0]) {
-        if (form.items[0].medicineId) {
-          formMedVal = String(form.items[0].medicineId);
-        }
-      }
-    }
-  }
-
-  let formQtyVal = 1;
-  if (form.items) {
-    if (form.items.length > 0) {
-      if (form.items[0]) {
-        if (form.items[0].quantity) {
-          formQtyVal = form.items[0].quantity;
-        }
-      }
-    }
-  }
-
-  let formPatientVal = '';
-  if (form.patientId) {
-    formPatientVal = String(form.patientId);
-  }
-
   return (
     <div className="space-y-5 max-w-7xl mx-auto page-enter">
       {/* cabecalho com acoes contextuais: exportar (nao-paciente/nao-medico),
@@ -1248,6 +1193,7 @@ export function AppointmentsPage() {
                   setModalOpen(true);
                 } else {
                   setForm(defaultForm);
+                  setPatientSearch('');
                   setModalOpen(true);
                 }
               }}
@@ -1331,6 +1277,7 @@ export function AppointmentsPage() {
                 setModalOpen(true);
               } else {
                 setForm(defaultForm);
+                setPatientSearch('');
                 setModalOpen(true);
               }
             }}
@@ -1462,12 +1409,9 @@ export function AppointmentsPage() {
                       </div>
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
                         {(() => {
-                          const d = new Date(selectedAppointment.scheduledDate);
-                          if (Number.isNaN(d.getTime())) {
-                            return '—';
-                          } else {
-                            return d.toLocaleDateString('pt-BR', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' });
-                          }
+                          return formatDateKeyBr(toDateKey(selectedAppointment.scheduledDate), {
+                            weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+                          });
                         })()}
                       </p>
                     </div>
@@ -1597,181 +1541,200 @@ export function AppointmentsPage() {
         if (!isMedico) {
           return (
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-              <DialogContent className="rounded-2xl max-w-lg">
+              <DialogContent className="sm:max-w-125 rounded-3xl">
                 <DialogHeader>
-                  <DialogTitle>Novo Agendamento</DialogTitle>
-                  <DialogDescription>Cadastre uma nova consulta ou atendimento.</DialogDescription>
+                  <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                    <Calendar className="w-5 h-5 text-emerald-600" />
+                    Novo Agendamento
+                  </DialogTitle>
+                  <DialogDescription>
+                    {isPatient
+                      ? 'Agende a data e o horário para retirar seu medicamento gratuito.'
+                      : 'Registre um novo agendamento de atendimento farmacêutico.'}
+                  </DialogDescription>
                 </DialogHeader>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  {/* select de medicamento */}
-                  <div>
-                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Medicamento</Label>
-                    <Select value={formMedVal} onValueChange={(v) => setForm({ ...form, items: [{ ...form.items[0], medicineId: Number(v) }] })}>
-                      <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500"><SelectValue placeholder="Selecione um medicamento..." /></SelectTrigger>
-                      <SelectContent>
-                        {medicines.map((m) => {
-                          let dosageSuffix = '';
-                          if (m.dosage) {
-                            dosageSuffix = ' — ' + m.dosage;
-                          }
-                          return (
-                              <SelectItem key={m.id} value={String(m.id)} disabled={isPatient && !isMedicineAvailable(m, true)}>{m.name}{dosageSuffix}</SelectItem>
-                          );
-                        })}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  {/* painel de saldo do medicamento escolhido, com alerta
-                      se a quantidade estourar o disponivel */}
-                  {(() => {
-                    const selectedMedId = form.items[0]?.medicineId;
-                    if (selectedMedId) {
-                      const selectedMed = medicines.find((m) => m.id === selectedMedId);
-                      if (selectedMed) {
-                        let physicalStock = 0;
-                        if (selectedMed.physicalQuantity !== null && selectedMed.physicalQuantity !== undefined) {
-                          physicalStock = selectedMed.physicalQuantity;
-                        } else if (selectedMed.totalQuantity !== null && selectedMed.totalQuantity !== undefined) {
-                          physicalStock = selectedMed.totalQuantity;
-                        }
-                        let reservedStock = 0;
-                        if (selectedMed.reservedQuantity !== null && selectedMed.reservedQuantity !== undefined) {
-                          reservedStock = selectedMed.reservedQuantity;
-                        }
-                        let realAvailableStock = 0;
-                        if (selectedMed.availableQuantity !== null && selectedMed.availableQuantity !== undefined) {
-                          realAvailableStock = selectedMed.availableQuantity;
-                        } else {
-                          if (physicalStock > reservedStock) {
-                            realAvailableStock = physicalStock - reservedStock;
-                          } else {
-                            realAvailableStock = 0;
-                          }
-                        }
-                        const isOver = isPatient
-                          ? !isMedicineAvailable(selectedMed, true)
-                          : form.items[0].quantity > realAvailableStock;
-
-                        return (
-                          <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200/80 dark:border-slate-700/80 space-y-2">
-                            {isPatient ? (
-                              <p className={`text-center text-xs font-semibold ${isMedicineAvailable(selectedMed, true) ? 'text-emerald-700 dark:text-emerald-300' : 'text-rose-600 dark:text-rose-400'}`}>
-                                {isMedicineAvailable(selectedMed, true) ? 'Disponível' : 'Indisponível'}
-                              </p>
-                            ) : <div className="grid grid-cols-3 gap-2 text-center text-xs">
-                              <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
-                                <span className="block text-[10px] uppercase font-bold text-slate-400">Físico</span>
-                                <span className="font-bold text-slate-800 dark:text-slate-100">{physicalStock} un.</span>
-                              </div>
-                              <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
-                                <span className="block text-[10px] uppercase font-bold text-amber-500">Reservado</span>
-                                <span className="font-bold text-amber-600 dark:text-amber-400">{reservedStock} un.</span>
-                              </div>
-                              <div className="p-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
-                                <span className="block text-[10px] uppercase font-bold text-emerald-600">Disponível</span>
-                                <span className="font-bold text-emerald-700 dark:text-emerald-300">{realAvailableStock} un.</span>
-                              </div>
-                            </div>}
-                            {isOver && !isPatient && (
-                              <p className="text-xs text-rose-600 dark:text-rose-400 font-medium">
-                                Quantidade solicitada ({form.items[0].quantity} un.) excede o saldo disponível real ({realAvailableStock} un.), pois há {reservedStock} un. reservadas.
-                              </p>
-                            )}
-                          </div>
-                        );
-                      }
-                    }
-                    return null;
-                  })()}
-                  {/* quantidade */}
-                  <div>
-                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Quantidade</Label>
-                    <Input type="number" min={1} value={formQtyVal} onChange={(e) => setForm({ ...form, items: [{ ...form.items[0], quantity: Math.max(1, Number(e.target.value)) }] })} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
-                  </div>
-                  {/* select de paciente, so pra equipe */}
+                <form onSubmit={handleSubmit} className="space-y-4 py-2">
                   {(() => {
                     if (!isPatient) {
-                      let patientPlaceholder = 'Selecione um paciente...';
-                      if (loadingPatients) {
-                        patientPlaceholder = 'Carregando...';
-                      }
                       return (
-                        <div>
-                          <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Paciente</Label>
-                          <Select value={formPatientVal} onValueChange={(v) => setForm({ ...form, patientId: Number(v) })}>
-                            <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" disabled={loadingPatients}>
-                              <SelectValue placeholder={patientPlaceholder} />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {patients.map((p) => {
-                                let cpfSuffix = '';
-                                if (p.cpf) {
-                                  cpfSuffix = ' — ' + formatCPF(p.cpf);
-                                }
-                                return (
-                                  <SelectItem key={p.id} value={String(p.id)}>{p.name}{cpfSuffix}</SelectItem>
-                                );
-                              })}
-                            </SelectContent>
-                          </Select>
+                        <div className="space-y-1.5">
+                          <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                            <User className="w-3.5 h-3.5 text-emerald-600" />
+                            Paciente *
+                          </Label>
+                          <div className="relative">
+                            <Input
+                              value={patientSearch || patients.find((patient) => patient.id === form.patientId)?.name || ''}
+                              onChange={(event) => {
+                                setPatientSearch(event.target.value);
+                                setForm({ ...form, patientId: undefined });
+                              }}
+                              placeholder="Buscar por nome ou CPF"
+                              className="rounded-xl text-xs"
+                            />
+                            {patientSuggestions.length > 0 && (
+                              <div className="absolute z-20 mt-1 w-full rounded-xl border bg-white p-1 shadow-lg dark:bg-slate-800">
+                                {patientSuggestions.map((patient) => (
+                                  <button
+                                    type="button"
+                                    key={patient.id}
+                                    className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-emerald-50"
+                                    onClick={() => {
+                                      setForm({ ...form, patientId: patient.id });
+                                      setPatientSearch(patient.name);
+                                    }}
+                                  >
+                                    {patient.name} - {patient.cpf}
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       );
                     }
                     return null;
                   })()}
-                  {/* data */}
-                  <div>
-                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Data</Label>
-                    <Input type="date" required value={form.scheduledDate} onChange={(e) => setForm({ ...form, scheduledDate: e.target.value, scheduledTime: '', slotId: undefined })} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                  <div className="space-y-2">
+                    <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                      <Pill className="w-3.5 h-3.5 text-emerald-600" />
+                      Medicamentos *
+                    </Label>
+                    {form.items.map((item, index) => {
+                      const medicine = medicines.find((entry) => entry.id === item.medicineId);
+                      const available = medicine ? isMedicineAvailable(medicine, isPatient) : false;
+                      return (
+                        <div key={`${index}-${item.medicineId}`} className="grid grid-cols-[minmax(0,1fr)_80px_auto_auto] items-center gap-2">
+                          <Select
+                            value={item.medicineId ? String(item.medicineId) : ''}
+                            onValueChange={(value) => setForm({
+                              ...form,
+                              items: form.items.map((entry, itemIndex) => itemIndex === index
+                                ? { ...entry, medicineId: Number(value) }
+                                : entry),
+                            })}
+                          >
+                            <SelectTrigger className="min-w-0 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                              <SelectValue placeholder="Selecione o medicamento" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {medicines.map((entry) => (
+                                <SelectItem key={entry.id} value={String(entry.id)} disabled={isPatient && !isMedicineAvailable(entry, true)}>
+                                  {entry.name}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <Input
+                            type="number"
+                            min={1}
+                            value={item.quantity}
+                            onChange={(event) => setForm({
+                              ...form,
+                              items: form.items.map((entry, itemIndex) => itemIndex === index
+                                ? { ...entry, quantity: Math.max(1, Number(event.target.value)) }
+                                : entry),
+                            })}
+                            className="rounded-xl text-xs"
+                            aria-label={`Quantidade do medicamento ${index + 1}`}
+                          />
+                          <Badge
+                            variant="outline"
+                            className={`whitespace-nowrap text-[10px] ${available ? 'text-emerald-700 border-emerald-200' : 'text-rose-700 border-rose-200'}`}
+                          >
+                            {isPatient
+                              ? (available ? 'Disponível' : 'Indisponível')
+                              : `Disponível Real: ${medicine ? getAvailableStock(medicine) : 0} un.`}
+                          </Badge>
+                          {form.items.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => setForm({ ...form, items: form.items.filter((_, itemIndex) => itemIndex !== index) })}
+                              aria-label="Remover medicamento"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    })}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => setForm({ ...form, items: [...form.items, { medicineId: 0, quantity: 1 }] })}
+                      className="rounded-xl text-xs"
+                    >
+                      + Adicionar outro medicamento
+                    </Button>
                   </div>
-                  {/* slot: filtra pelos slots ativos da data escolhida.
-                      escolher o slot tambem seta o scheduledtime. */}
-                  <div>
-                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Horário da escala</Label>
-                    <Select value={form.slotId ? String(form.slotId) : ''} onValueChange={(value) => {
-                      const selectedSlot = availableSlotsForDate.find((slot) => slot.id === Number(value));
-                      if (selectedSlot) {
-                        setForm({ ...form, slotId: selectedSlot.id, scheduledTime: selectedSlot.timeSlot });
-                      }
-                    }}>
-                      <SelectTrigger className="rounded-xl border-slate-200 dark:border-slate-600"><SelectValue placeholder="Selecione um horário com vagas..." /></SelectTrigger>
-                      <SelectContent>
-                        {availableSlotsForDate.map((slot) => {
-                          let booked = 0;
-                          if (slot._count) {
-                            if (slot._count.appointments) {
-                              booked = slot._count.appointments;
-                            }
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">Data *</Label>
+                      <Input
+                        type="date"
+                        required
+                        value={form.scheduledDate}
+                        onChange={(event) => setForm({ ...form, scheduledDate: event.target.value, scheduledTime: '', slotId: undefined })}
+                        className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">Horário da Escala *</Label>
+                      <Select
+                        value={form.slotId ? String(form.slotId) : ''}
+                        onValueChange={(value) => {
+                          const selectedSlot = availableSlotsForDate.find((slot) => slot.id === Number(value));
+                          if (selectedSlot) {
+                            setForm({ ...form, slotId: selectedSlot.id, scheduledTime: selectedSlot.timeSlot });
                           }
-                          const free = slot.maxCapacity - booked;
-                          let pharmacist = 'Não informado';
-                          if (slot.assignedTo) {
-                            pharmacist = slot.assignedTo.name;
-                          }
-                          return <SelectItem key={slot.id} value={String(slot.id)} disabled={free <= 0}>{slot.timeSlot} — {free}/{slot.maxCapacity} vagas — (Farm. {pharmacist})</SelectItem>;
-                        })}
-                      </SelectContent>
-                    </Select>
-                    {/* alerta quando nao ha nenhuma escala ativa naquele dia */}
-                    {(() => {
-                      if (form.scheduledDate && availableSlotsForDate.length === 0) {
-                        return <p className="mt-1 text-xs text-rose-600">Não há escala ativa para esta data.</p>;
-                      }
-                      return null;
-                    })()}
+                        }}
+                        disabled={!form.scheduledDate}
+                      >
+                        <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                          <SelectValue placeholder={form.scheduledDate ? 'Selecione um horário' : 'Escolha a data primeiro'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableSlotsForDate.map((slot) => {
+                            const booked = slot._count?.appointments ?? 0;
+                            const free = Math.max(0, slot.maxCapacity - booked);
+                            const pharmacist = slot.assignedTo?.name ?? 'Não informado';
+                            return (
+                              <SelectItem key={slot.id} value={String(slot.id)} disabled={free === 0}>
+                                {slot.timeSlot} — ({free}/{slot.maxCapacity} vagas livres) — Farm. {pharmacist}
+                              </SelectItem>
+                            );
+                          })}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  {/* observacoes */}
-                  <div>
-                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-200 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">Observações (opcional)</Label>
-                    <Textarea rows={3} value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Orientações..." className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">Observações</Label>
+                    <Textarea
+                      rows={2}
+                      value={form.notes}
+                      onChange={(event) => setForm({ ...form, notes: event.target.value })}
+                      placeholder="Informações adicionais..."
+                      className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
+                    />
                   </div>
-                  <div className="flex justify-end gap-3 pt-2">
-                    <Button type="button" variant="outline" onClick={() => setModalOpen(false)} className="rounded-xl">Cancelar</Button>
+                  <DialogFooter className="pt-3">
+                    <Button type="button" variant="outline" onClick={() => setModalOpen(false)} className="rounded-xl text-xs">
+                      Cancelar
+                    </Button>
                     <Button
                       type="submit"
-                      disabled={loading || (isPatient && !isMedicineAvailable(medicines.find((medicine) => medicine.id === form.items[0]?.medicineId) ?? {}, true))}
-                    >Agendar</Button>
-                  </div>
+                      size="sm"
+                      disabled={isPatient && form.items.some((item) => {
+                        const medicine = medicines.find((entry) => entry.id === item.medicineId);
+                        return !medicine || !isMedicineAvailable(medicine, true);
+                      })}
+                    >
+                      Agendar
+                    </Button>
+                  </DialogFooter>
                 </form>
               </DialogContent>
             </Dialog>

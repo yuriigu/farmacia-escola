@@ -19,6 +19,7 @@ import { Separator } from '@/components/ui/separator';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
 import { downloadCSV } from '@/lib/constants';
+import { formatDateKeyBr, todayKeyLocal, toDateKey } from '@/lib/dates';
 import { StandardCalendar } from '@/components/shared/standard-calendar';
 
 // pagina de visao geral da agenda. e a aba 'agenda' do modulo de
@@ -70,11 +71,10 @@ export function AppointmentsOverviewPage() {
   const appointmentsByDay = (() => {
     const map: Record<string, Appointment[]> = {};
     appointments.forEach((app) => {
-      const parsed = new Date(app.scheduledDate);
-      if (Number.isNaN(parsed.getTime())) {
+      const key = toDateKey(app.scheduledDate);
+      if (!key) {
         return;
       }
-      const key = `${parsed.getFullYear()}-${parsed.getMonth() + 1}-${parsed.getDate()}`;
       if (!map[key]) {
         map[key] = [];
       }
@@ -96,11 +96,10 @@ export function AppointmentsOverviewPage() {
       } else {
         return;
       }
-      const parsed = new Date(app.scheduledDate);
-      if (Number.isNaN(parsed.getTime())) {
+      const key = toDateKey(app.scheduledDate);
+      if (!key) {
         return;
       }
-      const key = `${parsed.getFullYear()}-${parsed.getMonth() + 1}-${parsed.getDate()}`;
       if (!map[key]) {
         map[key] = [];
       }
@@ -154,7 +153,7 @@ export function AppointmentsOverviewPage() {
 
       let dateIso = '';
       if (app.scheduledDate) {
-        dateIso = app.scheduledDate.slice(0, 10);
+        dateIso = toDateKey(app.scheduledDate);
       }
 
       list.push({
@@ -209,10 +208,10 @@ export function AppointmentsOverviewPage() {
         }
       }
 
-      const scheduled = new Date(app.scheduledDate);
       let dateLabel = '—';
-      if (!Number.isNaN(scheduled.getTime())) {
-        dateLabel = scheduled.toLocaleDateString('pt-BR');
+      const dateKey = toDateKey(app.scheduledDate);
+      if (dateKey) {
+        dateLabel = formatDateKeyBr(dateKey);
       }
 
       let timeLabel = '—';
@@ -247,7 +246,7 @@ export function AppointmentsOverviewPage() {
 
       return [patientName, patientCpf, dateLabel, timeLabel, statusLabel, medNames, notes];
     });
-    downloadCSV('agendamentos_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
+    downloadCSV('agendamentos_' + todayKeyLocal() + '.csv', [header, ...rows]);
     toast.success('Agendamentos exportados com sucesso!');
   };
 
@@ -277,12 +276,7 @@ export function AppointmentsOverviewPage() {
     });
   }
 
-  // chave do mapa de agendamentos do dia (y-m-d sem zero-pad). o
-  // padrao bate com o do appointmentsbyday (nao usa padStart aqui).
-  let dayKey = '';
-  if (selectedDay) {
-    dayKey = `${viewYear}-${viewMonth + 1}-${selectedDay}`;
-  }
+  const dayKey = dateStr;
 
   // resolve os agendamentos do dia selecionado. paciente ve so os
   // dele (via patientappointmentsbyday); equipe ve todos.

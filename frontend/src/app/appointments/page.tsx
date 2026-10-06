@@ -1,31 +1,26 @@
 'use client';
 
-import { useState, useMemo, useEffect, Suspense } from 'react';
+import { useState, useMemo, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { toast } from '@/lib/toast-handler';
-import { getRealAvailableQuantity, isMedicineAvailable } from '@/lib/stock';
 import {
   Calendar, Plus, Clock, Pill, Search, X, Check, XCircle,
-  Eye, RefreshCw, CalendarDays, User, Download, CircleCheck
+  Eye, RefreshCw, CalendarDays, Download, CircleCheck
 } from 'lucide-react';
 import { AppShell } from '@/components/layout/app-shell';
 import {
   useAppointments,
   useCancelAppointment,
   useUpdateAppointmentStatus,
-  useCreateAppointment,
-  useMedicines,
-  usePatients,
 } from '@/services/queries';
 import { useAuthStore } from '@/lib/auth-store';
-import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
 import { APPOINTMENT_STATUS_LABELS, APPOINTMENT_STATUS_STYLES } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { PageHeader } from '@/components/shared/page-header';
+import { AppointmentCreateModal } from '@/components/shared/appointment-create-modal';
 import { DataTable } from '@/components/shared/data-table';
 import type { Column } from '@/types';
 import {
@@ -33,6 +28,7 @@ import {
   DialogHeader, DialogTitle
 } from '@/components/ui/dialog';
 import { downloadCSV } from '@/lib/constants';
+import { formatDateKeyBr, todayKeyLocal, toDateKey } from '@/lib/dates';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,8 +39,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import type { Appointment, AppointmentItem, AppointmentItemDraft } from '@/types';
+
+import type { Appointment, AppointmentItem } from '@/types';
 
 // tela de agendamentos (consultas). e a tela mais complexa do sistema:
 // lista consultas com filtros, cria agendamento, mostra detalhes,
@@ -90,19 +86,13 @@ function AppointmentsContent() {
     isStaff = false;
   }
 
-  // hooks de dados (react-query) que batem na api via /services/queries.
-  // appointments e o principal; medicines e patients alimentam o
-  // formulario de criacao.
+  // hooks de dados da listagem e das ações disponíveis nesta tela.
   const { data: appointments = [], isLoading, refetch } = useAppointments();
-  const { data: medicines = [] } = useMedicines();
-  const { data: patients = [] } = usePatients();
-  const { scheduleSlots } = usePharmacyStore();
 
   // mutations expostas por /services/queries.
   // cancel e update-status sao as duas acoes principais da tela.
   const cancelAppointmentMutation = useCancelAppointment();
   const updateStatusMutation = useUpdateAppointmentStatus();
-  const createAppointmentMutation = useCreateAppointment();
 
   // estados de ui da tela. alguns sao de filtro, outros de modais.
   const [statusFilter, setStatusFilter] = useState<string>('ALL');
@@ -135,143 +125,7 @@ function AppointmentsContent() {
   }
 
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(initialNew);
-  const [items, setItems] = useState<AppointmentItemDraft[]>([{ medicineId: initialMedId || 0, quantity: 1 }]);
-  const [selectedPatientId, setSelectedPatientId] = useState<number | undefined>(undefined);
-  const [patientSearch, setPatientSearch] = useState('');
-  // por padrao, sugere amanha como data do agendamento.
-  const [appointmentDate, setAppointmentDate] = useState(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return tomorrow.toISOString().split('T')[0];
-  });
-  const [slotId, setSlotId] = useState<number | undefined>(undefined);
-  const [notes, setNotes] = useState('');
-
-  // slots disponiveis na data escolhida. o filtro por data e o que
-  // faz o select de horario so mostrar escala coerente.
-  const availableSlots = scheduleSlots.filter((slot) => slot.active && slot.date.slice(0, 10) === appointmentDate);
-  // sugestoes de paciente pra autocomplete. exige 2+ caracteres pra
-  // evitar listar todo mundo a cada tecla.
-  const patientSuggestions = patients.filter((patient) => {
-    const term = patientSearch.trim().toLowerCase();
-    return term.length >= 2 && (patient.name.toLowerCase().includes(term) || patient.cpf.includes(patientSearch.replace(/\D/g, '')));
-  }).slice(0, 6);
-
-  // helper que devolve o saldo real disponivel do medicamento.
-  // usa availablequantity quando o backend manda, senao calcula
-  // fisico - reservado.
-  const realAvailable = (medicineId: number) => {
-    const medicine = medicines.find((item) => item.id === medicineId);
-    if (!medicine) return 0;
-    return getRealAvailableQuantity(medicine);
-  };
-
-  // abre o modal de criacao resetando o formulario. a ideia e nao
-  // herdar lixo de uma abertura anterior (data, notas, itens, paciente).
-  const handleOpenCreateModal = () => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setAppointmentDate(tomorrow.toISOString().split('T')[0]);
-    setSlotId(undefined);
-    setItems([{ medicineId: initialMedId || medicines[0]?.id || 0, quantity: 1 }]);
-    setNotes('');
-    // pra equipe, ja sugere o primeiro paciente da lista como padrao.
-    if (!isPatient && patients.length > 0 && !selectedPatientId) {
-      setSelectedPatientId(patients[0].id);
-    }
-    setPatientSearch('');
-    setIsCreateDialogOpen(true);
-  };
-
-  // valida e envia o formulario de criacao. e aqui que a gente barra
-  // itens vazios, data/slot faltando, paciente faltando e quantidade
-  // acima do saldo real. so depois disso chama a mutation.
-  const handleCreateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (items.length === 0 || items.some((item) => !item.medicineId || item.quantity < 1)) {
-      toast.error('Selecione um medicamento.');
-      return;
-    }
-    if (!appointmentDate) {
-      toast.error('Selecione uma data para o agendamento.');
-      return;
-    }
-    if (!slotId) {
-      toast.error('Selecione um horário disponível na escala.');
-      return;
-    }
-    if (!isPatient && !selectedPatientId) {
-      toast.error('Selecione o paciente.');
-      return;
-    }
-
-    // trava de ui: se a quantidade pedida passa do saldo real, nem
-    // chega na api. o backend tambem valida, mas isso evita um round
-    // trip desnecessario.
-    const invalidStock = items.find((item) => {
-      const medicine = medicines.find((entry) => entry.id === item.medicineId);
-      if (!medicine) return true;
-      return isPatient
-        ? !isMedicineAvailable(medicine, true)
-        : item.quantity > getRealAvailableQuantity(medicine);
-    });
-    if (invalidStock) {
-      toast.error(isPatient
-        ? 'Este medicamento não está disponível para agendamento no momento.'
-        : 'A quantidade solicitada excede o estoque disponível real.');
-      return;
-    }
-
-    // paciente nao manda patientid (o backend amarra ao dono do token).
-    // equipe manda o selecionado no formulario.
-    let targetPatientId: number | undefined = undefined;
-    if (!isPatient) {
-      targetPatientId = selectedPatientId;
-    } else {
-      targetPatientId = undefined;
-    }
-
-    // observacoes em branco viram undefined pra nao sujar o payload.
-    let notesVal: string | undefined = undefined;
-    if (notes.trim().length > 0) {
-      notesVal = notes.trim();
-    } else {
-      notesVal = undefined;
-    }
-
-    // aqui chamamos a mutation de criar agendamento (/services/queries),
-    // que por sua vez bate em /api/appointments no backend.
-    createAppointmentMutation.mutate(
-      {
-        scheduledDate: appointmentDate,
-        scheduledTime: scheduleSlots.find((slot) => slot.id === slotId)?.timeSlot,
-        slotId,
-        patientId: targetPatientId,
-        notes: notesVal,
-        items,
-      },
-      {
-        onSuccess: () => {
-          toast.success('Agendamento criado com sucesso!');
-          setIsCreateDialogOpen(false);
-          refetch();
-        },
-        onError: (err: any) => {
-          let msg = 'Erro ao criar agendamento.';
-          if (err) {
-            if (err.message) {
-              msg = err.message;
-            } else {
-              msg = 'Erro ao criar agendamento.';
-            }
-          } else {
-            msg = 'Erro ao criar agendamento.';
-          }
-          toast.error(msg);
-        },
-      }
-    );
-  };
+  const handleOpenCreateModal = () => setIsCreateDialogOpen(true);
 
   // filtro da listagem. status + texto livre, onde texto livre cobre
   // nome, cpf do paciente, nome de medicamento e observacoes.
@@ -360,12 +214,6 @@ function AppointmentsContent() {
     }
   };
 
-  // carrega os slots de escala uma vez ao montar. a store guarda
-  // os slots pra o select de horario no modal de criacao.
-  useEffect(() => {
-    fetchScheduleSlotsData();
-  }, []);
-
   // definicao das colunas da tabela. cada coluna resolve o dado
   // certo do agendamento (data, paciente, medicamento, status, acoes).
   const columns: Column<Appointment>[] = [
@@ -374,12 +222,7 @@ function AppointmentsContent() {
       width: '180px',
       cell: (app) => {
         const scheduled = new Date(app.scheduledDate);
-        let dateStr = '—';
-        if (Number.isNaN(scheduled.getTime())) {
-          dateStr = '—';
-        } else {
-          dateStr = scheduled.toLocaleDateString('pt-BR');
-        }
+        const dateStr = formatDateKeyBr(toDateKey(app.scheduledDate));
 
         let timeStr = '';
         if (app.scheduledTime) {
@@ -695,15 +538,14 @@ function AppointmentsContent() {
     const rows = filteredAppointments.map((app) => {
       let patientName = app.patient?.name ?? (isPatient && user?.name ? user.name : 'Não informado');
       let patientCpf = app.patient?.cpf ?? (isPatient ? '—' : '');
-      const scheduled = new Date(app.scheduledDate);
-      const dateLabel = Number.isNaN(scheduled.getTime()) ? '—' : scheduled.toLocaleDateString('pt-BR');
+      const dateLabel = formatDateKeyBr(toDateKey(app.scheduledDate));
       const timeLabel = app.scheduledTime ?? '—';
       const statusLabel = APPOINTMENT_STATUS_LABELS[app.status] ?? app.status;
       const medNames = app.items?.map((item) => item.medicine?.name ?? 'Sem nome').join('; ') ?? 'Nenhum';
       const notes = app.notes ?? '';
       return [patientName, patientCpf, dateLabel, timeLabel, statusLabel, medNames, notes];
     });
-    downloadCSV('agendamentos_' + new Date().toISOString().slice(0, 10) + '.csv', [header, ...rows]);
+    downloadCSV('agendamentos_' + todayKeyLocal() + '.csv', [header, ...rows]);
     toast.success('Agendamentos exportados com sucesso!');
   };
 
@@ -714,13 +556,6 @@ function AppointmentsContent() {
     pageDesc = 'Acompanhe o status e as datas das suas consultas e retiradas agendadas.';
   } else {
     pageDesc = 'Gerenciamento completo das solicitações e atendimentos da Farmácia Escola.';
-  }
-
-  let createModalDesc = 'Registre um novo agendamento de atendimento farmacêutico.';
-  if (isPatient) {
-    createModalDesc = 'Agende a data e o horário para retirar seu medicamento gratuito.';
-  } else {
-    createModalDesc = 'Registre um novo agendamento de atendimento farmacêutico.';
   }
 
   return (
@@ -844,163 +679,13 @@ function AppointmentsContent() {
           onRowClick={(app) => setSelectedAppointmentForDetails(app)}
         />
 
-        {/* modal de criacao de agendamento */}
-        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-          <DialogContent className="sm:max-w-125 rounded-3xl">
-            <DialogHeader>
-              <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
-                <Calendar className="w-5 h-5 text-emerald-600" />
-                Novo Agendamento
-              </DialogTitle>
-              <DialogDescription>
-                {createModalDesc}
-              </DialogDescription>
-            </DialogHeader>
-
-            <form onSubmit={handleCreateSubmit} className="space-y-4 py-2">
-              {/* seletor de paciente so pra equipe, com autocomplete */}
-              {(() => {
-                if (!isPatient) {
-                  return (
-                    <div className="space-y-1.5">
-                      <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                        <User className="w-3.5 h-3.5 text-emerald-600" />
-                        Paciente *
-                      </Label>
-                      <div className="relative">
-                        <Input value={patientSearch || patients.find((patient) => patient.id === selectedPatientId)?.name || ''} onChange={(event) => { setPatientSearch(event.target.value); setSelectedPatientId(undefined); }} placeholder="Buscar por nome ou CPF" className="rounded-xl text-xs" />
-                        {/* dropdown de sugestoes aparece quando tem 2+ caracteres */}
-                        {patientSuggestions.length > 0 && <div className="absolute z-20 mt-1 w-full rounded-xl border bg-white p-1 shadow-lg dark:bg-slate-800">{patientSuggestions.map((patient) => <button type="button" key={patient.id} className="block w-full rounded-lg px-3 py-2 text-left text-xs hover:bg-emerald-50" onClick={() => { setSelectedPatientId(patient.id); setPatientSearch(patient.name); }}>{patient.name} - {patient.cpf}</button>)}</div>}
-                      </div>
-                    </div>
-                  );
-                }
-                return null;
-              })()}
-
-              {/* lista de medicamentos do agendamento, com quantidade e
-                  saldo real disponivel por linha. pode adicionar mais. */}
-              <div className="space-y-2">
-                <Label className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
-                  <Pill className="w-3.5 h-3.5 text-emerald-600" />
-                  Medicamentos *
-                </Label>
-                {items.map((item, index) => (
-                  <div key={`${index}-${item.medicineId}`} className="grid grid-cols-[1fr_90px_auto] gap-2 items-center">
-                    <Select
-                      value={item.medicineId ? String(item.medicineId) : ''}
-                      onValueChange={(value) => setItems((current) => current.map((entry, itemIndex) => itemIndex === index ? { ...entry, medicineId: Number(value) } : entry))}
-                    >
-                      <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
-                        <SelectValue placeholder="Selecione o medicamento" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {medicines.map((medicine) => <SelectItem key={medicine.id} value={String(medicine.id)} disabled={isPatient && !isMedicineAvailable(medicine, true)}>{medicine.name}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      type="number"
-                      min={1}
-                      value={item.quantity}
-                      onChange={(event) => setItems((current) => current.map((entry, itemIndex) => itemIndex === index ? { ...entry, quantity: Math.max(1, Number(event.target.value)) } : entry))}
-                      className="rounded-xl text-xs"
-                      aria-label="Quantidade"
-                    />
-                    <Badge
-                      variant="outline"
-                      className={`whitespace-nowrap text-[10px] ${isPatient && !isMedicineAvailable(medicines.find((medicine) => medicine.id === item.medicineId) ?? {}, true) ? 'text-rose-700 border-rose-200' : 'text-emerald-700 border-emerald-200'}`}
-                    >
-                      {isPatient
-                        ? (isMedicineAvailable(medicines.find((medicine) => medicine.id === item.medicineId) ?? {}, true) ? 'Disponível' : 'Indisponível')
-                        : `Disponível Real: ${realAvailable(item.medicineId)} un.`}
-                    </Badge>
-                  </div>
-                ))}
-                <Button type="button" variant="outline" onClick={() => setItems((current) => [...current, { medicineId: 0, quantity: 1 }])} className="rounded-xl text-xs">
-                  + Adicionar outro medicamento
-                </Button>
-              </div>
-
-              {/* data e slot de escala. o select de horario depende da
-                  data escolhida e so lista slots daquele dia. */}
-              <div className="space-y-2">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                    Data *
-                  </Label>
-                  <Input
-                    type="date"
-                    required
-                    value={appointmentDate}
-                    onChange={(e) => setAppointmentDate(e.target.value)}
-                    className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                    Horário da Escala *
-                  </Label>
-                  <Select value={slotId ? String(slotId) : ''} onValueChange={(value) => setSlotId(Number(value))} disabled={!appointmentDate}>
-                    <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
-                      <SelectValue placeholder={appointmentDate ? 'Selecione um horário' : 'Escolha a data primeiro'} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {/* cada item mostra horario, vagas livres e farmaceutico responsavel.
-                          lotes cheios ficam desabilitados. */}
-                      {availableSlots.map((slot) => {
-                        const booked = slot._count?.appointments ?? 0;
-                        const free = Math.max(0, slot.maxCapacity - booked);
-                        const pharmacist = slot.assignedTo?.name ?? 'Não informado';
-                        return <SelectItem key={slot.id} value={String(slot.id)} disabled={free === 0}>{slot.timeSlot} — ({free}/{slot.maxCapacity} vagas livres) — Farm. {pharmacist}</SelectItem>;
-                      })}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* observacoes livres */}
-              <div className="space-y-1.5">
-                <Label className="text-xs font-bold text-slate-600 dark:text-slate-300">
-                  Observações
-                </Label>
-                <Textarea
-                  rows={2}
-                  placeholder="Informações adicionais..."
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs"
-                />
-              </div>
-
-              <DialogFooter className="pt-3">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setIsCreateDialogOpen(false)}
-                  className="rounded-xl text-xs"
-                >
-                  Cancelar
-                </Button>
-                <Button
-                  type="submit"
-                  disabled={createAppointmentMutation.isPending || (isPatient && items.some((item) => {
-                    const medicine = medicines.find((entry) => entry.id === item.medicineId);
-                    return !medicine || !isMedicineAvailable(medicine, true);
-                  }))}
-                  size="sm"
-                >
-                  {(() => {
-                    if (createAppointmentMutation.isPending) {
-                      return 'Salvando...';
-                    } else {
-                      return 'Criar Agendamento';
-                    }
-                  })()}
-                </Button>
-              </DialogFooter>
-            </form>
-          </DialogContent>
-        </Dialog>
+        <AppointmentCreateModal
+          key={isCreateDialogOpen ? `open-${initialMedId ?? 'new'}` : 'closed'}
+          open={isCreateDialogOpen}
+          onOpenChange={setIsCreateDialogOpen}
+          initialMedicineId={initialMedId}
+          onSuccess={() => refetch()}
+        />
 
         {/* modal de detalhes do agendamento, com acoes de status pra equipe */}
         <Dialog
@@ -1017,13 +702,7 @@ function AppointmentsContent() {
                 return null;
               }
               const app = selectedAppointmentForDetails;
-              const scheduled = new Date(app.scheduledDate);
-              let dateStr = '—';
-              if (Number.isNaN(scheduled.getTime())) {
-                dateStr = '—';
-              } else {
-                dateStr = scheduled.toLocaleDateString('pt-BR');
-              }
+              const dateStr = formatDateKeyBr(toDateKey(app.scheduledDate));
 
               let statusStyle = APPOINTMENT_STATUS_STYLES.PENDING;
               if (APPOINTMENT_STATUS_STYLES[app.status]) {

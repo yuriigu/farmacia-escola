@@ -104,12 +104,17 @@ export const api = {
   getActivityLogs: (params?: { userId?: number; entity?: string; page?: number; limit?: number }) =>
     serviceApi.activityLogs.getAll(params),
 
-  // scheduleslots: listar com filtro de periodo, criar e excluir
-  // slots de escala. o update e feito direto no apiClient em outro
-  // ponto, entao nao aparece aqui.
+  // scheduleslots: listar com filtro de periodo e gerenciar slots.
   getScheduleSlots: (params?: { startDate?: string; endDate?: string }) =>
     serviceApi.scheduleSlots.getAll(params),
   createScheduleSlot: (data: { date: string; timeSlot: string; maxCapacity?: number; assignedToId?: number }) =>
     serviceApi.scheduleSlots.create(data),
+  updateScheduleSlot: (id: number, data: {
+    date?: string;
+    timeSlot?: string;
+    maxCapacity?: number;
+    assignedToId?: number | null;
+    active?: boolean;
+  }) => serviceApi.scheduleSlots.update(id, data),
   deleteScheduleSlot: (id: number) => serviceApi.scheduleSlots.delete(id),
 };

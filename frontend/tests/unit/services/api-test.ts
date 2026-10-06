@@ -114,4 +114,17 @@ describe('api service tests', () => {
       expect(result).toEqual(mockAppts);
     });
   });
+
+  describe('schedule slots API', () => {
+    it('update deve usar PUT com o payload tipado da escala', async () => {
+      const payload = { maxCapacity: 6, assignedToId: null };
+      const response = { data: { id: 5, maxCapacity: 6, assignedToId: null } };
+      (apiClient.put as any).mockResolvedValue(response);
+
+      const result = await api.scheduleSlots.update(5, payload);
+
+      expect(apiClient.put).toHaveBeenCalledWith('/api/schedule-slots/5', payload);
+      expect(result).toEqual(response.data);
+    });
+  });
 });

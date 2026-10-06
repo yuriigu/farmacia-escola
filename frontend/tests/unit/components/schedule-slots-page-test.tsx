@@ -44,4 +44,14 @@ describe('schedule-slots-page', () => {
     expect(screen.getByText('Farmacêutico responsável')).toBeInTheDocument();
     await waitFor(() => expect(screen.getAllByRole('combobox')[0]).toBeInTheDocument());
   });
+
+  it('hides the time selector while editing a schedule slot', () => {
+    render(<ScheduleSlotsPage />);
+
+    fireEvent.click(screen.getByTitle('Editar vaga'));
+
+    expect(screen.getByText('Editar Horário')).toBeInTheDocument();
+    expect(screen.getByText('Data', { exact: true })).toBeInTheDocument();
+    expect(screen.queryByText('Horário', { exact: true })).not.toBeInTheDocument();
+  });
 });

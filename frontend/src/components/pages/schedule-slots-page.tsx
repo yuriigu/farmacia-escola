@@ -7,8 +7,8 @@ import { CalendarDays, Plus, Trash2, Edit3, Clock, Loader2 } from 'lucide-react'
 import { useAuthStore } from '@/lib/auth-store';
 import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
 import { api } from '@/lib/api';
-import { apiClient } from '@/lib/axios';
 import { usePermission } from '@/hooks/use-permission';
+import { todayKeyLocal } from '@/lib/dates';
 import type { ScheduleSlot, User } from '@/types';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,12 +28,14 @@ const TIME_OPTIONS = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:
 // atendimento: cada slot tem data, horario, capacidade maxima e
 // farmaceutico responsavel. mostra um calendario mensal com os slots
 // e um detalhamento em grade por dia. criar/editar/excluir so pra
-// quem tem a permissao schedules_create.
+// quem tem permissao de criar, editar ou excluir escalas.
 export function ScheduleSlotsPage() {
   const user = useAuthStore((s) => s.user);
   const scheduleSlots = usePharmacyStore((s) => s.scheduleSlots);
   const [pharmacists, setPharmacists] = useState<User[]>([]);
-  const canWrite = usePermission('SCHEDULES_CREATE');
+  const canCreate = usePermission('SCHEDULES_CREATE');
+  const canUpdate = usePermission('SCHEDULES_UPDATE');
+  const canDelete = usePermission('SCHEDULES_DELETE');
 
   // estado do modal de criar/editar. o editslot indica o modo.
   const [modalOpen, setModalOpen] = useState(false);
@@ -94,7 +96,7 @@ export function ScheduleSlotsPage() {
   // abre o modal ja em modo edit.
   const handleCalendarEventClick = (info: EventClickArg) => {
     const slot = info.event.extendedProps.slot as ScheduleSlot | undefined;
-    if (slot && canWrite) {
+    if (slot && canUpdate) {
       handleOpenEdit(slot);
     }
   };
@@ -104,7 +106,7 @@ export function ScheduleSlotsPage() {
   // ja se sugere como responsavel.
   const handleOpenCreate = (date?: string) => {
     setEditSlot(null);
-    let initialDate = new Date().toISOString().split('T')[0];
+    let initialDate = todayKeyLocal();
     if (date) {
       initialDate = date;
     }
@@ -139,21 +141,17 @@ export function ScheduleSlotsPage() {
     setModalOpen(true);
   };
 
-  // submit do modal. em modo edicao, so manda capacidade,
-  // responsavel e active (data/horario sao travados pra nao quebrar
-  // agendamentos). em modo criacao, manda tudo.
+  // submit do modal. em edicao, data/horario ficam travados; em
+  // criacao, manda todos os campos obrigatorios.
   const handleSave = async () => {
     if (!form.date) return;
     if (!form.timeSlot) return;
     setSaving(true);
     try {
       if (editSlot) {
-        // aqui chamamos o cliente http (/lib/axios) direto porque o
-        // endpoint usa put e so aceita um subset de campos.
-        await apiClient.put(`/api/schedule-slots/${editSlot.id}`, {
-          maxCapacity: form.maxCapacity,
-          assignedToId: form.assignedToId,
-          active: true,
+        await api.updateScheduleSlot(editSlot.id, {
+          maxCapacity: Number(form.maxCapacity),
+          assignedToId: form.assignedToId > 0 ? form.assignedToId : null,
         });
         toast.success('Horário atualizado com sucesso.');
       } else {
@@ -161,7 +159,7 @@ export function ScheduleSlotsPage() {
         await api.createScheduleSlot({
           date: form.date,
           timeSlot: form.timeSlot,
-          maxCapacity: form.maxCapacity,
+          maxCapacity: Number(form.maxCapacity),
           assignedToId: form.assignedToId,
         });
         toast.success('Horário cadastrado na escala.');
@@ -169,14 +167,7 @@ export function ScheduleSlotsPage() {
       setModalOpen(false);
       fetchScheduleSlotsData();
     } catch (err: unknown) {
-      const error = err as { error?: string };
-      let errorMsg = 'Erro ao salvar horário.';
-      if (error) {
-        if (error.error) {
-          errorMsg = error.error;
-        }
-      }
-      toast.error(errorMsg);
+      toast.error(err instanceof Error ? err.message : 'Erro ao salvar horário.');
     } finally {
       setSaving(false);
     }
@@ -190,14 +181,7 @@ export function ScheduleSlotsPage() {
       toast.success('Horário removido da escala.');
       fetchScheduleSlotsData();
     } catch (err: unknown) {
-      const error = err as { error?: string };
-      let errorMsg = 'Erro ao excluir horário.';
-      if (error) {
-        if (error.error) {
-          errorMsg = error.error;
-        }
-      }
-      toast.error(errorMsg);
+      toast.error(err instanceof Error ? err.message : 'Erro ao excluir horário.');
     }
   };
 
@@ -211,7 +195,7 @@ export function ScheduleSlotsPage() {
         actions={
           <div className="flex items-center gap-2">
             {(() => {
-              if (canWrite) {
+              if (canCreate) {
                 return (
                   <Button
                     onClick={() => handleOpenCreate()}
@@ -240,7 +224,7 @@ export function ScheduleSlotsPage() {
         <StandardCalendar
           events={calendarEvents}
           onEventClick={handleCalendarEventClick}
-          onDateClick={(info) => canWrite && handleOpenCreate(info.dateStr)}
+          onDateClick={(info) => canCreate && handleOpenCreate(info.dateStr)}
           onDatesSet={handleDatesSet}
         />
       </Card>
@@ -293,24 +277,28 @@ export function ScheduleSlotsPage() {
                                   pode escrever. o excluir fica
                                   bloqueado se houver agendamento. */}
                               {(() => {
-                                if (canWrite) {
+                                if (canUpdate || canDelete) {
                                   return (
                                     <div className="flex items-center gap-1">
-                                      <button
-                                        onClick={() => handleOpenEdit(slot)}
-                                        className="text-slate-400 hover:text-emerald-600 p-0.5"
-                                        title="Editar vaga"
-                                      >
-                                        <Edit3 className="w-3 h-3" />
-                                      </button>
-                                      <button
-                                        onClick={() => handleDelete(slot)}
-                                        disabled={(slot._count?.appointments ?? 0) > 0}
-                                        className="text-slate-400 hover:text-rose-600 p-0.5"
-                                        title={(slot._count?.appointments ?? 0) > 0 ? 'Possui agendamentos vinculados' : 'Excluir horário'}
-                                      >
-                                        <Trash2 className="w-3 h-3" />
-                                      </button>
+                                      {canUpdate && (
+                                        <button
+                                          onClick={() => handleOpenEdit(slot)}
+                                          className="text-slate-400 hover:text-emerald-600 p-0.5"
+                                          title="Editar vaga"
+                                        >
+                                          <Edit3 className="w-3 h-3" />
+                                        </button>
+                                      )}
+                                      {canDelete && (
+                                        <button
+                                          onClick={() => handleDelete(slot)}
+                                          disabled={(slot._count?.appointments ?? 0) > 0}
+                                          className="text-slate-400 hover:text-rose-600 p-0.5"
+                                          title={(slot._count?.appointments ?? 0) > 0 ? 'Possui agendamentos vinculados' : 'Excluir horário'}
+                                        >
+                                          <Trash2 className="w-3 h-3" />
+                                        </button>
+                                      )}
                                     </div>
                                   );
                                 }
@@ -359,7 +347,7 @@ export function ScheduleSlotsPage() {
           travados pra nao quebrar agendamentos; so capacidade e
           responsavel mudam. */}
       {(() => {
-        if (canWrite) {
+        if (canCreate || canUpdate) {
           return (
             <Dialog open={modalOpen} onOpenChange={setModalOpen}>
               <DialogContent className="sm:max-w-md rounded-3xl">
@@ -391,14 +379,14 @@ export function ScheduleSlotsPage() {
                       Farmacêutico responsável
                     </Label>
                     <Select
-                      value={form.assignedToId ? String(form.assignedToId) : ''}
-                      onValueChange={(value) => setForm({ ...form, assignedToId: Number(value) })}
-                      disabled={Boolean(editSlot)}
+                      value={form.assignedToId ? String(form.assignedToId) : (editSlot ? 'none' : '')}
+                      onValueChange={(value) => setForm({ ...form, assignedToId: value === 'none' ? 0 : Number(value) })}
                     >
                       <SelectTrigger className="rounded-xl bg-slate-50 dark:bg-slate-700/50">
                         <SelectValue placeholder="Selecione um farmacêutico" />
                       </SelectTrigger>
                       <SelectContent>
+                        {editSlot && <SelectItem value="none">Sem responsável</SelectItem>}
                         {pharmacists.map((pharmacist) => <SelectItem key={pharmacist.id} value={String(pharmacist.id)}>{pharmacist.name}</SelectItem>)}
                       </SelectContent>
                     </Select>
@@ -416,24 +404,24 @@ export function ScheduleSlotsPage() {
                       className="rounded-xl border-slate-200 dark:border-slate-600 dark:bg-slate-700/50"
                     />
                   </div>
-                  {/* horario (travado em edicao). lista fixa do time_options. */}
-                  <div>
-                    <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
-                      Horário
-                    </Label>
-                    <select
-                      value={form.timeSlot}
-                      onChange={(e) => setForm({ ...form, timeSlot: e.target.value })}
-                      disabled={Boolean(editSlot)}
-                      className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-200 text-sm focus:outline-none"
-                    >
-                      {TIME_OPTIONS.map((t) => (
-                        <option key={t} value={t}>
-                          {t}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                  {!editSlot && (
+                    <div>
+                      <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md">
+                        Horário
+                      </Label>
+                      <select
+                        value={form.timeSlot}
+                        onChange={(e) => setForm({ ...form, timeSlot: e.target.value })}
+                        className="w-full h-10 px-3 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-700/50 text-slate-800 dark:text-slate-200 text-sm focus:outline-none"
+                      >
+                        {TIME_OPTIONS.map((t) => (
+                          <option key={t} value={t}>
+                            {t}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                   {/* capacidade maxima (1 a 20). pode ser editada nos
                       dois modos. */}
                   <div>

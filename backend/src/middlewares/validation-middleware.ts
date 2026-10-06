@@ -337,6 +337,7 @@ export const scheduleSlotUpdateSchema = z.object({
   timeSlot: z.string().optional(),
   maxCapacity: z.number().int().positive().optional(),
   assignedToId: z.number().int().positive().nullable().optional(),
+  active: z.boolean().optional(),
 }).strict();
 
 // middleware generico de validacao de body. recebe um schema zod,

@@ -172,6 +172,7 @@ export class ScheduleSlotService {
     timeSlot?: string;
     maxCapacity?: number;
     assignedToId?: number | null;
+    active?: boolean;
   }) {
     const slot = await this.slotRepo.findById(id);
     if (!slot) {
@@ -217,13 +218,17 @@ export class ScheduleSlotService {
       updateData.maxCapacity = parsedCapacity;
     }
 
-    // responsavel, quando veio, nao pode ser null (escala precisa de dono).
+    if (data.active !== undefined) {
+      updateData.active = data.active;
+    }
+
+    // null desvincula o responsavel; valores numericos precisam ser IDs positivos.
     if (data.assignedToId !== undefined) {
       if (data.assignedToId === null) {
-        throw { statusCode: 400, message: 'Farmacêutico responsável é obrigatório' };
+        updateData.assignedToId = null;
       } else {
         const parsedAssignedTo = Number(data.assignedToId);
-        if (isNaN(parsedAssignedTo)) {
+        if (!Number.isInteger(parsedAssignedTo) || parsedAssignedTo <= 0) {
           throw { statusCode: 400, message: 'ID de responsável inválido' };
         }
         updateData.assignedToId = parsedAssignedTo;

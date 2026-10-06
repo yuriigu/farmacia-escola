@@ -243,9 +243,6 @@ export default function MedicinesPage() {
         totalQuantity: physicalQuantity,
         physicalQuantity,
       });
-      const isExpired = status === 'EXPIRED' || status === 'expired' || status === 'Vencido';
-      if (isPatient && isExpired) return false;
-
       let matchesStock = stockFilter === 'all';
       if (isPatient && stockFilter === 'DISPONIVEL') {
         matchesStock = med.available === true;

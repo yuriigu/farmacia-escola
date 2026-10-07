@@ -6,6 +6,7 @@ import { toast } from '@/lib/toast-handler';
 import { Eye, EyeOff, UserPlus, Shield } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { api } from '@/lib/api';
+import { isValidCPF, maskCPF, maskPhone, onlyDigits } from '@/lib/masks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,18 +29,11 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
   // enquanto o usuario digita; pros outros campos, so repassa o valor.
   const handleChange = (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
     let value = e.target.value;
-    // mascara de cpf: so digitos, corta em 11 e formata 000.000.000-00.
     if (field === 'cpf') {
-      value = value.replace(/\D/g, '').slice(0, 11);
-      value = value.replace(/(\d{3})(\d)/, '$1.$2');
-      value = value.replace(/(\d{3})(\d)/, '$1.$2');
-      value = value.replace(/(\d{3})(\d{1,2})$/, '$1-$2');
+      value = maskCPF(value);
     }
-    // mascara de telefone: so digitos, corta em 11 e formata (00) 00000-0000.
     if (field === 'phone') {
-      value = value.replace(/\D/g, '').slice(0, 11);
-      value = value.replace(/^(\d{2})(\d)/, '($1) $2');
-      value = value.replace(/(\d{5})(\d)/, '$1-$2');
+      value = maskPhone(value);
     }
     setForm({ ...form, [field]: value });
     if (field === 'cpf' || field === 'phone') {
@@ -57,16 +51,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
 
     // valida cpf: precisa ter 11 digitos e nao pode ser tudo igual
     // (ex: 11111111111).
-    const digitsOnly = (v: string) => v.replace(/\D/g, '');
-    const cpfDigits = digitsOnly(form.cpf);
-    let isCpfInvalid = false;
-    if (cpfDigits.length !== 11) {
-      isCpfInvalid = true;
-    } else if (/^(.)\1{10}$/.test(cpfDigits)) {
-      isCpfInvalid = true;
-    }
-
-    if (isCpfInvalid) {
+    if (!isValidCPF(form.cpf)) {
       setFieldErrors({ cpf: 'CPF inválido. Insira um CPF válido com 11 dígitos.' });
       document.getElementById('register-cpf')?.focus();
       return;
@@ -74,7 +59,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
 
     // valida telefone quando veio preenchido: 10 ou 11 digitos
     // (com ddd).
-    const phoneDigits = digitsOnly(form.phone);
+    const phoneDigits = onlyDigits(form.phone);
     if (phoneDigits) {
       let isPhoneInvalid = false;
       if (phoneDigits.length < 10) {

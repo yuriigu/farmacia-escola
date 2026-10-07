@@ -22,6 +22,7 @@ import {
 
 import type { User } from '@/types';
 import { getAvatarColor, downloadCSV } from '@/lib/constants';
+import { maskCPF, maskPhone } from '@/lib/masks';
 import { getAssignableRoles, canEditUser, canDeleteUser } from '@/config/rbac';
 import { useAuthStore } from '@/lib/auth-store';
 import {
@@ -276,8 +277,8 @@ export function AdminPage() {
       email: userEmail,
       password: '',
       role: userRole,
-      registerDoc: userDoc,
-      phone: userPhone,
+      registerDoc: userRole === 'PACIENTE' ? maskCPF(userDoc) : userDoc,
+      phone: maskPhone(userPhone),
       birthDate: userBirthDate,
       address: userAddress,
       active: userActive,
@@ -1053,7 +1054,11 @@ export function AdminPage() {
                 </Label>
                 <Select
                   value={form.role}
-                  onValueChange={(v) => setForm({ ...form, role: v })}
+                  onValueChange={(v) => setForm({
+                    ...form,
+                    role: v,
+                    registerDoc: v === 'PACIENTE' ? maskCPF(form.registerDoc) : form.registerDoc,
+                  })}
                   disabled={(() => {
                     // auto-edicao: papel travado (admin nao pode se rebaixar).
                     if (isSelfEditing) {
@@ -1097,30 +1102,21 @@ export function AdminPage() {
                 </Label>
                 <Input
                   value={form.registerDoc}
-                  onChange={(e) => setForm({ ...form, registerDoc: e.target.value })}
+                  onChange={(e) => setForm({
+                    ...form,
+                    registerDoc: form.role === 'PACIENTE' ? maskCPF(e.target.value) : e.target.value,
+                  })}
                   placeholder={docInfo.placeholder}
-                  disabled={(() => {
-                    if (isSelfEditing) {
-                      return true;
-                    }
-                    if (isRestrictedStaff) {
-                      return true;
-                    }
-                    return false;
-                  })()}
+                  disabled={Boolean(editingUser) && !isCurrentAdmin}
                   className="rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 h-10"
                 />
-                <p className="text-[10px] text-slate-400 mt-1">
-                  {(() => {
-                    if (isSelfEditing) {
-                      return 'O próprio identificador não pode ser alterado no perfil.';
-                    }
-                    if (isRestrictedStaff) {
-                      return 'O CPF/documento não pode ser alterado por este usuário.';
-                    }
-                    return docInfo.helper;
-                  })()}
-                </p>
+                {Boolean(editingUser) && !isCurrentAdmin ? (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    O CPF/documento não pode ser alterado por este usuário.
+                  </p>
+                ) : (
+                  <p className="text-[10px] text-slate-400 mt-1">{docInfo.helper}</p>
+                )}
               </div>
             </div>
 
@@ -1132,7 +1128,7 @@ export function AdminPage() {
                 </Label>
                 <Input
                   value={form.phone}
-                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  onChange={(e) => setForm({ ...form, phone: maskPhone(e.target.value) })}
                   placeholder="(11) 98765-4321"
                   className="rounded-xl border-slate-200 dark:border-slate-700 dark:bg-slate-900 h-10"
                 />

@@ -8,6 +8,7 @@ import {
 import { useAuthStore } from '@/lib/auth-store';
 import { api } from '@/lib/api';
 import { getAvatarColor } from '@/lib/constants';
+import { maskCPF, maskPhone, onlyDigits } from '@/lib/masks';
 import { RoleBadge } from '@/components/shared/role-badge';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -53,7 +54,7 @@ export function SettingsPage() {
       initialPhone = user.phone;
     }
   }
-  const [phone, setPhone] = useState(user?.phone ?? initialPhone);
+  const [phone, setPhone] = useState(maskPhone(user?.phone ?? initialPhone));
 
   const [address, setAddress] = useState(user?.patient?.address ?? user?.address ?? '');
   const [name, setName] = useState(user?.name ?? '');
@@ -61,7 +62,7 @@ export function SettingsPage() {
 
   useEffect(() => {
     setEmail(user?.email ?? '');
-    setPhone(user?.phone ?? '');
+    setPhone(maskPhone(user?.phone ?? ''));
     setAddress(user?.patient?.address ?? user?.address ?? '');
     setName(user?.name ?? '');
   }, [user?.id, user?.email, user?.phone, user?.patient?.address, user?.address, user?.name]);
@@ -277,15 +278,16 @@ export function SettingsPage() {
                         </Label>
                         <Input
                           value={(() => {
+                            let identifier: string | number = '—';
                             if (user) {
                               if ('registerDoc' in user && (typeof user.registerDoc === 'string' || typeof user.registerDoc === 'number')) {
-                                return user.registerDoc;
-                              }
-                              if (typeof user.patientId === 'string' || typeof user.patientId === 'number') {
-                                return user.patientId;
+                                identifier = user.registerDoc;
+                              } else if (typeof user.patientId === 'string' || typeof user.patientId === 'number') {
+                                identifier = user.patientId;
                               }
                             }
-                            return '—';
+                            const value = String(identifier);
+                            return onlyDigits(value).length === 11 ? maskCPF(value) : value;
                           })()}
                           disabled
                           className="bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 text-slate-500 cursor-not-allowed rounded-xl text-xs"
@@ -316,7 +318,7 @@ export function SettingsPage() {
                         <Input
                           type="tel"
                           value={phone}
-                          onChange={(e) => setPhone(e.target.value)}
+                          onChange={(e) => setPhone(maskPhone(e.target.value))}
                           placeholder="(00) 00000-0000"
                           className="rounded-xl border-slate-200 dark:border-slate-700 text-xs"
                         />

@@ -14,6 +14,7 @@ import type { Appointment, AppointmentDraft, AppointmentItem } from '@/types';
 import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS, downloadCSV, getAvatarColor } from '@/lib/constants';
 import { api } from '@/lib/api';
 import { dateKeyOffsetLocal, formatDateKeyBr, isoFromLocalDateTime, todayKeyLocal, toDateKey } from '@/lib/dates';
+import { maskCPF, onlyDigits } from '@/lib/masks';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -25,21 +26,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { PageHeader } from '@/components/shared/page-header';
 import { DataTable } from '@/components/shared/data-table';
 import type { Column } from '@/types';
-
-// helper de mascara de cpf. formata enquanto o usuario digita e
-// corta em 11 digitos. o cpf limpo e derivado com stripCpf.
-function formatCPF(value: string): string {
-  const digits = value.replace(/\D/g, '').slice(0, 11);
-  if (digits.length <= 3) return digits;
-  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9)}`;
-}
-
-// remove tudo que nao for digito. usado pra mandar o cpf cru pra api.
-function stripCPF(value: string): string {
-  return value.replace(/\D/g, '');
-}
 
 // calcula o saldo disponivel real do medicamento. usa availablequantity
 // quando a api manda; senao deriva de fisico - reservado (nunca abaixo
@@ -101,9 +87,9 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
   // via /lib/api. usa debounce de 300ms pra nao bombardear a api a
   // cada tecla.
   const handleCpfChange = useCallback((value: string) => {
-    const formatted = formatCPF(value);
+    const formatted = maskCPF(value);
     setCpfInput(formatted);
-    const digits = stripCPF(formatted);
+    const digits = onlyDigits(formatted);
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -134,7 +120,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
 
   // clique numa sugestao preenche cpf formatado e nome do paciente.
   const selectSuggestion = (suggestion: { name: string; cpf: string }) => {
-    setCpfInput(formatCPF(suggestion.cpf));
+    setCpfInput(maskCPF(suggestion.cpf));
     setPatientName(suggestion.name);
     setShowSuggestions(false);
     setCpfSuggestions([]);
@@ -159,7 +145,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
       nextErrors.slotId = 'Este horário da escala está lotado.';
     }
 
-    const digits = stripCPF(cpfInput);
+    const digits = onlyDigits(cpfInput);
     if (digits.length !== 11) {
       nextErrors.cpfInput = 'CPF inválido. Informe um CPF completo com 11 dígitos.';
     }
@@ -307,7 +293,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
                           className="w-full text-left px-3 py-2 text-xs hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center justify-between transition-colors"
                         >
                           <span className="font-semibold text-slate-800 dark:text-slate-200">{s.name}</span>
-                          <span className="font-mono text-slate-400 text-[11px]">{formatCPF(s.cpf)}</span>
+                          <span className="font-mono text-slate-400 text-[11px]">{maskCPF(s.cpf)}</span>
                         </button>
                       ))}
                     </div>
@@ -931,7 +917,7 @@ export function AppointmentsPage() {
         let formattedCpf: string | null = null;
         if (app.patient) {
           if (app.patient.cpf) {
-            formattedCpf = formatCPF(app.patient.cpf);
+            formattedCpf = maskCPF(app.patient.cpf);
           }
         }
 
@@ -1363,7 +1349,7 @@ export function AppointmentsPage() {
                     if (selectedAppointment.patient) {
                       let patientCpfEl: React.ReactNode = null;
                       if (selectedAppointment.patient.cpf) {
-                        patientCpfEl = <p className="text-xs text-slate-400 font-mono">{formatCPF(selectedAppointment.patient.cpf)}</p>;
+                        patientCpfEl = <p className="text-xs text-slate-400 font-mono">{maskCPF(selectedAppointment.patient.cpf)}</p>;
                       }
                       return (
                         <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">

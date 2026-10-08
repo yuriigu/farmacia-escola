@@ -14,7 +14,7 @@ import { useTheme } from 'next-themes';
 
 // imports locais
 import { useAuthStore } from '@/lib/auth-store';
-import { fetchAllData, fetchBatchesData, useDataLoader } from '@/lib/pharmacy-store';
+import { fetchAllData, useDataLoader } from '@/lib/pharmacy-store';
 import {
   getVisibleModules, getModuleById,
 } from '@/lib/constants';
@@ -155,14 +155,13 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
   useDataLoader(isUserAuthenticated);
 
   // atualizacao periodica dos dados (a cada 5 min) enquanto houver
-  // sessao. serve pra manter estoque e lotes frescos sem refresh manual.
+  // sessao. recarrega os dados compartilhados sem novo refresh manual.
   useEffect(() => {
     if (!token) {
       return;
     }
     const interval = setInterval(() => {
-      fetchAllData();
-      fetchBatchesData();
+      void fetchAllData(true);
     }, 300000);
     return () => {
       clearInterval(interval);
@@ -426,7 +425,7 @@ function AppShellInner({ children, activeModuleId, pageTitle }: AppShellProps) {
       {/* conteudo principal: cabecalho + area da pagina */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* cabecalho com breadcrumb a esquerda e perfil a direita */}
-        <header className="w-full flex items-center justify-between px-6 py-4 gap-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
+        <header className="w-full flex items-center justify-between px-4 sm:px-6 py-4 gap-4 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700 sticky top-0 z-10">
           {/* breadcrumb: inicio > titulo da tela atual */}
           <div className="flex items-center gap-3 min-w-0">
             <button

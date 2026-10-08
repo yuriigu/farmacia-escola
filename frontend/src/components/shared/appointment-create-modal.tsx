@@ -35,8 +35,8 @@ export function AppointmentCreateModal({
 }: AppointmentCreateModalProps) {
   const user = useAuthStore((state) => state.user);
   const isPatient = user?.role === 'PACIENTE';
-  const { data: medicines = [] } = useMedicines();
-  const { data: patients = [] } = usePatients();
+  const { data: medicines = [] } = useMedicines({ enabled: open });
+  const { data: patients = [] } = usePatients(undefined, { enabled: open && !isPatient });
   const { scheduleSlots } = usePharmacyStore();
   const createAppointmentMutation = useCreateAppointment();
   const queryClient = useQueryClient();
@@ -112,6 +112,7 @@ export function AppointmentCreateModal({
       document.getElementById(`appointment-${firstInvalidField}`)?.focus();
       return;
     }
+    if (!selectedSlot) return;
 
     createAppointmentMutation.mutate(
       {
@@ -207,7 +208,7 @@ export function AppointmentCreateModal({
                     value={item.medicineId ? String(item.medicineId) : ''}
                     onValueChange={(value) => setItems((current) => current.map((entry, itemIndex) => itemIndex === index ? { ...entry, medicineId: Number(value) } : entry))}
                   >
-                    <SelectTrigger id={index === 0 ? 'appointment-items' : undefined} aria-invalid={!!fieldErrors.items} aria-describedby={fieldErrors.items ? 'appointment-items-error' : undefined} className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                    <SelectTrigger id={index === 0 ? 'appointment-items' : undefined} aria-invalid={!!fieldErrors.items} aria-describedby={fieldErrors.items ? 'appointment-items-error' : undefined} className="col-span-4 min-w-0 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs sm:col-span-1">
                       <SelectValue placeholder="Selecione o medicamento" />
                     </SelectTrigger>
                     <SelectContent>

@@ -24,10 +24,15 @@ vi.mock('@/lib/pharmacy-store', () => ({
 
 vi.mock('@/lib/api', () => ({
   api: {
-    getUsers: vi.fn(() => Promise.resolve([{ id: 7, name: 'Pedro Almeida', role: 'FARMACEUTICO' }])),
     createScheduleSlot: vi.fn(),
     deleteScheduleSlot: vi.fn(),
   },
+}));
+
+vi.mock('@/hooks/use-users', () => ({
+  useUsers: vi.fn(() => ({
+    data: [{ id: 7, name: 'Pedro Almeida', role: 'FARMACEUTICO' }],
+  })),
 }));
 
 vi.mock('@/lib/axios', () => ({ apiClient: { put: vi.fn() } }));

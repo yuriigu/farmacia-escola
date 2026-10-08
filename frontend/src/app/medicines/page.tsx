@@ -1035,7 +1035,7 @@ export default function MedicinesPage() {
               </div>
 
               {/* principio ativo e categoria */}
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="activeIngredient" className="text-xs font-bold text-slate-600 dark:text-slate-300">
                     Princípio Ativo

@@ -176,7 +176,7 @@ frontend/
 Arquitetura de Páginas e Rotas
 ------------------------------
 
-* / — Redireciona para /dashboard (usuário autenticado) ou /login (visitante) (Público)
+* / — Landing page institucional pública; usuários autenticados seguem para /dashboard
 * /login — Tela de autenticação com credenciais (Público)
 * /register — Cadastro público de novos pacientes (Público)
 * /dashboard — Painel operacional com métricas de estoque e alertas (Usuários Autenticados)

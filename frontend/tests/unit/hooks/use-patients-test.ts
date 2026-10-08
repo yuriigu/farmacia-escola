@@ -4,6 +4,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { usePatients, usePatient } from '@/services/queries';
 import { api } from '@/services/api';
+import { useAuthStore } from '@/lib/auth-store';
 import { mockPatient, mockPatientsList } from '../../fixtures/patient-fixture';
 
 vi.mock('@/services/api', () => ({
@@ -32,6 +33,9 @@ function createWrapper() {
 describe('usePatients Hook', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    useAuthStore.setState({
+      user: { id: 1, name: 'Admin', email: 'admin@example.com', role: 'ADMIN' },
+    });
   });
 
   it('deve buscar lista de pacientes com sucesso', async () => {
@@ -45,6 +49,19 @@ describe('usePatients Hook', () => {
 
     expect(result.current.data).toEqual(mockPatientsList);
     expect(api.patients.getAll).toHaveBeenCalledTimes(1);
+  });
+
+  it('não deve buscar pacientes para o perfil PACIENTE', () => {
+    useAuthStore.setState({
+      user: { id: 2, name: 'Paciente', email: 'paciente@example.com', role: 'PACIENTE', patientId: 2 },
+    });
+
+    const { result } = renderHook(() => usePatients(), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(api.patients.getAll).not.toHaveBeenCalled();
   });
 
   it('deve buscar paciente específico por ID', async () => {

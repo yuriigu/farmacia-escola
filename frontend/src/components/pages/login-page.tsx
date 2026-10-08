@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FieldError } from '@/components/ui/field-error';
+import { ThemeToggle } from '@/components/shared/theme-toggle';
 
 // schema do formulario de login. valida email e tamanho minimo
 // da senha (4 caracteres aqui, porque a regra forte de 6+ fica
@@ -76,13 +77,14 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 px-4 relative overflow-hidden">
+    <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 px-4 relative overflow-x-clip">
+      <ThemeToggle className="absolute top-4 right-4 z-20" />
       {/* blobs decorativos de fundo (mesh) */}
       <div className="mesh-blob mesh-blob-1" style={{ top: '-10%', left: '-5%' }} />
       <div className="mesh-blob mesh-blob-2" style={{ top: '50%', right: '-10%' }} />
       <div className="mesh-blob mesh-blob-3" style={{ bottom: '-5%', left: '30%' }} />
 
-      <div className="w-full max-w-md p-8 bg-white/90 dark:bg-slate-800/90 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-emerald-500/5 border border-white/60 dark:border-slate-700/60 animate-fade-in-slide-up relative z-10">
+      <div className="w-full max-w-md p-6 sm:p-8 bg-white/90 dark:bg-slate-800/90 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-emerald-500/5 border border-white/60 dark:border-slate-700/60 animate-fade-in-slide-up relative z-10">
         {/* logo e titulo */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-linear-to-br from-emerald-500 via-teal-500 to-emerald-600 text-white mb-4 shadow-xl shadow-emerald-500/25">

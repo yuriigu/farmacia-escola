@@ -18,7 +18,7 @@ export const USER_QUERY_KEYS = {
 // hook que lista usuarios. usa o react-query pra cachear e
 // revalidar a lista. a tela de admin consome esse hook pra
 // montar a tabela.
-export function useUsers() {
+export function useUsers(options: { enabled?: boolean } = {}) {
   return useQuery({
     queryKey: USER_QUERY_KEYS.all,
     queryFn: () => {
@@ -26,6 +26,7 @@ export function useUsers() {
       // a lista de usuarios no backend.
       return api.users.getAll();
     },
+    enabled: options.enabled ?? true,
   });
 }
 

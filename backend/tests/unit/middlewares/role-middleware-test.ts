@@ -66,6 +66,24 @@ describe('central permission middleware', () => {
     expect(called).toBe(true);
   });
 
+  it('permite ao MEDICO ler pacientes e horários de escala', () => {
+    const patientsMiddleware = requirePermission('PATIENTS_READ');
+    const schedulesMiddleware = requirePermission('SCHEDULES_READ');
+    const response = { status: () => ({ json: () => undefined }) } as any;
+    let patientsAllowed = false;
+    let schedulesAllowed = false;
+
+    patientsMiddleware({ user: { role: 'MEDICO', permissions: null } } as any, response, () => {
+      patientsAllowed = true;
+    });
+    schedulesMiddleware({ user: { role: 'MEDICO', permissions: null } } as any, response, () => {
+      schedulesAllowed = true;
+    });
+
+    expect(patientsAllowed).toBe(true);
+    expect(schedulesAllowed).toBe(true);
+  });
+
   // aqui o teste valida o caminho de negacao do requireanypermission.
   // escolhe duas permissoes que o medico nao tem, pra confirmar que
   // ele recebe 403 quando nenhuma das opcoes bate.

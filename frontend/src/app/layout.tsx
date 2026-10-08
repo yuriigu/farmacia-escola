@@ -38,7 +38,7 @@ export default function RootLayout({
       <body
         // aplica a variavel da fonte e as classes padrao do tema
         // (bg-background e text-foreground vem do globals.css).
-        className={`${plusJakarta.variable} font-sans antialiased bg-background text-foreground`}
+        className={`${plusJakarta.variable} font-sans antialiased bg-background text-foreground overflow-x-clip`}
       >
         {/* provider de tema. attribute='class' liga o modo dark na
             classe .dark do html, defaulttheme='light' forca claro por

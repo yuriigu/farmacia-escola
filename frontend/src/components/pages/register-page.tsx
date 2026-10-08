@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FieldError } from '@/components/ui/field-error';
+import { ThemeToggle } from '@/components/shared/theme-toggle';
 
 // pagina de cadastro publico de paciente. cuida do formulario,
 // da mascara de cpf e telefone, da validacao minima no cliente e
@@ -118,7 +119,8 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 px-4 py-10 relative overflow-hidden">
+    <div className="flex items-center justify-center min-h-screen bg-linear-to-br from-emerald-50 via-white to-teal-50 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 px-4 py-10 relative overflow-x-clip">
+      <ThemeToggle className="absolute top-4 right-4 z-20" />
       {/* blobs decorativos de fundo (mesh) */}
       <div className="mesh-blob mesh-blob-1" style={{ top: '-5%', right: '-10%' }} />
       <div className="mesh-blob mesh-blob-2" style={{ bottom: '10%', left: '-5%' }} />
@@ -130,7 +132,7 @@ export function RegisterPage({ onSwitchToLogin }: { onSwitchToLogin: () => void 
         backgroundSize: '24px 24px'
       }} />
 
-      <div className="w-full max-w-lg p-8 bg-white/80 dark:bg-slate-800/80 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-teal-500/5 border border-white/50 dark:border-slate-700/50 animate-fade-in-slide-up relative z-10">
+      <div className="w-full max-w-lg p-6 sm:p-8 bg-white/80 dark:bg-slate-800/80 backdrop-blur-2xl rounded-3xl shadow-2xl shadow-teal-500/5 border border-white/50 dark:border-slate-700/50 animate-fade-in-slide-up relative z-10">
         {/* logo e titulo */}
         <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-18 h-18 rounded-2xl bg-linear-to-br from-teal-500 via-emerald-500 to-teal-600 text-white mb-4 shadow-xl shadow-teal-500/25">

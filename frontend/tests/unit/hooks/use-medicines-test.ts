@@ -47,6 +47,15 @@ describe('useMedicines Hook', () => {
     expect(api.medicines.getAll).toHaveBeenCalledTimes(1);
   });
 
+  it('não deve buscar medicamentos quando disabled', () => {
+    const { result } = renderHook(() => useMedicines({ enabled: false }), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.fetchStatus).toBe('idle');
+    expect(api.medicines.getAll).not.toHaveBeenCalled();
+  });
+
   it('deve buscar medicamento específico por ID', async () => {
     (api.medicines.getById as any).mockResolvedValue(mockMedicine);
 

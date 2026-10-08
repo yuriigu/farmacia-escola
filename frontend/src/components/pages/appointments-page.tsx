@@ -9,7 +9,13 @@ import {
   Eye, Pill, FileText, Search, CalendarDays, User
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
-import { usePharmacyStore, fetchAllData, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
+import {
+  usePharmacyStore,
+  fetchAppointmentsData,
+  fetchBatchesData,
+  fetchMedicinesData,
+  fetchScheduleSlotsData,
+} from '@/lib/pharmacy-store';
 import type { Appointment, AppointmentDraft, AppointmentItem } from '@/types';
 import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS, downloadCSV, getAvatarColor } from '@/lib/constants';
 import { api } from '@/lib/api';
@@ -66,10 +72,6 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
     setCpfSuggestions([]);
     setShowSuggestions(false);
     setFieldErrors({});
-  }, []);
-
-  useEffect(() => {
-    fetchScheduleSlotsData();
   }, []);
 
   // fecha o dropdown de sugestoes ao clicar fora dele.
@@ -203,7 +205,8 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
       toast.success('Agendamento médico realizado com sucesso!');
       cleanForm();
       onOpenChange(false);
-      fetchAllData();
+      void fetchAppointmentsData();
+      void fetchScheduleSlotsData();
     } catch (err: unknown) {
       const error = err as { error?: string };
       let errMessage = 'Erro ao criar agendamento médico.';
@@ -452,7 +455,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
 export function AppointmentsPage() {
   const searchParams = useSearchParams();
   const newParam = searchParams.get('new');
-  const medIdParam = searchParams.get('medicineId');
+  const medIdParam = searchParams.get('medicineId') ?? searchParams.get('medid');
 
   // a url pode abrir o modal direto: ?new=1 (generico) ou
   // ?medicineid=n (vindo da tela de medicamentos).
@@ -475,6 +478,7 @@ export function AppointmentsPage() {
   const { appointments, medicines, patients, scheduleSlots, loading } = usePharmacyStore();
   const [modalOpen, setModalOpen] = useState(initialNew);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [receipt, setReceipt] = useState<(Appointment & { allocatedItems?: Array<{ batchNumber: string }> }) | null>(null);
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [cancelReasonError, setCancelReasonError] = useState('');
@@ -546,7 +550,9 @@ export function AppointmentsPage() {
 
   // carrega slots uma vez ao montar.
   useEffect(() => {
-    fetchScheduleSlotsData();
+    if (usePharmacyStore.getState().scheduleSlots.length === 0) {
+      void fetchScheduleSlotsData();
+    }
   }, []);
 
   // escuta o evento customizado do calendario (calendar:gotoappointments)
@@ -675,7 +681,8 @@ export function AppointmentsPage() {
       setForm(defaultForm);
       setPatientSearch('');
       setModalOpen(false);
-      fetchAllData();
+      void fetchAppointmentsData();
+      void fetchScheduleSlotsData();
     } catch (err: unknown) {
       const error = err as { error?: string };
       let errMessage = 'Erro ao criar agendamento.';
@@ -709,7 +716,8 @@ export function AppointmentsPage() {
       toast.success('Agendamento cancelado e reserva liberada.');
       setCancelTarget(null);
       setCancelReason('');
-      fetchAllData();
+      void fetchAppointmentsData();
+      void fetchScheduleSlotsData();
     } catch {
       toast.error('Erro ao cancelar agendamento.');
     }
@@ -1097,9 +1105,13 @@ export function AppointmentsPage() {
                       variant="outline"
                       onClick={async () => {
                         try {
-                          await api.completeAppointment(app.id);
+                          const withdrawal = await api.completeAppointment(app.id);
+                          setReceipt(withdrawal);
                           toast.success('Atendimento concluído!');
-                          fetchAllData();
+                          void fetchAppointmentsData();
+                          void fetchScheduleSlotsData();
+                          void fetchMedicinesData();
+                          void fetchBatchesData();
                         } catch {
                           toast.error('Erro ao concluir atendimento.');
                         }
@@ -1122,7 +1134,8 @@ export function AppointmentsPage() {
                               try {
                                 await api.confirmAppointment(app.id);
                                 toast.success('Agendamento confirmado.');
-                                fetchAllData();
+                                void fetchAppointmentsData();
+                                void fetchScheduleSlotsData();
                               } catch {
                                 toast.error('Erro ao confirmar.');
                               }
@@ -1202,7 +1215,9 @@ export function AppointmentsPage() {
             })()}
             {(() => {
               if (isMedico) {
-                return <DoctorAppointmentModal open={modalOpen} onOpenChange={setModalOpen} />;
+                return modalOpen
+                  ? <DoctorAppointmentModal open onOpenChange={setModalOpen} />
+                  : null;
               }
               return null;
             })()}
@@ -1420,7 +1435,7 @@ export function AppointmentsPage() {
                   })()}
 
                   {/* data e horario, com fallback pra hora do proprio date */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
                       <div className="flex items-center gap-1.5 mb-1">
                         <Clock className="w-3.5 h-3.5 text-slate-400" />
@@ -1507,7 +1522,8 @@ export function AppointmentsPage() {
                                       await api.confirmAppointment(selectedAppointment.id);
                                       toast.success('Agendamento confirmado.');
                                       setSelectedAppointment(null);
-                                      fetchAllData();
+                                      void fetchAppointmentsData();
+                                      void fetchScheduleSlotsData();
                                     } catch {
                                       toast.error('Erro ao confirmar agendamento.');
                                     }
@@ -1524,10 +1540,14 @@ export function AppointmentsPage() {
                                   type="button"
                                   onClick={async () => {
                                     try {
-                                      await api.completeAppointment(selectedAppointment.id);
+                                      const withdrawal = await api.completeAppointment(selectedAppointment.id);
+                                      setReceipt(withdrawal);
                                       toast.success('Agendamento concluído com sucesso!');
                                       setSelectedAppointment(null);
-                                      fetchAllData();
+                                      void fetchAppointmentsData();
+                                      void fetchScheduleSlotsData();
+                                      void fetchMedicinesData();
+                                      void fetchBatchesData();
                                     } catch {
                                       toast.error('Erro ao concluir agendamento.');
                                     }
@@ -1560,7 +1580,7 @@ export function AppointmentsPage() {
         if (!isMedico) {
           return (
             <Dialog open={modalOpen} onOpenChange={(open) => {
-              if (open) setFieldErrors({});
+              if (open) setFormErrors({});
               setModalOpen(open);
             }}>
               <DialogContent className="sm:max-w-125 rounded-3xl">
@@ -1644,7 +1664,7 @@ export function AppointmentsPage() {
                               setFormErrors((current) => ({ ...current, items: undefined }));
                             }}
                           >
-                            <SelectTrigger id={index === 0 ? 'appointment-form-items' : undefined} aria-invalid={!!formErrors.items} aria-describedby={formErrors.items ? 'appointment-form-items-error' : undefined} className="min-w-0 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                            <SelectTrigger id={index === 0 ? 'appointment-form-items' : undefined} aria-invalid={!!formErrors.items} aria-describedby={formErrors.items ? 'appointment-form-items-error' : undefined} className="col-span-4 min-w-0 rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs sm:col-span-1">
                               <SelectValue placeholder="Selecione o medicamento" />
                             </SelectTrigger>
                             <SelectContent>
@@ -1790,6 +1810,27 @@ export function AppointmentsPage() {
             <Button type="button" variant="outline" onClick={() => setCancelTarget(null)}>Voltar</Button>
             <Button type="button" variant="destructive" onClick={handleCancelAppointment}>Confirmar cancelamento</Button>
           </div>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={receipt !== null} onOpenChange={(open) => { if (!open) setReceipt(null); }}>
+        <DialogContent className="rounded-2xl max-w-md">
+          <DialogHeader>
+            <DialogTitle>Comprovante de Retirada</DialogTitle>
+            <DialogDescription>Baixa FEFO concluída para este atendimento.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p><span className="text-slate-500">Paciente:</span> {receipt?.patient?.name ?? 'Não informado'}</p>
+            <p>
+              <span className="text-slate-500">Lote consumido:</span>{' '}
+              {receipt?.batch?.batchNumber
+                ?? receipt?.allocatedItems?.map((item) => item.batchNumber).join(', ')
+                ?? receipt?.items?.map((item) => item.batch?.batchNumber).filter(Boolean).join(', ')
+                ?? 'Baixa FEFO registrada'}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setReceipt(null)}>Fechar</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

@@ -1,14 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
 import type { ReactNode } from 'react';
 import { CalendarDays, Clock, Plus, Eye, Check, CircleCheckBig, X, Download } from 'lucide-react';
 import { toast } from '@/lib/toast-handler';
 import { useAuthStore } from '@/lib/auth-store';
-import { usePharmacyStore, fetchAllData, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
+import {
+  usePharmacyStore,
+  fetchAppointmentsData,
+  fetchBatchesData,
+  fetchMedicinesData,
+  fetchScheduleSlotsData,
+} from '@/lib/pharmacy-store';
 import type { Appointment } from '@/types';
-import { QUERY_KEYS } from '@/services/queries';
 import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS } from '@/lib/constants';
 import { PageHeader } from '@/components/shared/page-header';
 import { Button } from '@/components/ui/button';
@@ -30,7 +34,6 @@ import { StandardCalendar } from '@/components/shared/standard-calendar';
 // crua da appointmentspage.
 export function AppointmentsOverviewPage() {
   const { appointments, scheduleSlots } = usePharmacyStore();
-  const queryClient = useQueryClient();
   const user = useAuthStore((s) => {
     return s.user;
   });
@@ -58,12 +61,6 @@ export function AppointmentsOverviewPage() {
   const [cancelTarget, setCancelTarget] = useState<Appointment | null>(null);
   const [cancelReason, setCancelReason] = useState('');
   const [receipt, setReceipt] = useState<any>(null);
-
-  // carrega os slots de escala uma vez, porque o modal de dia
-  // usa isso pra mostrar horarios disponiveis.
-  useEffect(() => {
-    fetchScheduleSlotsData();
-  }, []);
 
   // agrupa todos os agendamentos por dia (chave y-m-d) pra achar
   // rapidamente o que tem em cada dia. a chave segue o mesmo padrao
@@ -577,7 +574,8 @@ export function AppointmentsOverviewPage() {
                                         onClick={async () => {
                                           await api.confirmAppointment(app.id);
                                           toast.success('Agendamento confirmado.');
-                                          fetchScheduleSlotsData();
+                                          void fetchAppointmentsData();
+                                          void fetchScheduleSlotsData();
                                         }}
                                         className="h-7 rounded-lg border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 font-medium text-xs gap-1.5"
                                       >
@@ -616,13 +614,10 @@ export function AppointmentsOverviewPage() {
                                             const withdrawal = await api.completeAppointment(app.id);
                                             setReceipt(withdrawal);
                                             toast.success('Atendimento concluído e dispensado.');
-                                            fetchScheduleSlotsData();
-                                            fetchAllData();
-                                            // invalida as queries afetadas
-                                            // pra refletir a baixa no fefo.
-                                            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
-                                            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
-                                            queryClient.invalidateQueries({ queryKey: ['batches'] });
+                                            void fetchAppointmentsData();
+                                            void fetchScheduleSlotsData();
+                                            void fetchMedicinesData();
+                                            void fetchBatchesData();
                                           } catch (err: unknown) {
                                             const error = err as { message?: string };
                                             let errorMsg = 'Erro ao concluir atendimento.';
@@ -739,9 +734,8 @@ export function AppointmentsOverviewPage() {
                                     await api.confirmAppointment(selectedAppointment.id);
                                     toast.success('Agendamento confirmado.');
                                     setSelectedAppointment(null);
-                                    fetchScheduleSlotsData();
-                                    fetchAllData();
-                                    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
+                                    void fetchAppointmentsData();
+                                    void fetchScheduleSlotsData();
                                   } catch (err: unknown) {
                                     const error = err as { message?: string };
                                     let errorMsg = 'Erro ao confirmar agendamento.';
@@ -772,11 +766,10 @@ export function AppointmentsOverviewPage() {
                                     setReceipt(withdrawal);
                                     setSelectedAppointment(null);
                                     toast.success('Atendimento concluído e dispensado.');
-                                    fetchScheduleSlotsData();
-                                    fetchAllData();
-                                    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.appointments });
-                                    queryClient.invalidateQueries({ queryKey: QUERY_KEYS.medicines });
-                                    queryClient.invalidateQueries({ queryKey: ['batches'] });
+                                    void fetchAppointmentsData();
+                                    void fetchScheduleSlotsData();
+                                    void fetchMedicinesData();
+                                    void fetchBatchesData();
                                   } catch (err: unknown) {
                                     const error = err as { message?: string };
                                     let errorMsg = 'Erro ao concluir atendimento.';

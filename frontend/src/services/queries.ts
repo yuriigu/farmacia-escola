@@ -34,13 +34,14 @@ export const QUERY_KEYS = {
 
 // lista o catalogo de medicamentos. staletime de 5 min porque o
 // catalogo muda pouco e evita refetch a cada montagem de tela.
-export function useMedicines() {
+export function useMedicines(options: { enabled?: boolean } = {}) {
   const role = useAuthStore((state) => state.user?.role);
   return useQuery({
     queryKey: [...QUERY_KEYS.medicines, role],
     queryFn: () => {
       return api.medicines.getAll();
     },
+    enabled: options.enabled ?? true,
     staleTime: 1000 * 60 * 5,
   });
 }
@@ -300,12 +301,16 @@ export function useCancelAppointment() {
 // lista pacientes. o placeholderdata keep-previous junto do
 // staletime de 2 min evita o "piscar" da lista a cada keystroke
 // do autocomplete de cpf (que dispara a cada 3 digitos).
-export function usePatients(search?: string) {
+export function usePatients(search?: string, options: { enabled?: boolean } = {}) {
+  const user = useAuthStore((state) => state.user);
+  const role = user?.role?.toUpperCase();
+  const canReadPatients = ['ADMIN', 'FARMACEUTICO', 'ALUNO', 'MEDICO'].includes(role ?? '');
   return useQuery({
     queryKey: QUERY_KEYS.patients(search),
     queryFn: () => {
       return api.patients.getAll(search);
     },
+    enabled: canReadPatients && (options.enabled ?? true),
     staleTime: 1000 * 60 * 2,
     placeholderData: (previousData) => previousData,
   });

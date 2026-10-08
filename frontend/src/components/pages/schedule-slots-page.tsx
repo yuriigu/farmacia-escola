@@ -1,15 +1,16 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import type { EventClickArg } from '@fullcalendar/core';
 import { toast } from '@/lib/toast-handler';
 import { CalendarDays, Plus, Trash2, Edit3, Clock, Loader2 } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
 import { usePharmacyStore, fetchScheduleSlotsData } from '@/lib/pharmacy-store';
 import { api } from '@/lib/api';
+import { useUsers } from '@/hooks/use-users';
 import { usePermission } from '@/hooks/use-permission';
 import { todayKeyLocal } from '@/lib/dates';
-import type { ScheduleSlot, User } from '@/types';
+import type { ScheduleSlot } from '@/types';
 import { PageHeader } from '@/components/shared/page-header';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -33,10 +34,12 @@ const TIME_OPTIONS = ['08:00', '08:30', '09:00', '09:30', '10:00', '10:30', '11:
 export function ScheduleSlotsPage() {
   const user = useAuthStore((s) => s.user);
   const scheduleSlots = usePharmacyStore((s) => s.scheduleSlots);
-  const [pharmacists, setPharmacists] = useState<User[]>([]);
   const canCreate = usePermission('SCHEDULES_CREATE');
   const canUpdate = usePermission('SCHEDULES_UPDATE');
   const canDelete = usePermission('SCHEDULES_DELETE');
+  const canReadUsers = user?.role === 'ADMIN' || canCreate;
+  const { data: users = [] } = useUsers({ enabled: canReadUsers });
+  const pharmacists = users.filter((item) => item.role === 'FARMACEUTICO');
 
   // estado do modal de criar/editar. o editslot indica o modo.
   const [modalOpen, setModalOpen] = useState(false);
@@ -44,15 +47,6 @@ export function ScheduleSlotsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ date: '', timeSlot: '09:00', maxCapacity: 4, assignedToId: 0 });
   const [fieldErrors, setFieldErrors] = useState<{ date?: string; timeSlot?: string; maxCapacity?: string }>({});
-
-  // carrega a lista de farmaceuticos pro select de responsavel.
-  // so farmaceuticos aparecem, porque a escala e gerida por eles.
-  useEffect(() => {
-    api.getUsers().then((users) => {
-      const responsibleUsers = users.filter((item) => item.role === 'FARMACEUTICO');
-      setPharmacists(responsibleUsers);
-    }).catch(() => {});
-  }, []);
 
   // callback do calendario quando o mes visivel muda. recarrega os
   // slots com o filtro de periodo correspondente, pra nao trazer

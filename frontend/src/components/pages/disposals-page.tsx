@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { toast } from '@/lib/toast-handler';
 import { Trash2, Plus, Undo2, Download, Package, Calendar, User, Search, X } from 'lucide-react';
-import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/pharmacy-store';
+import { usePharmacyStore, fetchBatchesData, fetchDisposalsData } from '@/lib/pharmacy-store';
 import type { DisposalDraft, Disposal } from '@/types';
 import { api } from '@/lib/api';
 import { downloadCSV } from '@/lib/constants';
@@ -191,7 +191,8 @@ export function DisposalsPage() {
       toast.success('Descarte registrado com sucesso.');
       setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
       setModalOpen(false);
-      fetchAllData();
+      void fetchDisposalsData();
+      void fetchBatchesData();
     } catch (err: unknown) {
       const error = err as { error?: string };
       let errorMsg = 'Erro ao registrar descarte.';
@@ -262,7 +263,8 @@ export function DisposalsPage() {
       } catch {
         // se a atualizacao falhar, o update otimista ja mostrou o efeito.
       }
-      fetchAllData();
+      void fetchDisposalsData();
+      void fetchBatchesData();
     } catch (err: unknown) {
       const error = err as { error?: string };
       let errorMsg = 'Erro ao reverter descarte.';

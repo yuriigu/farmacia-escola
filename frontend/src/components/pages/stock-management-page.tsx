@@ -7,7 +7,7 @@ import {
   Boxes, Plus, Search, Pencil, Trash2, Eye, X, Calendar, Download,
   ShieldAlert, ShieldCheck, SlidersHorizontal, AlertTriangle
 } from 'lucide-react';
-import { usePharmacyStore, fetchAllData, fetchBatchesData } from '@/lib/pharmacy-store';
+import { usePharmacyStore, fetchMedicinesData, fetchBatchesData } from '@/lib/pharmacy-store';
 import { type BatchEntryDraft, type Batch, type StockStatus } from '@/types';
 import { StockStatusBadge } from '@/components/shared/stock-status-badge';
 import { ConfirmDialog } from '@/components/shared/confirm-dialog';
@@ -312,8 +312,8 @@ export function StockManagementPage() {
         supplier: '',
       });
       setCreateOpen(false);
-      fetchAllData();
-      fetchBatchesData();
+      void fetchMedicinesData();
+      void fetchBatchesData();
     } catch (err: unknown) {
       const error = err as { error?: string };
       let errorMsg = 'Erro ao registrar lote.';
@@ -381,8 +381,8 @@ export function StockManagementPage() {
       setBlockOpen(false);
       setBatchToBlock(null);
       setBlockReason('');
-      fetchAllData();
-      fetchBatchesData();
+      void fetchMedicinesData();
+      void fetchBatchesData();
     } catch (err: unknown) {
       const error = err as { error?: string };
       let errorMsg = 'Erro ao alterar status de bloqueio do lote.';
@@ -434,8 +434,8 @@ export function StockManagementPage() {
       setAdjustOpen(false);
       setBatchToAdjust(null);
       setAdjustReason('');
-      fetchAllData();
-      fetchBatchesData();
+      void fetchMedicinesData();
+      void fetchBatchesData();
     } catch (err: unknown) {
       const error = err as { error?: string };
       let errorMsg = 'Erro ao realizar ajuste de estoque.';
@@ -473,8 +473,8 @@ export function StockManagementPage() {
       toast.success('Lote atualizado com sucesso!');
       setEditOpen(false);
       setSelectedBatch(null);
-      fetchAllData();
-      fetchBatchesData();
+      void fetchMedicinesData();
+      void fetchBatchesData();
     } catch (err: unknown) {
       const error = err as { error?: string };
       let errorMsg = 'Erro ao atualizar lote.';
@@ -500,8 +500,8 @@ export function StockManagementPage() {
       toast.success('Lote excluído com sucesso!');
       setDeleteOpen(false);
       setSelectedBatch(null);
-      fetchAllData();
-      fetchBatchesData();
+      void fetchMedicinesData();
+      void fetchBatchesData();
     } catch (err: unknown) {
       const error = err as { error?: string };
       let errorMsg = 'Não é possível excluir: o lote possui movimentações associadas.';
@@ -869,7 +869,7 @@ export function StockManagementPage() {
             </div>
 
             {/* numero do lote + quantidade recebida */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="stock-batchNumber" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                   Número do Lote *
@@ -917,7 +917,7 @@ export function StockManagementPage() {
             </div>
 
             {/* validade + fabricacao */}
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <Label htmlFor="stock-expirationDate" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                   Data de Validade *
@@ -1056,7 +1056,7 @@ export function StockManagementPage() {
               return (
                 <div className="space-y-4">
                   {/* grade de cards com os dados do lote */}
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
                       <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Medicamento</p>
                       <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 mt-1">

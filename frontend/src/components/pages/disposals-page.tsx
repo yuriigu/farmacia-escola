@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldError } from '@/components/ui/field-error';
+import { FormError } from '@/components/ui/form-error';
 
 // pagina de descartes. lista o historico de descartes com busca,
 // permite registrar um novo (baixa de estoque) e reverter um descarte
@@ -32,6 +33,8 @@ export function DisposalsPage() {
   const [selectedDisposal, setSelectedDisposal] = useState<Disposal | null>(null);
   const [revertReason, setRevertReason] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ batchId?: string; quantity?: string; revertReason?: string }>({});
+  // erro global dos modais de descarte (registrar e reverter).
+  const [formError, setFormError] = useState('');
   const [loadingBatches, setLoadingBatches] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [form, setForm] = useState<DisposalDraft>({ batchId: 0, quantity: 0, reason: 'EXPIRED', notes: '' });
@@ -184,6 +187,7 @@ export function DisposalsPage() {
       document.getElementById(`disposal-${firstInvalidField}`)?.focus();
       return;
     }
+    setFormError('');
     try {
       // aqui chamamos o cliente http (/lib/api.ts) pra registrar o
       // descarte. ele baixa o saldo do lote e grava o historico.
@@ -201,7 +205,7 @@ export function DisposalsPage() {
           errorMsg = error.error;
         }
       }
-      toast.error(errorMsg);
+      setFormError(errorMsg);
     }
   };
 
@@ -215,6 +219,7 @@ export function DisposalsPage() {
       return;
     }
     setFieldErrors((current) => ({ ...current, revertReason: undefined }));
+    setFormError('');
     const reasonText = revertReason.trim();
     try {
       await api.revertDisposal(id, reasonText);
@@ -273,7 +278,7 @@ export function DisposalsPage() {
           errorMsg = error.error;
         }
       }
-      toast.error(errorMsg);
+      setFormError(errorMsg);
     }
   };
 
@@ -395,6 +400,7 @@ export function DisposalsPage() {
                     e.stopPropagation();
                     setSelectedDisposal(null);
                     setRevertReason('');
+                    setFormError('');
                     setReverting(d.id);
                   }}
                   className="h-8 px-2 rounded-lg text-xs gap-1 text-slate-500 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/30"
@@ -444,6 +450,7 @@ export function DisposalsPage() {
                   <Button
                     onClick={() => {
                       setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
+                      setFormError('');
                       setModalOpen(true);
                     }}
                     className="h-10 rounded-xl gap-2 bg-rose-600 hover:bg-rose-700 text-white font-semibold text-sm shadow-sm active:scale-[0.98] transition-transform"
@@ -501,6 +508,7 @@ export function DisposalsPage() {
               <Button
                 onClick={() => {
                   setForm({ batchId: 0, quantity: 0, reason: REASONS[0].value, notes: '' });
+                  setFormError('');
                   setModalOpen(true);
                 }}
                 className="h-9 rounded-xl gap-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold"
@@ -530,6 +538,7 @@ export function DisposalsPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-4 pt-1">
+            <FormError message={formError} />
             {/* select de lote. so lista lotes com saldo > 0 pra nao
                 permitir descarte de lote vazio. */}
             <div>
@@ -798,6 +807,7 @@ export function DisposalsPage() {
                               // (o revert dialog e renderizado por ultimo no jsx).
                               // o comprovante permanece aberto por tras.
                               setRevertReason('');
+                              setFormError('');
                               setReverting(selectedDisposal.id);
                             }}
                             className="rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold gap-1.5"
@@ -841,6 +851,7 @@ export function DisposalsPage() {
               Deseja reverter este descarte? A quantidade de unidades retornará automaticamente ao saldo do lote de origem.
             </DialogDescription>
           </DialogHeader>
+          <FormError message={formError} />
           <Textarea
             id="disposal-revertReason"
             value={revertReason}

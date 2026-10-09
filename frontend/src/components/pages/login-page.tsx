@@ -50,8 +50,9 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
   });
 
   // mutation de login. ao sucesso, guarda a sessao na store e
-  // redireciona pro dashboard. ao erro, mostra toast com a mensagem
-  // da api (ou uma generica, se nao vier).
+  // redireciona pro dashboard. ao erro, a mensagem da api e exibida
+  // no banner fixo do formulario (via loginMutation.isError), sem
+  // toast, pra o erro nao desaparecer rapido.
   const loginMutation = useMutation({
     mutationFn: async (data: LoginFormData) => {
       // aqui chamamos o cliente http (/services/api) pra autenticar.
@@ -61,13 +62,6 @@ export function LoginPage({ onSwitchToRegister }: { onSwitchToRegister?: () => v
       setAuth(result.token, result.user);
       toast.success(`Bem-vindo(a), ${result.user.name}!`);
       router.push('/dashboard');
-    },
-    onError: (err: Error) => {
-      let msg = 'Erro ao realizar login. Verifique suas credenciais.';
-      if (err.message) {
-        msg = err.message;
-      }
-      toast.error(msg);
     },
   });
 

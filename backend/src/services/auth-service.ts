@@ -23,8 +23,26 @@ export class AuthService {
   // checagem simples de cpf: so conta os digitos e exige 11.
   // nao valida digito verificador, so o formato minimo.
   private isValidCPF(cpf: string): boolean {
+
     const digits = cpf.replace(/\D/g, '');
     return digits.length === 11;
+  }
+
+  // garante que o payload de sessao traga um documento de identificacao.
+  // pacientes criados pelo cadastro publico (ou antes da sincronizacao
+  // existir) podem ter registerDoc nulo; nesse caso espelha o cpf do
+  // cadastro de paciente vinculado. assim /auth/login, /auth/me e a
+  // resposta da atualizacao de perfil sempre devolvem o documento real
+  // do papel (cpf/crf/crm/ra) em vez de o front precisar adivinhar.
+  private withRegisterDoc<T extends { role?: string; registerDoc?: string | null; patient?: { cpf?: string | null } | null }>(user: T): T {
+    if (user.registerDoc) {
+      return user;
+    }
+    const cpf = user.patient?.cpf;
+    if (user.role === Role.PACIENTE && cpf) {
+      return { ...user, registerDoc: cpf };
+    }
+    return user;
   }
 
   // faz o login do usuario. valida entrada, busca por email,
@@ -87,8 +105,9 @@ export class AuthService {
       patientId: userPatientId,
     });
 
-    // tira a senha do objeto antes de devolver.
-    const { password: _, ...userWithoutPassword } = user;
+    // tira a senha do objeto antes de devolver e completa o documento
+    // de identificacao (paciente sem registerDoc usa o cpf vinculado).
+    const { password: _, ...userWithoutPassword } = this.withRegisterDoc(user);
 
     return {
       token,
@@ -166,6 +185,9 @@ export class AuthService {
           email,
           password: hashedPassword,
           role: Role.PACIENTE,
+          // documento de identificacao do usuario: o cpf tambem vive
+          // no registerDoc pra /auth/me devolver o campo pronto.
+          registerDoc: cpf,
           phone,
         },
         include: { patient: true },
@@ -208,7 +230,7 @@ export class AuthService {
       patientId: newPatientId,
     });
 
-    const { password: _, ...userWithoutPassword } = user;
+    const { password: _, ...userWithoutPassword } = this.withRegisterDoc(user);
 
     return {
       token,
@@ -234,7 +256,7 @@ export class AuthService {
       userPatientId = null;
     }
 
-    const { password: _, ...userWithoutPassword } = user;
+    const { password: _, ...userWithoutPassword } = this.withRegisterDoc(user);
     return {
       ...userWithoutPassword,
       patientId: userPatientId,
@@ -287,7 +309,7 @@ export class AuthService {
     // chama o repositorio (/repositories/user-repository.ts) pra persistir.
     // ele tambem sincroniza o cadastro de paciente quando os campos batem.
     const updated = await this.userRepo.update(userId, updateData);
-    const { password: _, ...userWithoutPassword } = updated as any;
+    const { password: _, ...userWithoutPassword } = this.withRegisterDoc(updated as any) as any;
 
     let userPatientId = null;
     if (user.patient) {

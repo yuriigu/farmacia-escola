@@ -137,9 +137,10 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
   if (isPatient) {
     return (
       <div className="space-y-6 max-w-7xl mx-auto page-enter">
-        {/* cards de resumo rapido do paciente */}
+        {/* cards de resumo rapido do paciente (clicaveis, atalhos) */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <Card className="rounded-2xl border-slate-200 dark:border-slate-700 p-5 shadow-sm bg-white dark:bg-slate-800">
+          <Link href="/appointments" aria-label="Ver Agendamentos Ativos" className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm bg-white dark:bg-slate-800 block relative cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-500/50 hover:bg-accent/50 group">
+            <ChevronRight aria-hidden="true" className="absolute top-4 right-4 w-4 h-4 text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all" />
             <div className="flex items-center gap-4">
               <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 rounded-xl">
                 <Calendar className="w-6 h-6" />
@@ -151,9 +152,10 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
                 </p>
               </div>
             </div>
-          </Card>
+          </Link>
 
-          <Card className="rounded-2xl border-slate-200 dark:border-slate-700 p-5 shadow-sm bg-white dark:bg-slate-800">
+          <Link href="/medicines" aria-label="Ver Medicamentos no Catálogo" className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm bg-white dark:bg-slate-800 block relative cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-500/50 hover:bg-accent/50 group">
+            <ChevronRight aria-hidden="true" className="absolute top-4 right-4 w-4 h-4 text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all" />
             <div className="flex items-center gap-4">
               <div className="p-3 bg-teal-50 dark:bg-teal-950/40 text-teal-600 rounded-xl">
                 <Package className="w-6 h-6" />
@@ -165,9 +167,10 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
                 </p>
               </div>
             </div>
-          </Card>
+          </Link>
 
-          <Card className="rounded-2xl border-slate-200 dark:border-slate-700 p-5 shadow-sm bg-white dark:bg-slate-800">
+          <Link href="/appointments?status=PENDING" aria-label="Ver Agendamentos Aguardando Confirmação" className="rounded-2xl border border-slate-200 dark:border-slate-700 p-5 shadow-sm bg-white dark:bg-slate-800 block relative cursor-pointer transition-all duration-200 hover:shadow-md hover:border-emerald-500/50 hover:bg-accent/50 group">
+            <ChevronRight aria-hidden="true" className="absolute top-4 right-4 w-4 h-4 text-slate-300 group-hover:text-emerald-500 group-hover:translate-x-0.5 transition-all" />
             <div className="flex items-center gap-4">
               <div className="p-3 bg-amber-50 dark:bg-amber-950/40 text-amber-600 rounded-xl">
                 <Clock className="w-6 h-6" />
@@ -179,7 +182,7 @@ export function DashboardPage({ onNavigate: _onNavigate }: { onNavigate?: (mod: 
                 </p>
               </div>
             </div>
-          </Card>
+          </Link>
         </div>
 
         {/* card com os proximos agendamentos do paciente. se nao tiver

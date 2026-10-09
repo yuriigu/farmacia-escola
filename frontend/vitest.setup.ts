@@ -60,6 +60,7 @@ vi.mock('sonner', () => ({
     error: vi.fn(),
     info: vi.fn(),
     warning: vi.fn(),
+    dismiss: vi.fn(),
   },
   Toaster: () => null,
 }));

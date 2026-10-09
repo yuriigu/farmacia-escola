@@ -15,7 +15,7 @@ describe('ThemeToggle', () => {
     vi.mocked(useTheme).mockReturnValue({
       theme: 'light',
       setTheme,
-    } as ReturnType<typeof useTheme>);
+    } as unknown as ReturnType<typeof useTheme>);
   });
 
   it('shows the light-theme state and switches to dark mode', () => {
@@ -33,7 +33,7 @@ describe('ThemeToggle', () => {
     vi.mocked(useTheme).mockReturnValue({
       theme: 'dark',
       setTheme,
-    } as ReturnType<typeof useTheme>);
+    } as unknown as ReturnType<typeof useTheme>);
 
     render(<ThemeToggle />);
     fireEvent.click(screen.getByRole('button', { name: 'Alternar entre tema claro e escuro' }));

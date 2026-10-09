@@ -645,7 +645,7 @@ export default function MedicinesPage() {
             }
           }}
         >
-          <DialogContent className="sm:max-w-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
+          <DialogContent className="sm:max-w-2xl rounded-3xl max-h-[85vh] overflow-x-hidden overflow-y-auto overscroll-contain dialog-scroll">
             {selectedMedicineForDetails && (() => {
               const med = selectedMedicineForDetails;
 

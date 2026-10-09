@@ -2,9 +2,10 @@
 
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import { CalendarDays, Clock, Plus, Eye, Check, CircleCheckBig, X, Download } from 'lucide-react';
+import { CalendarDays, Clock, Plus, Eye, Check, CheckCheck, X, Download } from 'lucide-react';
 import { toast } from '@/lib/toast-handler';
 import { useAuthStore } from '@/lib/auth-store';
+import { usePermission } from '@/hooks/use-permission';
 import {
   usePharmacyStore,
   fetchAppointmentsData,
@@ -25,6 +26,7 @@ import { api } from '@/lib/api';
 import { downloadCSV } from '@/lib/constants';
 import { formatDateKeyBr, todayKeyLocal, toDateKey } from '@/lib/dates';
 import { StandardCalendar } from '@/components/shared/standard-calendar';
+import { AppointmentDetailsModal } from '@/components/modals/appointment-details-modal';
 
 // pagina de visao geral da agenda. e a aba 'agenda' do modulo de
 // calendario: mostra um calendario mensal com todos os agendamentos,
@@ -38,18 +40,34 @@ export function AppointmentsOverviewPage() {
     return s.user;
   });
 
-  // determina se o usuario logado e paciente. muda o escopo dos
-  // dados mostrados e as acoes disponiveis.
+  // determina se o usuario logado e paciente/medico. medico usa fluxo
+  // proprio de prescricao e nao altera status; paciente so cancela.
   let isPatient = false;
+  let isMedico = false;
   if (user) {
     if (user.role === 'PACIENTE') {
       isPatient = true;
     } else {
       isPatient = false;
     }
+    if (user.role === 'MEDICO') {
+      isMedico = true;
+    } else {
+      isMedico = false;
+    }
   } else {
     isPatient = false;
+    isMedico = false;
   }
+
+  // permissao granular de alteracao de status (confirmar/concluir).
+  // o backend (role-middleware) concede APPOINTMENTS_UPDATE apenas a
+  // ADMIN, FARMACEUTICO e ALUNO — PACIENTE e MEDICO ficam sem acesso.
+  // mantemos tambem as travas explicitas de papel porque o
+  // canWriteClient do frontend ainda libera 'appointments' para
+  // MEDICO/PACIENTE (escrita ampla), o que nao reflete o UPDATE real.
+  const canUpdateAppointment = usePermission('APPOINTMENTS_UPDATE');
+  const canManageAppointmentStatus = canUpdateAppointment && !isPatient && !isMedico;
 
   // estado do calendario: mes/ano em exibicao, dia selecionado
   // (abre o modal de detalhe) e dialogs de detalhe/cancelamento/comprovante.
@@ -396,7 +414,7 @@ export function AppointmentsOverviewPage() {
       {/* modal do dia selecionado: lista slots disponiveis e os
           agendamentos marcados, com acoes contextuais. */}
       <Dialog open={selectedDay !== null} onOpenChange={() => setSelectedDay(null)}>
-        <DialogContent className="rounded-2xl max-w-lg max-h-[80vh] overflow-y-auto">
+        <DialogContent className="rounded-2xl sm:max-w-xl max-h-[80vh] overflow-x-hidden overflow-y-auto overscroll-contain dialog-scroll">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
               <CalendarDays className="w-5 h-5 text-emerald-600" />
@@ -560,27 +578,27 @@ export function AppointmentsOverviewPage() {
                                 Paciente: <strong className="text-slate-800 dark:text-slate-200">{patientNameText}</strong>
                               </p>
                             </div>
-                            <div className="flex items-center gap-1" onClick={(event) => event.stopPropagation()}>
+                            <div className="flex items-center gap-1.5" onClick={(event) => event.stopPropagation()}>
                               <Button variant="ghost" size="sm" title="Visualizar" onClick={() => setSelectedAppointment(app)}><Eye className="h-4 w-4" /></Button>
-                              {/* confirmar: so pra equipe, so quando pending */}
+                              {/* confirmar: so pra equipe autorizada (APPOINTMENTS_UPDATE: ADMIN/FARMACEUTICO/ALUNO), so quando pending */}
                               {(() => {
-                                if (!isPatient) {
+                                if (canManageAppointmentStatus) {
                                   if (app.status === 'PENDING') {
                                     return (
                                       <Button
-                                        variant="outline"
                                         size="sm"
-                                        title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
+                                        variant="ghost"
+                                        title="Confirmar Agendamento"
+                                        aria-label="Confirmar Agendamento"
                                         onClick={async () => {
                                           await api.confirmAppointment(app.id);
                                           toast.success('Agendamento confirmado.');
                                           void fetchAppointmentsData();
                                           void fetchScheduleSlotsData();
                                         }}
-                                        className="h-7 rounded-lg border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 font-medium text-xs gap-1.5"
+                                        className="h-8 w-8 p-0 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:text-emerald-300 dark:hover:bg-emerald-900/30"
                                       >
-                                        <Check className="h-3.5 w-3.5" />
-                                        <span>Confirmar</span>
+                                        <Check className="h-4 w-4" />
                                       </Button>
                                     );
                                   }
@@ -588,10 +606,11 @@ export function AppointmentsOverviewPage() {
                                 return null;
                               })()}
                               {/* concluir: efetiva atendimento e dispensa
-                                  via fefo. so pra equipe, quando
+                                  via fefo. so pra equipe autorizada
+                                  (APPOINTMENTS_UPDATE), quando
                                   pending ou confirmed. */}
                               {(() => {
-                                if (!isPatient) {
+                                if (canManageAppointmentStatus) {
                                   // concluir e a acao final: efetiva o atendimento e a dispensacao.
                                   let canComplete = false;
                                   if (app.status === 'PENDING') {
@@ -602,9 +621,10 @@ export function AppointmentsOverviewPage() {
                                   if (canComplete) {
                                     return (
                                       <Button
-                                        variant="outline"
                                         size="sm"
-                                        title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
+                                        variant="ghost"
+                                        title="Concluir Agendamento"
+                                        aria-label="Concluir Agendamento"
                                         onClick={async () => {
                                           try {
                                             // aqui chamamos o cliente http
@@ -629,10 +649,9 @@ export function AppointmentsOverviewPage() {
                                             toast.error(errorMsg);
                                           }
                                         }}
-                                        className="h-7 rounded-lg border-teal-400 dark:border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/40 font-medium text-xs gap-1.5"
+                                        className="h-8 w-8 p-0 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:text-emerald-300 dark:hover:bg-emerald-900/30"
                                       >
-                                        <CircleCheckBig className="h-3.5 w-3.5" />
-                                        <span>Concluir</span>
+                                        <CheckCheck className="h-4 w-4" />
                                       </Button>
                                     );
                                   }
@@ -680,126 +699,13 @@ export function AppointmentsOverviewPage() {
         </DialogContent>
       </Dialog>
 
-      {/* modal de detalhe do agendamento selecionado, com acoes de
-          confirmar/concluir pra equipe. */}
-      <Dialog open={selectedAppointment !== null} onOpenChange={(open) => { if (!open) setSelectedAppointment(null); }}>
-        <DialogContent className="rounded-2xl max-w-md">
-          <DialogHeader><DialogTitle>Detalhes do Agendamento</DialogTitle><DialogDescription>Informações do atendimento selecionado.</DialogDescription></DialogHeader>
-          {(() => {
-            if (selectedAppointment) {
-              let patientName = 'Não informado';
-              if (selectedAppointment.patient) {
-                if (selectedAppointment.patient.name) {
-                  patientName = selectedAppointment.patient.name;
-                }
-              }
-              let timeStr = 'Não informado';
-              if (selectedAppointment.scheduledTime) {
-                timeStr = selectedAppointment.scheduledTime;
-              }
-              // permite conclusao pra papeis nao-paciente independente
-              // de data/hora.
-              return (
-                <div className="space-y-4">
-                  <div className="space-y-2 text-sm">
-                    <p>Paciente: <strong>{patientName}</strong></p>
-                    <p>Status: {APPOINTMENT_STATUS_LABELS[selectedAppointment.status]}</p>
-                    <p>Horário: {timeStr}</p>
-                  </div>
-                  <div className="flex justify-end gap-2 pt-2 border-t">
-                    <Button variant="outline" onClick={() => setSelectedAppointment(null)}>Fechar</Button>
-                    {(() => {
-                      if (!isPatient) {
-                        let canConfirm = false;
-                        let canComplete = false;
-                        if (selectedAppointment.status === 'PENDING') {
-                          canConfirm = true;
-                          canComplete = true;
-                        } else if (selectedAppointment.status === 'CONFIRMED') {
-                          canComplete = true;
-                        }
-
-                        return (
-                          <div className="flex items-center gap-2">
-                            {canConfirm && (
-                              <Button
-                                variant="outline"
-                                size="sm"
-                                title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
-                                onClick={async () => {
-                                  try {
-                                    // chama o cliente http (/lib/api.ts)
-                                    // pra confirmar e depois invalida as
-                                    // queries afetadas.
-                                    await api.confirmAppointment(selectedAppointment.id);
-                                    toast.success('Agendamento confirmado.');
-                                    setSelectedAppointment(null);
-                                    void fetchAppointmentsData();
-                                    void fetchScheduleSlotsData();
-                                  } catch (err: unknown) {
-                                    const error = err as { message?: string };
-                                    let errorMsg = 'Erro ao confirmar agendamento.';
-                                    if (error) {
-                                      if (error.message) {
-                                        errorMsg = error.message;
-                                      }
-                                    }
-                                    toast.error(errorMsg);
-                                  }
-                                }}
-                                className="h-8 rounded-lg border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs font-semibold gap-1.5"
-                              >
-                                <Check className="h-3.5 w-3.5" />
-                                Confirmar Agendamento
-                              </Button>
-                            )}
-                            {canComplete && (
-                              <Button
-                                size="sm"
-                                title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
-                                onClick={async () => {
-                                  try {
-                                    // chama o cliente http (/lib/api.ts)
-                                    // pra concluir. dispara fefo no backend
-                                    // e o retorno vira comprovante.
-                                    const withdrawal = await api.completeAppointment(selectedAppointment.id);
-                                    setReceipt(withdrawal);
-                                    setSelectedAppointment(null);
-                                    toast.success('Atendimento concluído e dispensado.');
-                                    void fetchAppointmentsData();
-                                    void fetchScheduleSlotsData();
-                                    void fetchMedicinesData();
-                                    void fetchBatchesData();
-                                  } catch (err: unknown) {
-                                    const error = err as { message?: string };
-                                    let errorMsg = 'Erro ao concluir atendimento.';
-                                    if (error) {
-                                      if (error.message) {
-                                        errorMsg = error.message;
-                                      }
-                                    }
-                                    toast.error(errorMsg);
-                                  }
-                                }}
-                                className="h-8 rounded-lg bg-teal-600 hover:bg-teal-700 text-white text-xs font-semibold gap-1.5"
-                              >
-                                <CircleCheckBig className="h-3.5 w-3.5" />
-                                Concluir Agendamento
-                              </Button>
-                            )}
-                          </div>
-                        );
-                      }
-                      return null;
-                    })()}
-                  </div>
-                </div>
-              );
-            }
-            return null;
-          })()}
-        </DialogContent>
-      </Dialog>
+      {/* modal de detalhe do agendamento selecionado (olhinho), agora
+          compartilhado com o modulo /appointments. */}
+      <AppointmentDetailsModal
+        appointment={selectedAppointment}
+        onOpenChange={(open) => { if (!open) setSelectedAppointment(null); }}
+        onComplete={(withdrawal) => setReceipt(withdrawal)}
+      />
 
       {/* modal de cancelamento: exige motivo antes de liberar a vaga. */}
       <Dialog open={cancelTarget !== null} onOpenChange={(open) => { if (!open) setCancelTarget(null); }}>

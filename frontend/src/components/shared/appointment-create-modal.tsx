@@ -17,6 +17,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldError } from '@/components/ui/field-error';
+import { FormError } from '@/components/ui/form-error';
 
 interface AppointmentCreateModalProps {
   open: boolean;
@@ -24,6 +25,23 @@ interface AppointmentCreateModalProps {
   initialMedicineId?: number;
   initialDate?: string;
   onSuccess?: () => void;
+}
+
+// normaliza o nome do profissional da escala. o seed ja grava com
+// titulo ("Farm. Luciana Mendes"), entao removemos qualquer prefixo
+// existente (farm./dr./dra.) antes de reaplicar um unico "Farm. ".
+// idempotente: "Farm. Luciana" -> "Farm. Luciana",
+// "Luciana" -> "Farm. Luciana".
+function formatProfessionalName(name?: string | null): string {
+  const raw = (name ?? '').trim();
+  if (!raw) {
+    return 'Não informado';
+  }
+  const clean = raw.replace(/^(dra?\.?|farm\.?)\s+/i, '').trim();
+  if (!clean) {
+    return raw;
+  }
+  return `Farm. ${clean}`;
 }
 
 export function AppointmentCreateModal({
@@ -48,6 +66,8 @@ export function AppointmentCreateModal({
   const [slotId, setSlotId] = useState<number | undefined>();
   const [notes, setNotes] = useState('');
   const [fieldErrors, setFieldErrors] = useState<{ items?: string; appointmentDate?: string; slotId?: string; patient?: string }>({});
+  // erro global do modal (ex: slot lotado / conflito vindo do backend).
+  const [formError, setFormError] = useState('');
 
   useEffect(() => {
     if (open) void fetchScheduleSlotsData();
@@ -75,6 +95,7 @@ export function AppointmentCreateModal({
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
+    setFormError('');
     const nextErrors: typeof fieldErrors = {};
     if (formItems.length === 0 || formItems.some((item) => !item.medicineId || item.quantity < 1)) {
       nextErrors.items = 'Selecione um medicamento e informe uma quantidade válida.';
@@ -130,16 +151,25 @@ export function AppointmentCreateModal({
           onOpenChange(false);
           onSuccess?.();
         },
+        onError: (err: unknown) => {
+          // o hook compartilhado ja dispara toast; aqui garantimos o
+          // feedback inline no proprio modal.
+          const fallback = err instanceof Error && err.message ? err.message : 'Erro ao criar agendamento.';
+          setFormError(fallback);
+        },
       },
     );
   };
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => {
-      if (nextOpen) setFieldErrors({});
+      if (nextOpen) {
+        setFieldErrors({});
+        setFormError('');
+      }
       onOpenChange(nextOpen);
     }}>
-      <DialogContent className="sm:max-w-125 rounded-3xl">
+      <DialogContent className="sm:max-w-xl rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
             <Calendar className="w-5 h-5 text-emerald-600" />
@@ -153,6 +183,7 @@ export function AppointmentCreateModal({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4 py-2">
+          <FormError message={formError} />
           {!isPatient && (
             <div className="space-y-1.5">
               <Label htmlFor="appointment-patient" className="text-xs font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
@@ -274,17 +305,17 @@ export function AppointmentCreateModal({
             <div className="space-y-1.5">
               <Label htmlFor="appointment-slotId" className="text-xs font-bold text-slate-600 dark:text-slate-300">Horário da Escala *</Label>
               <Select value={slotId ? String(slotId) : ''} onValueChange={(value) => setSlotId(Number(value))} disabled={!appointmentDate}>
-                <SelectTrigger id="appointment-slotId" aria-invalid={!!fieldErrors.slotId} aria-describedby={fieldErrors.slotId ? 'appointment-slot-error' : undefined} className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
-                  <SelectValue placeholder={appointmentDate ? 'Selecione um horário' : 'Escolha a data primeiro'} />
+                <SelectTrigger id="appointment-slotId" aria-invalid={!!fieldErrors.slotId} aria-describedby={fieldErrors.slotId ? 'appointment-slot-error' : undefined} className="w-full min-w-0 overflow-hidden text-left rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                  <SelectValue className="truncate" placeholder={appointmentDate ? 'Selecione um horário' : 'Escolha a data primeiro'} />
                 </SelectTrigger>
                 <SelectContent>
                   {availableSlots.map((slot) => {
                     const booked = slot._count?.appointments ?? 0;
                     const free = Math.max(0, slot.maxCapacity - booked);
-                    const pharmacist = slot.assignedTo?.name ?? 'Não informado';
+                    const pharmacist = formatProfessionalName(slot.assignedTo?.name);
                     return (
                       <SelectItem key={slot.id} value={String(slot.id)} disabled={free === 0}>
-                        {slot.timeSlot} — ({free}/{slot.maxCapacity} vagas livres) — Farm. {pharmacist}
+                        {slot.timeSlot} — ({free}/{slot.maxCapacity} vagas) — {pharmacist}
                       </SelectItem>
                     );
                   })}

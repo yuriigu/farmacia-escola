@@ -5,10 +5,11 @@ import { useSearchParams } from 'next/navigation';
 import { toast } from '@/lib/toast-handler';
 import { getRealAvailableQuantity, isMedicineAvailable } from '@/lib/stock';
 import {
-  Calendar, Plus, Check, X, Clock, Download, CircleCheckBig,
-  Eye, Pill, FileText, Search, CalendarDays, User
+  Calendar, Plus, Check, CheckCheck, X, Clock, Download,
+  Eye, Pill, Search, CalendarDays, User
 } from 'lucide-react';
 import { useAuthStore } from '@/lib/auth-store';
+import { usePermission } from '@/hooks/use-permission';
 import {
   usePharmacyStore,
   fetchAppointmentsData,
@@ -17,7 +18,7 @@ import {
   fetchScheduleSlotsData,
 } from '@/lib/pharmacy-store';
 import type { Appointment, AppointmentDraft, AppointmentItem } from '@/types';
-import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS, downloadCSV, getAvatarColor } from '@/lib/constants';
+import { APPOINTMENT_STATUS_STYLES, APPOINTMENT_STATUS_LABELS, downloadCSV } from '@/lib/constants';
 import { api } from '@/lib/api';
 import { dateKeyOffsetLocal, formatDateKeyBr, isoFromLocalDateTime, todayKeyLocal, toDateKey } from '@/lib/dates';
 import { maskCPF, onlyDigits } from '@/lib/masks';
@@ -25,12 +26,14 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { FieldError } from '@/components/ui/field-error';
+import { FormError } from '@/components/ui/form-error';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PageHeader } from '@/components/shared/page-header';
 import { DataTable } from '@/components/shared/data-table';
+import { AppointmentDetailsModal } from '@/components/modals/appointment-details-modal';
 import type { Column } from '@/types';
 
 // calcula o saldo disponivel real do medicamento. usa availablequantity
@@ -38,6 +41,23 @@ import type { Column } from '@/types';
 // de zero).
 function getAvailableStock(medicine: { physicalQuantity?: number; totalQuantity?: number; reservedQuantity?: number; availableQuantity?: number }): number {
   return getRealAvailableQuantity(medicine);
+}
+
+// normaliza o nome do profissional da escala. o seed ja grava com
+// titulo ("Farm. Luciana Mendes"), entao removemos qualquer prefixo
+// existente (farm./dr./dra.) antes de reaplicar um unico "Farm. ".
+// idempotente: "Farm. Luciana" -> "Farm. Luciana",
+// "Luciana" -> "Farm. Luciana".
+function formatProfessionalName(name?: string | null): string {
+  const raw = (name ?? '').trim();
+  if (!raw) {
+    return 'Não informado';
+  }
+  const clean = raw.replace(/^(dra?\.?|farm\.?)\s+/i, '').trim();
+  if (!clean) {
+    return raw;
+  }
+  return `Farm. ${clean}`;
 }
 
 // modal de agendamento com foco em medico. existe porque medico tem
@@ -57,6 +77,8 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchingCpf, setSearchingCpf] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ cpfInput?: string; patientName?: string; items?: string; scheduledDate?: string; slotId?: string }>({});
+  // erro global do modal do medico (ex: slot lotado vindo do backend).
+  const [formError, setFormError] = useState('');
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const suggestionsRef = useRef<HTMLDivElement>(null);
 
@@ -133,6 +155,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
   // chamar a api.
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     const nextErrors: typeof fieldErrors = {};
     if (items.some((item) => !item.medicineId || item.quantity < 1)) {
       nextErrors.items = 'Selecione o medicamento e informe uma quantidade válida em todas as linhas.';
@@ -219,7 +242,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
       } else {
         errMessage = 'Erro ao criar agendamento médico.';
       }
-      toast.error(errMessage);
+      setFormError(errMessage);
     } finally {
       setLoading(false);
     }
@@ -227,7 +250,10 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
 
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => {
-      if (nextOpen) setFieldErrors({});
+      if (nextOpen) {
+        setFieldErrors({});
+        setFormError('');
+      }
       onOpenChange(nextOpen);
     }}>
       <DialogContent className="rounded-2xl max-w-lg">
@@ -244,6 +270,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
         </DialogHeader>
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4 pt-1">
+          <FormError message={formError} />
           {/* cpf com autocomplete: digita 3+ digitos pra ver sugestoes
               do historico de pacientes do medico. */}
           <div className="relative" ref={suggestionsRef}>
@@ -385,7 +412,7 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
             <Input id="doctor-appointment-scheduledDate" type="date" aria-invalid={!!fieldErrors.scheduledDate} aria-describedby={fieldErrors.scheduledDate ? 'doctor-appointment-scheduledDate-error' : undefined} value={scheduledDate} onChange={(e) => { setScheduledDate(e.target.value); setSlotId(0); setFieldErrors((current) => ({ ...current, scheduledDate: undefined, slotId: undefined })); }} className="rounded-xl border-slate-200 dark:border-slate-600 transition-all focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500" />
             {fieldErrors.scheduledDate && <FieldError id="doctor-appointment-scheduledDate-error" message={fieldErrors.scheduledDate} />}
             <Select value={slotId ? String(slotId) : ''} onValueChange={(value) => { setSlotId(Number(value)); setFieldErrors((current) => ({ ...current, slotId: undefined })); }}>
-              <SelectTrigger id="doctor-appointment-slotId" aria-invalid={!!fieldErrors.slotId} aria-describedby={fieldErrors.slotId ? 'doctor-appointment-slotId-error' : undefined} className="mt-2 rounded-xl border-slate-200 dark:border-slate-600"><SelectValue placeholder="Selecione um horário com vagas..." /></SelectTrigger>
+              <SelectTrigger id="doctor-appointment-slotId" aria-invalid={!!fieldErrors.slotId} aria-describedby={fieldErrors.slotId ? 'doctor-appointment-slotId-error' : undefined} className="w-full min-w-0 overflow-hidden text-left mt-2 rounded-xl border-slate-200 dark:border-slate-600"><SelectValue className="truncate" placeholder="Selecione um horário com vagas..." /></SelectTrigger>
               <SelectContent>
                 {scheduleSlots.filter((slot) => {
                   if (!slot.active) {
@@ -405,9 +432,9 @@ function DoctorAppointmentModal({ open, onOpenChange }: { open: boolean; onOpenC
                   const free = slot.maxCapacity - booked;
                   let pharmacist = 'Não informado';
                   if (slot.assignedTo) {
-                    pharmacist = slot.assignedTo.name;
+                    pharmacist = formatProfessionalName(slot.assignedTo.name);
                   }
-                  return <SelectItem key={slot.id} value={String(slot.id)} disabled={free <= 0}>{slot.timeSlot} — {free}/{slot.maxCapacity} vagas — (Farm. {pharmacist})</SelectItem>;
+                  return <SelectItem key={slot.id} value={String(slot.id)} disabled={free <= 0}>{slot.timeSlot} — ({free}/{slot.maxCapacity} vagas) — {pharmacist}</SelectItem>;
                 })}
               </SelectContent>
             </Select>
@@ -456,9 +483,21 @@ export function AppointmentsPage() {
   const searchParams = useSearchParams();
   const newParam = searchParams.get('new');
   const medIdParam = searchParams.get('medicineId') ?? searchParams.get('medid');
+  const statusParam = searchParams.get('status');
 
   // a url pode abrir o modal direto: ?new=1 (generico) ou
   // ?medicineid=n (vindo da tela de medicamentos).
+  // ?status=PENDING (vindo do card "Aguardando Confirmação" do
+  // dashboard) preseleciona o chip de pendentes; qualquer outro
+  // valor cai em ALL.
+  const ALLOWED_STATUS_FILTERS = ['ALL', 'PENDING', 'CONFIRMED', 'COMPLETED', 'CANCELLED'];
+  let initialStatusFilter = 'ALL';
+  if (statusParam) {
+    const normalizedStatus = statusParam.trim().toUpperCase();
+    if (ALLOWED_STATUS_FILTERS.includes(normalizedStatus)) {
+      initialStatusFilter = normalizedStatus;
+    }
+  }
   let initialNew = false;
   if (newParam === '1') {
     initialNew = true;
@@ -483,8 +522,10 @@ export function AppointmentsPage() {
   const [cancelReason, setCancelReason] = useState('');
   const [cancelReasonError, setCancelReasonError] = useState('');
   const [formErrors, setFormErrors] = useState<{ items?: string; scheduledDate?: string; slotId?: string; patientId?: string }>({});
+  // erro global do modal de criar agendamento (ex: slot lotado).
+  const [formError, setFormError] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [statusFilter, setStatusFilter] = useState(initialStatusFilter);
   const [patientSearch, setPatientSearch] = useState('');
   const user = useAuthStore((s) => {
     return s.user;
@@ -515,6 +556,15 @@ export function AppointmentsPage() {
     isMedico = false;
   }
 
+  // permissao granular de alteracao de status (confirmar/concluir).
+  // o backend (role-middleware) concede APPOINTMENTS_UPDATE apenas a
+  // ADMIN, FARMACEUTICO e ALUNO — PACIENTE e MEDICO ficam sem acesso.
+  // mantemos tambem as travas explicitas de papel porque o
+  // canWriteClient do frontend ainda libera 'appointments' para
+  // MEDICO/PACIENTE (escrita ampla), o que nao reflete o UPDATE real.
+  const canUpdateAppointment = usePermission('APPOINTMENTS_UPDATE');
+  const canManageAppointmentStatus = canUpdateAppointment && !isPatient && !isMedico;
+
   const defaultForm: AppointmentDraft = {
     items: [{ medicineId: initialMedId, quantity: 1 }],
     scheduledDate: dateKeyOffsetLocal(1),
@@ -523,7 +573,7 @@ export function AppointmentsPage() {
     notes: '',
   };
   const [form, setForm] = useState<AppointmentDraft>(defaultForm);
-  const [loadingPatients, setLoadingPatients] = useState(false);
+  const [, setLoadingPatients] = useState(false);
 
   // slots ativos na data escolhida no formulario. e o que alimenta o
   // select de horario no modal padrao.
@@ -618,6 +668,7 @@ export function AppointmentsPage() {
   // manda patientid (o backend amarra ao dono do token).
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     const nextErrors: typeof formErrors = {};
     if (form.items.length === 0 || form.items.some((item) => !item.medicineId || item.quantity < 1)) {
       nextErrors.items = 'Selecione um medicamento e informe uma quantidade válida.';
@@ -695,7 +746,7 @@ export function AppointmentsPage() {
       } else {
         errMessage = 'Erro ao criar agendamento.';
       }
-      toast.error(errMessage);
+      setFormError(errMessage);
     }
   };
 
@@ -1040,8 +1091,9 @@ export function AppointmentsPage() {
       width: '140px',
       cell: (app) => {
         // paciente cancela os proprios (pending/confirmed); equipe
-        // (nao-medico) confirma/conclui/cancela. medico nao ve essas
-        // acoes porque ele usa o modal dele pra criar.
+        // autorizada (APPOINTMENTS_UPDATE: ADMIN, FARMACEUTICO, ALUNO)
+        // confirma/conclui/cancela. PACIENTE e MEDICO nao veem essas
+        // acoes de alteracao de status.
         let patientCanCancel = false;
         if (isPatient) {
           if (app.status === 'PENDING') {
@@ -1052,13 +1104,11 @@ export function AppointmentsPage() {
         }
 
         let staffCanAct = false;
-        if (!isPatient) {
-          if (!isMedico) {
-            if (app.status === 'PENDING') {
-              staffCanAct = true;
-            } else if (app.status === 'CONFIRMED') {
-              staffCanAct = true;
-            }
+        if (canManageAppointmentStatus) {
+          if (app.status === 'PENDING') {
+            staffCanAct = true;
+          } else if (app.status === 'CONFIRMED') {
+            staffCanAct = true;
           }
         }
 
@@ -1102,7 +1152,7 @@ export function AppointmentsPage() {
                   <>
                     <Button
                       size="sm"
-                      variant="outline"
+                      variant="ghost"
                       onClick={async () => {
                         try {
                           const withdrawal = await api.completeAppointment(app.id);
@@ -1116,11 +1166,11 @@ export function AppointmentsPage() {
                           toast.error('Erro ao concluir atendimento.');
                         }
                       }}
-                      className="h-7 rounded-lg border-teal-400 dark:border-teal-500 bg-teal-50 dark:bg-teal-900/20 text-teal-700 dark:text-teal-300 hover:bg-teal-100 dark:hover:bg-teal-900/40 font-medium text-xs gap-1.5"
-                      title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
+                      className="h-8 w-8 p-0 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:text-emerald-300 dark:hover:bg-emerald-900/30"
+                      title="Concluir Agendamento"
+                      aria-label="Concluir Agendamento"
                     >
-                      <CircleCheckBig className="w-3.5 h-3.5" />
-                      <span>Concluir</span>
+                      <CheckCheck className="w-4 h-4" />
                     </Button>
 
                     {/* confirmar so quando pending */}
@@ -1129,7 +1179,7 @@ export function AppointmentsPage() {
                         return (
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="ghost"
                             onClick={async () => {
                               try {
                                 await api.confirmAppointment(app.id);
@@ -1140,11 +1190,11 @@ export function AppointmentsPage() {
                                 toast.error('Erro ao confirmar.');
                               }
                             }}
-                            className="h-7 rounded-lg border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 font-medium text-xs gap-1.5"
-                            title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
+                            className="h-8 w-8 p-0 rounded-lg text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:text-emerald-300 dark:hover:bg-emerald-900/30"
+                            title="Confirmar Agendamento"
+                            aria-label="Confirmar Agendamento"
                           >
-                            <Check className="w-3.5 h-3.5" />
-                            <span>Confirmar</span>
+                            <Check className="w-4 h-4" />
                           </Button>
                         );
                       }
@@ -1324,255 +1374,13 @@ export function AppointmentsPage() {
         onRowClick={(app) => setSelectedAppointment(app)}
       />
 
-      {/* modal de detalhe do agendamento selecionado, com acoes de
-          status pra equipe nao-medico. */}
-      <Dialog open={Boolean(selectedAppointment)} onOpenChange={() => setSelectedAppointment(null)}>
-        <DialogContent className="rounded-2xl max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <div className="p-2 rounded-xl bg-teal-50 dark:bg-teal-900/30 text-teal-600">
-                <Calendar className="w-5 h-5" />
-              </div>
-              Detalhes do Atendimento
-            </DialogTitle>
-            <DialogDescription>Informações completas do agendamento</DialogDescription>
-          </DialogHeader>
-          {(() => {
-            if (selectedAppointment) {
-              // resolve label/cor do status do detalhe.
-              let detailStatusStyle = '';
-              if (APPOINTMENT_STATUS_STYLES[selectedAppointment.status]) {
-                detailStatusStyle = APPOINTMENT_STATUS_STYLES[selectedAppointment.status];
-              }
-
-              let detailStatusLabel: string = selectedAppointment.status;
-              if (APPOINTMENT_STATUS_LABELS[selectedAppointment.status]) {
-                detailStatusLabel = APPOINTMENT_STATUS_LABELS[selectedAppointment.status];
-              }
-
-              return (
-                <div className="space-y-4">
-                  {/* badge de status */}
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline" className={detailStatusStyle}>
-                      {detailStatusLabel}
-                    </Badge>
-                  </div>
-
-                  {/* bloco do paciente, com avatar e cpf formatado */}
-                  {(() => {
-                    if (selectedAppointment.patient) {
-                      let patientCpfEl: React.ReactNode = null;
-                      if (selectedAppointment.patient.cpf) {
-                        patientCpfEl = <p className="text-xs text-slate-400 font-mono">{maskCPF(selectedAppointment.patient.cpf)}</p>;
-                      }
-                      return (
-                        <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                          <div className="flex items-center gap-3">
-                            <div className={'w-10 h-10 rounded-full ' + getAvatarColor(selectedAppointment.patient.name) + ' text-white flex items-center justify-center font-bold'}>
-                              {selectedAppointment.patient.name.charAt(0)}
-                            </div>
-                            <div>
-                              <p className="font-bold text-slate-800 dark:text-slate-200">{selectedAppointment.patient.name}</p>
-                              {patientCpfEl}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-
-                  {/* bloco dos medicamentos solicitados */}
-                  {(() => {
-                    if (selectedAppointment.items) {
-                      if (selectedAppointment.items.length > 0) {
-                        return (
-                          <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800">
-                            <div className="flex items-center gap-1.5 mb-1">
-                              <Pill className="w-3.5 h-3.5 text-emerald-500" />
-                              <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider">Medicamento(s)</p>
-                            </div>
-                            {selectedAppointment.items.map((item, idx) => {
-                              let itemKey: string | number = idx;
-                              if (item.id) {
-                                itemKey = item.id;
-                              }
-                              let itemBorder = '';
-                              if (idx > 0) {
-                                itemBorder = 'mt-2 pt-2 border-t border-emerald-100 dark:border-emerald-800';
-                              }
-
-                              let medItemName = 'Medicamento não informado';
-                              let medDosageEl: React.ReactNode = null;
-                              let medActiveEl: React.ReactNode = null;
-                              if (item.medicine) {
-                                if (item.medicine.name) {
-                                  medItemName = item.medicine.name;
-                                }
-                                if (item.medicine.dosage) {
-                                  medDosageEl = <p className="text-xs text-slate-400">Dosagem: {item.medicine.dosage}</p>;
-                                }
-                                if (item.medicine.activeIngredient) {
-                                  medActiveEl = <p className="text-xs text-slate-400">Princípio Ativo: {item.medicine.activeIngredient}</p>;
-                                }
-                              }
-
-                              return (
-                                <div key={itemKey} className={itemBorder}>
-                                  <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">{medItemName}</p>
-                                  {medDosageEl}
-                                  {medActiveEl}
-                                  <p className="text-xs text-emerald-600 font-medium">Quantidade: {item.quantity} un.</p>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        );
-                      }
-                    }
-                    return null;
-                  })()}
-
-                  {/* data e horario, com fallback pra hora do proprio date */}
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Data Agendada</p>
-                      </div>
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                        {(() => {
-                          return formatDateKeyBr(toDateKey(selectedAppointment.scheduledDate), {
-                            weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
-                          });
-                        })()}
-                      </p>
-                    </div>
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-700">
-                      <div className="flex items-center gap-1.5 mb-1">
-                        <Clock className="w-3.5 h-3.5 text-slate-400" />
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Horário</p>
-                      </div>
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                        {(() => {
-                          if (selectedAppointment.scheduledTime) {
-                            return selectedAppointment.scheduledTime;
-                          }
-                          const d = new Date(selectedAppointment.scheduledDate);
-                          if (Number.isNaN(d.getTime())) {
-                            return '—';
-                          } else {
-                            return d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-                          }
-                        })()}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* observacoes, so se existirem */}
-                  {(() => {
-                    if (selectedAppointment.notes) {
-                      return (
-                        <div className="p-3 rounded-xl bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <FileText className="w-3.5 h-3.5 text-blue-500" />
-                            <p className="text-[10px] font-bold text-blue-600 uppercase tracking-wider">Observações</p>
-                          </div>
-                          <p className="text-sm text-blue-800 dark:text-blue-300">{selectedAppointment.notes}</p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  })()}
-
-                  <DialogFooter className="pt-3 flex items-center justify-between sm:justify-between gap-2 border-t border-slate-100 dark:border-slate-800">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => setSelectedAppointment(null)}
-                      className="rounded-xl text-xs"
-                    >
-                      Fechar
-                    </Button>
-                    {/* acoes de status pra equipe nao-medico */}
-                    {(() => {
-                      if (!isPatient) {
-                        if (!isMedico) {
-                          let canConfirm = false;
-                          let canComplete = false;
-                          if (selectedAppointment.status === 'PENDING') {
-                            canConfirm = true;
-                            canComplete = true;
-                          } else {
-                            if (selectedAppointment.status === 'CONFIRMED') {
-                              canComplete = true;
-                            } else {
-                              canComplete = false;
-                            }
-                          }
-                          return (
-                            <div className="flex items-center gap-2">
-                              {canConfirm && (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  onClick={async () => {
-                                    try {
-                                      await api.confirmAppointment(selectedAppointment.id);
-                                      toast.success('Agendamento confirmado.');
-                                      setSelectedAppointment(null);
-                                      void fetchAppointmentsData();
-                                      void fetchScheduleSlotsData();
-                                    } catch {
-                                      toast.error('Erro ao confirmar agendamento.');
-                                    }
-                                  }}
-                                  className="rounded-xl border-emerald-400 dark:border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40 text-xs font-semibold gap-1.5"
-                                  title="Confirmar Agendamento — Valida o agendamento e reserva a vaga (status CONFIRMADO)"
-                                >
-                                  <Check className="w-4 h-4" />
-                                  Confirmar Agendamento
-                                </Button>
-                              )}
-                              {canComplete && (
-                                <Button
-                                  type="button"
-                                  onClick={async () => {
-                                    try {
-                                      const withdrawal = await api.completeAppointment(selectedAppointment.id);
-                                      setReceipt(withdrawal);
-                                      toast.success('Agendamento concluído com sucesso!');
-                                      setSelectedAppointment(null);
-                                      void fetchAppointmentsData();
-                                      void fetchScheduleSlotsData();
-                                      void fetchMedicinesData();
-                                      void fetchBatchesData();
-                                    } catch {
-                                      toast.error('Erro ao concluir agendamento.');
-                                    }
-                                  }}
-                                  className="bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-xs font-semibold gap-1.5"
-                                  title="Concluir Agendamento — Efetiva o atendimento e a dispensação (status CONCLUIDO)"
-                                >
-                                  <CircleCheckBig className="w-4 h-4" />
-                                  Concluir Agendamento
-                                </Button>
-                              )}
-                            </div>
-                          );
-                        }
-                      }
-                      return null;
-                    })()}
-                  </DialogFooter>
-                </div>
-              );
-            }
-            return null;
-          })()}
-        </DialogContent>
-      </Dialog>
+      {/* modal de detalhe do agendamento selecionado, compartilhado
+          com a aba /calendar. acoes de status pra equipe nao-medico. */}
+      <AppointmentDetailsModal
+        appointment={selectedAppointment}
+        onOpenChange={(open) => { if (!open) setSelectedAppointment(null); }}
+        onComplete={(withdrawal) => setReceipt(withdrawal as (Appointment & { allocatedItems?: Array<{ batchNumber: string }> }))}
+      />
 
       {/* modal padrao de criacao (nao-medico). o medico usa o
           doctorappointmentmodal la em cima. */}
@@ -1580,10 +1388,13 @@ export function AppointmentsPage() {
         if (!isMedico) {
           return (
             <Dialog open={modalOpen} onOpenChange={(open) => {
-              if (open) setFormErrors({});
+              if (open) {
+                setFormErrors({});
+                setFormError('');
+              }
               setModalOpen(open);
             }}>
-              <DialogContent className="sm:max-w-125 rounded-3xl">
+              <DialogContent className="sm:max-w-xl rounded-3xl">
                 <DialogHeader>
                   <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
                     <Calendar className="w-5 h-5 text-emerald-600" />
@@ -1596,6 +1407,7 @@ export function AppointmentsPage() {
                   </DialogDescription>
                 </DialogHeader>
                 <form onSubmit={handleSubmit} noValidate className="space-y-4 py-2">
+                  <FormError message={formError} />
                   {(() => {
                     if (!isPatient) {
                       return (
@@ -1749,17 +1561,17 @@ export function AppointmentsPage() {
                         }}
                         disabled={!form.scheduledDate}
                       >
-                        <SelectTrigger id="appointment-form-slotId" aria-invalid={!!formErrors.slotId} aria-describedby={formErrors.slotId ? 'appointment-form-slot-error' : undefined} className="rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
-                          <SelectValue placeholder={form.scheduledDate ? 'Selecione um horário' : 'Escolha a data primeiro'} />
+                        <SelectTrigger id="appointment-form-slotId" aria-invalid={!!formErrors.slotId} aria-describedby={formErrors.slotId ? 'appointment-form-slot-error' : undefined} className="w-full min-w-0 overflow-hidden text-left rounded-xl bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-xs">
+                          <SelectValue className="truncate" placeholder={form.scheduledDate ? 'Selecione um horário' : 'Escolha a data primeiro'} />
                         </SelectTrigger>
                         <SelectContent>
                           {availableSlotsForDate.map((slot) => {
                             const booked = slot._count?.appointments ?? 0;
                             const free = Math.max(0, slot.maxCapacity - booked);
-                            const pharmacist = slot.assignedTo?.name ?? 'Não informado';
+                            const pharmacist = formatProfessionalName(slot.assignedTo?.name);
                             return (
                               <SelectItem key={slot.id} value={String(slot.id)} disabled={free === 0}>
-                                {slot.timeSlot} — ({free}/{slot.maxCapacity} vagas livres) — Farm. {pharmacist}
+                                {slot.timeSlot} — ({free}/{slot.maxCapacity} vagas) — {pharmacist}
                               </SelectItem>
                             );
                           })}

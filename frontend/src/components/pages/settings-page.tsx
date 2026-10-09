@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { toast } from '@/lib/toast-handler';
 import {
   Settings, UserRound, Lock, Save, Eye, EyeOff, Loader2,
@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { FieldError } from '@/components/ui/field-error';
+import { FormError } from '@/components/ui/form-error';
 
 // pagina de configuracoes do usuario. cobre duas areas:
 // - dados de contato (email, telefone, endereco)
@@ -45,7 +46,7 @@ export function SettingsPage() {
       initialEmail = user.email;
     }
   }
-  const [email, setEmail] = useState(user?.email ?? initialEmail);
+  const [email, setEmail] = useState(() => user?.email ?? initialEmail);
 
   // telefone inicial puxado do usuario.
   let initialPhone = '';
@@ -54,24 +55,21 @@ export function SettingsPage() {
       initialPhone = user.phone;
     }
   }
-  const [phone, setPhone] = useState(maskPhone(user?.phone ?? initialPhone));
+  const [phone, setPhone] = useState(() => maskPhone(user?.phone ?? initialPhone));
 
-  const [address, setAddress] = useState(user?.patient?.address ?? user?.address ?? '');
-  const [name, setName] = useState(user?.name ?? '');
+  const [address, setAddress] = useState(() => user?.patient?.address ?? user?.address ?? '');
+  const [name, setName] = useState(() => user?.name ?? '');
   const [savingProfile, setSavingProfile] = useState(false);
-
-  useEffect(() => {
-    setEmail(user?.email ?? '');
-    setPhone(maskPhone(user?.phone ?? ''));
-    setAddress(user?.patient?.address ?? user?.address ?? '');
-    setName(user?.name ?? '');
-  }, [user?.id, user?.email, user?.phone, user?.patient?.address, user?.address, user?.name]);
+  // erro global do form de perfil. fica fixo no topo do formulario.
+  const [profileError, setProfileError] = useState('');
 
   // campos de senha. os toggles controlam mostrar/ocultar.
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [passwordErrors, setPasswordErrors] = useState<{ currentPassword?: string; newPassword?: string; confirmPassword?: string }>({});
+  // erro global do form de senha (ex: senha atual incorreta).
+  const [passwordError, setPasswordError] = useState('');
   const [showCurrentPw, setShowCurrentPw] = useState(false);
   const [showNewPw, setShowNewPw] = useState(false);
   const [savingPassword, setSavingPassword] = useState(false);
@@ -82,13 +80,14 @@ export function SettingsPage() {
     if (!user) return;
     if (!user.id) return;
 
+    setProfileError('');
     setSavingProfile(true);
     try {
       const result = await api.updateProfile({ name, email, phone, address });
       setAuth(token ?? '', result.user);
       toast.success('Perfil atualizado com sucesso!');
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao atualizar perfil.');
+      setProfileError(err instanceof Error && err.message ? err.message : 'Erro ao atualizar perfil.');
     } finally {
       setSavingProfile(false);
     }
@@ -99,6 +98,7 @@ export function SettingsPage() {
   // e conferida pelo backend.
   const handleSavePassword = async (e: React.FormEvent) => {
     e.preventDefault();
+    setPasswordError('');
     const nextErrors: typeof passwordErrors = {};
     if (!currentPassword) {
       nextErrors.currentPassword = 'Informe a senha atual.';
@@ -135,7 +135,7 @@ export function SettingsPage() {
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao alterar senha. Verifique a senha atual.');
+      setPasswordError(err instanceof Error && err.message ? err.message : 'Erro ao alterar senha. Verifique a senha atual.');
     } finally {
       setSavingPassword(false);
     }
@@ -258,6 +258,7 @@ export function SettingsPage() {
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleSaveProfile} className="space-y-4">
+                      <FormError message={profileError} />
                       {/* nome editavel */}
                       <div className="space-y-1.5">
                         <Label htmlFor="password-currentPassword" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
@@ -278,15 +279,23 @@ export function SettingsPage() {
                         </Label>
                         <Input
                           value={(() => {
-                            let identifier: string | number = '—';
-                            if (user) {
-                              if ('registerDoc' in user && (typeof user.registerDoc === 'string' || typeof user.registerDoc === 'number')) {
-                                identifier = user.registerDoc;
-                              } else if (typeof user.patientId === 'string' || typeof user.patientId === 'number') {
-                                identifier = user.patientId;
-                              }
+                            // resolve o documento real do usuario logado
+                            // conforme o papel: paciente usa o cpf do
+                            // cadastro vinculado (fallback: registerDoc);
+                            // os demais usam o registerDoc (crf/crm/ra).
+                            // ids internos do banco (id/patientId) nunca
+                            // sao exibidos aqui.
+                            if (!user) {
+                              return '—';
                             }
-                            const value = String(identifier);
+                            let doc = user.registerDoc ?? '';
+                            if (user.role === 'PACIENTE') {
+                              doc = user.patient?.cpf || doc;
+                            }
+                            const value = String(doc).trim();
+                            if (!value) {
+                              return '—';
+                            }
                             return onlyDigits(value).length === 11 ? maskCPF(value) : value;
                           })()}
                           disabled
@@ -368,6 +377,7 @@ export function SettingsPage() {
                   </CardHeader>
                   <CardContent>
                     <form onSubmit={handleSavePassword} className="space-y-4">
+                      <FormError message={passwordError} />
                       {/* senha atual com toggle de visibilidade */}
                       <div className="space-y-1.5">
                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">

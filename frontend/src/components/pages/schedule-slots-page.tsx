@@ -21,6 +21,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { StandardCalendar } from '@/components/shared/standard-calendar';
 import { FieldError } from '@/components/ui/field-error';
+import { FormError } from '@/components/ui/form-error';
 
 // horarios fixos disponiveis na escala. o select do modal usa essa
 // lista pra evitar que o operador digite horario fora do padrao.
@@ -47,6 +48,8 @@ export function ScheduleSlotsPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ date: '', timeSlot: '09:00', maxCapacity: 4, assignedToId: 0 });
   const [fieldErrors, setFieldErrors] = useState<{ date?: string; timeSlot?: string; maxCapacity?: string }>({});
+  // erro global do modal (ex: horario ja existente na escala).
+  const [formError, setFormError] = useState('');
 
   // callback do calendario quando o mes visivel muda. recarrega os
   // slots com o filtro de periodo correspondente, pra nao trazer
@@ -118,6 +121,7 @@ export function ScheduleSlotsPage() {
       maxCapacity: 4,
       assignedToId: responsibleId,
     });
+    setFormError('');
     setModalOpen(true);
   };
 
@@ -134,12 +138,14 @@ export function ScheduleSlotsPage() {
       maxCapacity: slot.maxCapacity,
       assignedToId: responsibleId,
     });
+    setFormError('');
     setModalOpen(true);
   };
 
   // submit do modal. em edicao, data/horario ficam travados; em
   // criacao, manda todos os campos obrigatorios.
   const handleSave = async () => {
+    setFormError('');
     const nextErrors: typeof fieldErrors = {};
     if (!editSlot && !form.date) nextErrors.date = 'Selecione a data da escala.';
     if (!editSlot && !form.timeSlot) nextErrors.timeSlot = 'Selecione o horário.';
@@ -173,7 +179,7 @@ export function ScheduleSlotsPage() {
       setModalOpen(false);
       fetchScheduleSlotsData();
     } catch (err: unknown) {
-      toast.error(err instanceof Error ? err.message : 'Erro ao salvar horário.');
+      setFormError(err instanceof Error && err.message ? err.message : 'Erro ao salvar horário.');
     } finally {
       setSaving(false);
     }
@@ -377,6 +383,7 @@ export function ScheduleSlotsPage() {
                   </DialogDescription>
                 </DialogHeader>
                 <div className="space-y-4 pt-1">
+                  <FormError message={formError} />
                   {/* select de farmaceutico responsavel. em edicao,
                       fica desabilitado porque o endpoint de update
                       nao aceita troca de responsavel por aqui. */}

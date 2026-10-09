@@ -21,6 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { FormError } from '@/components/ui/form-error';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { FieldError } from '@/components/ui/field-error';
@@ -54,6 +55,9 @@ export function StockManagementPage() {
     supplier: '',
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  // erro global dos dialogs (criar/editar/bloquear/ajustar). fica fixo
+  // no topo do formulario ate o usuario corrigir ou tentar de novo.
+  const [formError, setFormError] = useState('');
   const [batchSearch, setBatchSearch] = useState('');
   const [batchStatusFilter, setBatchStatusFilter] = useState<string>('all');
   const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
@@ -298,6 +302,7 @@ export function StockManagementPage() {
       return;
     }
     setFieldErrors({});
+    setFormError('');
     try {
       // chamamos o cliente http (/lib/api) pra criar o lote. o
       // backend tambem registra a movimentacao de entrada.
@@ -322,7 +327,7 @@ export function StockManagementPage() {
           errorMsg = error.error;
         }
       }
-      toast.error(errorMsg);
+      setFormError(errorMsg);
     }
   };
 
@@ -330,6 +335,7 @@ export function StockManagementPage() {
   // quando ja existe um (caso de desbloqueio).
   const openBlockDialog = (batch: Batch) => {
     setFieldErrors((current) => ({ ...current, blockReason: '' }));
+    setFormError('');
     setBatchToBlock(batch);
     let reason = '';
     if (batch.blockReason) {
@@ -360,6 +366,7 @@ export function StockManagementPage() {
       }
     }
     setFieldErrors((current) => ({ ...current, blockReason: '' }));
+    setFormError('');
     setBlockLoading(true);
     try {
       let reasonToSend: string | null = null;
@@ -391,7 +398,7 @@ export function StockManagementPage() {
           errorMsg = error.error;
         }
       }
-      toast.error(errorMsg);
+      setFormError(errorMsg);
     } finally {
       setBlockLoading(false);
     }
@@ -400,6 +407,7 @@ export function StockManagementPage() {
   // abre o dialog de ajuste auditado, com o saldo atual preenchido.
   const openAdjustDialog = (batch: Batch) => {
     setFieldErrors((current) => ({ ...current, adjustQuantity: '', adjustReason: '' }));
+    setFormError('');
     setBatchToAdjust(batch);
     setAdjustNewQuantity(batch.currentQuantity);
     setAdjustReason('');
@@ -422,6 +430,7 @@ export function StockManagementPage() {
       return;
     }
     setFieldErrors((current) => ({ ...current, adjustQuantity: '', adjustReason: '' }));
+    setFormError('');
     setAdjustLoading(true);
     try {
       // chamamos o cliente http (/lib/api) pra aplicar o ajuste
@@ -444,7 +453,7 @@ export function StockManagementPage() {
           errorMsg = error.error;
         }
       }
-      toast.error(errorMsg);
+      setFormError(errorMsg);
     } finally {
       setAdjustLoading(false);
     }
@@ -453,6 +462,7 @@ export function StockManagementPage() {
   // abre o dialog de edicao, pre-preenchendo com os dados do lote.
   const openEditDialog = (batch: Batch) => {
     setSelectedBatch(batch);
+    setFormError('');
     setEditForm({
       batchNumber: batch.batchNumber,
       currentQuantity: batch.currentQuantity,
@@ -466,6 +476,7 @@ export function StockManagementPage() {
   const handleEdit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedBatch) return;
+    setFormError('');
     setEditLoading(true);
     try {
       // chamamos o cliente http (/lib/api) pra aplicar a edicao.
@@ -483,7 +494,7 @@ export function StockManagementPage() {
           errorMsg = error.error;
         }
       }
-      toast.error(errorMsg);
+      setFormError(errorMsg);
     } finally {
       setEditLoading(false);
     }
@@ -822,7 +833,7 @@ export function StockManagementPage() {
       />
 
       {/* modal de entrada de novo lote */}
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+      <Dialog open={createOpen} onOpenChange={(open) => { if (open) setFormError(''); setCreateOpen(open); }}>
         <DialogContent className="sm:max-w-lg rounded-3xl">
           <DialogHeader>
             <DialogTitle className="text-xl font-bold flex items-center gap-2 text-slate-900 dark:text-slate-100">
@@ -835,6 +846,7 @@ export function StockManagementPage() {
           </DialogHeader>
 
           <form onSubmit={handleSubmit} noValidate className="space-y-4 pt-1">
+            <FormError message={formError} />
             {/* select de medicamento. lista todos os medicamentos ativos. */}
             <div>
               <Label htmlFor="stock-medicineId" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
@@ -1003,7 +1015,7 @@ export function StockManagementPage() {
         })()}
         onOpenChange={() => setSelectedBatch(null)}
       >
-        <DialogContent className="rounded-2xl sm:max-w-2xl max-h-[85vh] overflow-y-auto">
+        <DialogContent className="rounded-2xl sm:max-w-2xl max-h-[85vh] overflow-x-hidden overflow-y-auto overscroll-contain dialog-scroll">
           <DialogHeader>
             <div className="flex items-center justify-between">
               <DialogTitle className="flex items-center gap-2">
@@ -1153,7 +1165,7 @@ export function StockManagementPage() {
                         );
                       }
                       return (
-                        <div className="space-y-2 max-h-48 overflow-y-auto">
+                        <div className="space-y-2 max-h-48 overflow-x-hidden overflow-y-auto overscroll-contain dialog-scroll">
                           {batchHistory.map((item, idx) => {
                             // cor do badge muda conforme o tipo do movimento.
                             let badgeClass = 'text-amber-600 border-amber-200';
@@ -1202,6 +1214,7 @@ export function StockManagementPage() {
             <DialogDescription>Atualize os dados do lote cadastrado.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleEdit} className="space-y-4 pt-1">
+            <FormError message={formError} />
             <div>
                         <Label htmlFor="stock-blockReason" className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Número do Lote
@@ -1295,6 +1308,7 @@ export function StockManagementPage() {
           </DialogHeader>
 
           <form onSubmit={handleBlockConfirm} className="space-y-4 pt-1">
+            <FormError message={formError} />
             {/* motivo so aparece no caso de bloqueio (nao no desbloqueio) */}
             {(() => {
               if (batchToBlock) {
@@ -1377,6 +1391,7 @@ export function StockManagementPage() {
           </DialogHeader>
 
           <form onSubmit={handleAdjustConfirm} className="space-y-4 pt-1">
+            <FormError message={formError} />
             <div>
               <Label className="mb-1 text-xs font-semibold text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/50 px-2 py-0.5 rounded-md inline-block">
                 Nova Quantidade em Estoque *

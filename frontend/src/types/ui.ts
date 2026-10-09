@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 // item de aba da barra de abas (tabbar).
 // o icon e opcional (quando nao vem, a aba so mostra o label)
 // e o badge tambem (usado pra contagem, tipo "5" do lado do nome).
-interface TabItem {
+export interface TabItem {
   id: string;
   label: string;
   icon?: LucideIcon;

@@ -277,6 +277,26 @@
   background-color: oklch(0.75 0 0 / 45%);
 }
 
+/* rolagem discreta dos modais (Dialog/AlertDialog).
+   largura de 4px, thumb translucido que so aparece durante a
+   rolagem; horizontal totalmente bloqueada e gutter estavel
+   pra nao dar layout shift ao abrir/fechar a barra. */
+.dialog-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
+  scrollbar-gutter: stable;
+}
+.dialog-scroll::-webkit-scrollbar { width: 4px; height: 0; }
+.dialog-scroll::-webkit-scrollbar-track { background: transparent; }
+.dialog-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in oklch, var(--muted-foreground) 30%, transparent);
+  border-radius: 999px;
+}
+.dialog-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+}
+.dialog-scroll::-webkit-scrollbar-horizontal { display: none; }
+
 /* texto com gradiente esmeralda. usado em titulos de destaque. */
 
 .gradient-text-emerald {

@@ -40,6 +40,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { FormError } from '@/components/ui/form-error';
 import {
   Dialog,
   DialogContent,
@@ -152,6 +153,9 @@ export function AdminPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form, setForm] = useState<UserFormData>(initialFormData);
   const [fieldErrors, setFieldErrors] = useState<{ name?: string; email?: string; password?: string }>({});
+  // erro global do modal (ex: e-mail ja cadastrado). fica fixo no topo
+  // do formulario ate o usuario corrigir ou tentar salvar de novo.
+  const [formError, setFormError] = useState('');
   const [changePassword, setChangePassword] = useState(false);
 
   // estados do modal de confirmacao de exclusao.
@@ -182,6 +186,7 @@ export function AdminPage() {
   const handleOpenCreate = () => {
     setEditingUser(null);
     setFieldErrors({});
+    setFormError('');
 
     let defaultRole = 'FARMACEUTICO';
     if (!isCurrentAdmin) {
@@ -204,6 +209,7 @@ export function AdminPage() {
     }
 
     setFieldErrors({});
+    setFormError('');
     setEditingUser(u);
 
     // resolve birthdate: prioriza o campo do usuario, cai pro do
@@ -342,6 +348,7 @@ export function AdminPage() {
   // nao sujar o payload). so a senha muda quando o toggle esta ligado.
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    setFormError('');
     const nextErrors: typeof fieldErrors = {};
     if (!form.name.trim()) {
       nextErrors.name = 'Informe o nome completo.';
@@ -451,8 +458,14 @@ export function AdminPage() {
 
       setModalOpen(false);
       setEditingUser(null);
-    } catch {
-      // erro tratado pelo hook (toast ja e mostrado la).
+    } catch (err: unknown) {
+      // o hook ja mostra toast; aqui tambem fixamos a mensagem no
+      // topo do modal (banner) pra nao depender do toast transitorio.
+      let errorMsg = 'Erro ao salvar usuário.';
+      if (err instanceof Error && err.message) {
+        errorMsg = err.message;
+      }
+      setFormError(errorMsg);
     }
   };
 
@@ -973,7 +986,7 @@ export function AdminPage() {
           completos da app, com varios campos condicionais que mudam
           conforme o papel selecionado e o modo (create vs edit). */}
       <Dialog open={modalOpen} onOpenChange={setModalOpen}>
-        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto rounded-3xl p-6">
+        <DialogContent className="sm:max-w-2xl max-h-[85vh] overflow-x-hidden overflow-y-auto overscroll-contain dialog-scroll rounded-3xl p-6">
           <DialogHeader>
             <div className="flex items-center gap-2.5">
               <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 border border-emerald-100 dark:border-emerald-900">
@@ -1001,6 +1014,7 @@ export function AdminPage() {
           </DialogHeader>
 
           <form onSubmit={handleSave} noValidate className="space-y-4 pt-2">
+            <FormError message={formError} />
             {/* grid 1: nome completo e email */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>

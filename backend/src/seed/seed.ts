@@ -144,7 +144,7 @@ async function main() {
   });
 
   const pacUser = await prisma.user.create({
-    data: { name: 'João Silva', email: 'joao@email.com', password: pacPass, role: Role.PACIENTE, active: true },
+    data: { name: 'João Silva', email: 'joao@email.com', password: pacPass, role: Role.PACIENTE, active: true, registerDoc: '123.456.789-00' },
   });
 
   // tres pacientes no seed. so o joao tem usuario de login vinculado,
